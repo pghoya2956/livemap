@@ -29,6 +29,12 @@ npx --no livemap init                 # map/ 초안·.gitignore·npm 스크립�
 
 명령은 프로젝트 루트에서 부른다. CI에서는 npm 스크립트나 `npx --no livemap`을 쓴다.
 
+`npx`로 부를 때 엔진 옵션은 `--` 뒤에 둔다. `npx --no livemap --version`은 `--version`을 npx가 가져가 npm 버전을 출력한다. `npx --no livemap -- --version` 또는 `node_modules/.bin/livemap --version`을 쓴다.
+
+## 로컬 엔진 끼워 보기
+
+엔진 저장소에서 고친 판을 쓰는 프로젝트에서 확인할 때는 `npm install --no-save --install-links <엔진 저장소 경로>`를 쓴다. `package.json`·lockfile은 바뀌지 않고, `npm ci`가 끼운 판을 걷어낸다. `--install-links` 없이 폴더를 설치하면 심링크가 되어 화면 예산 설정이 `@playwright/test`를 엔진 저장소 쪽에서 찾다 실패한다.
+
 ## 설정
 
 `map/config.json` 하나가 프로젝트별이다. 참조 어댑터는 React Router + Node BFF + SQL migration + Markdown 작업 문서 관례를 읽는다. 스택이 다르면 `map/adapters/<이름>.mjs`에 프로젝트 어댑터를 둔다.
