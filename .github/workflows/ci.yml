@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx --no playwright install --with-deps chromium
+      - name: unit tests
+        run: node --test test/*.test.mjs
+      - name: tarball smoke
+        run: scripts/smoke.sh
+      - name: pack contents
+        run: scripts/pack-contents.sh
+      - name: leak scan
+        run: scripts/leak-scan.sh

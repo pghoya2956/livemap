@@ -1,0 +1,90 @@
+// 어댑터 단위 검사: 작은 고정 저장소(fixtures/mini)에 대해 기대한 노드·엣지·검증 결과가 나오는지 본다.
+// 스캐너 정규식이 깨지면 여기서 먼저 실패한다(빈 표를 "없음"으로 오해하지 않기 위한 첫 방어선).
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildGraph } from '../src/cli.mjs';
+import { check } from '../src/check.mjs';
+import { overviewSlice } from '../src/derive.mjs';
+
+const MINI = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/mini');
+const { g, data, cfg } = await buildGraph(MINI);
+
+test('router: 라우트 2개, 출처 분류, 레이아웃·catch-all 제외, 이름 붙은 가드(adminGuard)도 가드로 읽음', () => {
+  const s = g.of('screen').map((x) => [x.id, x.props.source, x.props.guarded]);
+  assert.deepEqual(s, [['/live', 'live', false], ['/mocked', 'mock', true]]);
+  assert.equal(g.get('screen', '/live').src.file, 'web/src/App.tsx');
+});
+
+test('bff: API 3개(분기 2·라우트 목록 1), rpc·rpcCall·auth 호출 분리, 블록 경계가 새지 않음', () => {
+  const a = Object.fromEntries(g.of('api').map((x) => [x.id, x.props.calls]));
+  assert.deepEqual(a, { '/api/resorts': ['list_resorts'], '/api/login': ['auth:token'], '/api/items/:id': ['get_item'] });
+  assert.deepEqual(g.out('api', '/api/resorts', 'invokes').map((n) => n.id), ['list_resorts']);
+});
+
+test('migrations: 테이블·함수·RLS, 함수→테이블 touches', () => {
+  assert.deepEqual(g.of('table').map((t) => t.id), ['app.resorts']);
+  assert.deepEqual(g.out('function', 'list_resorts', 'touches').map((t) => t.id), ['app.resorts']);
+  assert.equal(g.of('migration')[0].props.rls, 1);
+  assert.equal(g.of('migration')[0].props.grants, 1);
+});
+
+test('tests: API 문자열과 rpc 호출로 covers 엣지', () => {
+  assert.deepEqual(g.out('test', 'tests/api.test.mjs', 'covers').map((n) => n.kind + ':' + n.id).sort(), ['api:/api/resorts', 'function:list_resorts']);
+});
+
+test('tasks: 단계·상태·DEC·PN·OQ, 장부 행', () => {
+  const t = g.get('task', '20260101-sample').props;
+  assert.equal(t.stage, '계획');
+  assert.equal(t.status, '진행');
+  assert.deepEqual([t.dec, t.pnDone, t.pnOpen, t.oq], [1, 1, 1, 1]);
+  assert.equal(g.of('ledger').filter((l) => l.props.state === 'running').length, 1);
+  assert.equal(g.in('decision', 'DEC-01', 'defines')[0].id, '20260101-sample');
+});
+
+test('wiki: 결정 노드와 상태', () => {
+  assert.equal(g.get('decision', 'sample').props.status, 'current');
+});
+
+test('git·deploy: 저장소가 아니면 partial로 보고하고 생성은 계속된다', () => {
+  const st = Object.fromEntries(data.adapters.map((a) => [a.name, a.status]));
+  assert.equal(st.router, 'ok');
+  assert.notEqual(st.git, 'failed');
+  assert.notEqual(st.deploy, 'failed');
+});
+
+test('derive: 장면 해석·등급·참조·경고', () => {
+  const [s1, s2, s3] = data.semantic.journeys[0].steps;
+  assert.equal(s1.grade, 'B');
+  assert.deepEqual(s1.refNodes.map((r) => r.task || (r.wiki && 'wiki') || null), ['20260101-sample', '20260101-sample', 'wiki']);
+  assert.equal(s2.grade, null);
+  assert.deepEqual(s3.warnings, ['라우트 없음: /nope']);
+  assert.equal(data.semantic.journeys[0].status, 'partial');
+});
+
+test('router: 코드 고정 표시값은 출처 분류를 바꾸지 않고 따로 센다', () => {
+  assert.equal(g.get('screen', '/live').props.source, 'live');
+  assert.deepEqual(g.get('screen', '/live').props.fixedVia, ['pages/Live.tsx']);
+  assert.equal(data.summary.fixedRoutes, 1);
+});
+
+test('roadmap: 순서·속성·장면 진척, 없는 장면·작업·선행·상태 어휘는 오류', () => {
+  const [first, second] = data.roadmap;
+  assert.deepEqual([first.id, first.order, first.status, first.mode, first.goal, first.waitingOn], ['first', 1, '진행', '계획', '첫 목표 문장.', '고를 것']);
+  assert.deepEqual(first.tasks.map((x) => x.name), ['20260101-sample']);
+  assert.deepEqual(first.progress, { live: 1, total: 2, fixed: 1 });
+  assert.deepEqual(first.problems, []);
+  assert.deepEqual(second.problems, ['장면 없음: j1/zz', '작업 폴더 없음: 20269999-none', '선행 항목 없음: ghost', '알 수 없는 상태: 모름']);
+  const errors = check(data, cfg).filter((p) => p.level === 'error' && /^로드맵/.test(p.msg));
+  assert.equal(errors.length, 4);
+  assert.equal(overviewSlice(data).roadmap.length, 2);
+});
+
+test('check: 라우트 없음은 오류, 고아는 경고, 바닥값 미달은 오류', () => {
+  const problems = check(data, cfg);
+  assert.ok(problems.some((p) => p.level === 'error' && /라우트 없음/.test(p.msg)));
+  assert.ok(problems.some((p) => p.level === 'warn' && /부르지 않는 API/.test(p.msg)));
+  const strict = check(data, { ...cfg, floors: { screen: 99 } });
+  assert.ok(strict.some((p) => p.level === 'error' && /바닥값 미달 screen/.test(p.msg)));
+});

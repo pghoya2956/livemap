@@ -1,0 +1,19 @@
+{
+  "name": "@pghoya2956/livemap",
+  "version": "1.0.0",
+  "description": "Project status board engine: scans a repository into a graph and serves a one-screen map of journeys, screens, APIs, tests and work.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "livemap": "bin/livemap.mjs" },
+  "files": ["bin/", "src/", "site/", "budget/", "templates/", "docs/", "CHANGELOG.md"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": { "@playwright/test": ">=1.63.0 <2" },
+  "peerDependenciesMeta": { "@playwright/test": { "optional": true } },
+  "devDependencies": { "@playwright/test": "1.63.0" },
+  "repository": { "type": "git", "url": "git+https://github.com/pghoya2956/livemap.git" },
+  "homepage": "https://github.com/pghoya2956/livemap#readme",
+  "publishConfig": { "access": "public" }
+}

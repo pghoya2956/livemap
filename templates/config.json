@@ -1,0 +1,18 @@
+{
+  "engine": 1,
+  "project": { "name": "프로젝트 이름", "host": "https://example.invalid" },
+  "adapters": ["router", "bff", "migrations", "tests", "wiki", "tasks", "roadmap", "git", "deploy", "testreport"],
+  "router": { "app": "web/src/App.tsx", "pagesDir": "web/src/pages", "localDirs": ["web/src/pages", "web/src/components"], "mockPattern": "/mock'", "fixedPattern": "/content/", "livePattern": "lib/queries", "hookApi": { "Session": "/api/session" } },
+  "bff": { "server": "app/server.mjs" },
+  "migrations": { "dir": "supabase/migrations" },
+  "tests": { "dir": "tests", "gatePattern": "ALLOW_DESTRUCTIVE", "report": "map/.out/junit.xml" },
+  "tasks": { "dir": "tasks", "index": "tasks/index.md" },
+  "roadmap": { "file": "tasks/roadmap.md" },
+  "wiki": { "index": ".agent/wiki/index.md", "sources": ".agent/wiki/sources.yaml" },
+  "git": { "branch": "main", "sinceDays": 14, "areas": [["web/", "화면"], ["app/", "서버"], ["supabase/", "DB"], ["tests/", "검사"], ["deploy/", "배포"], [".github/", "배포"], ["map/", "상황판"], ["tasks/", "문서"], [".md", "문서"]], "runtimePaths": ["web", "app", "supabase", "Dockerfile", "package.json"] },
+  "deploy": { "manifest": "deploy/k8s/app.yaml", "imagePattern": "image: ghcr\\.io/[^:]+:([0-9a-f]{40})" },
+  "semantic": "map/semantic/journeys.json",
+  "captures": { "site": "map/captures" },
+  "floors": { "screen": 1, "api": 1 },
+  "budget": { "viewport": [1440, 900], "maxPanels": 8, "maxRowsPerPanel": 6, "navItems": 5 }
+}

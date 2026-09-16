@@ -1,0 +1,15 @@
+{
+  "project": { "name": "프로젝트 이름", "tagline": "한 줄 설명", "host": "https://example.invalid" },
+  "actors": { "user": "사용자", "staff": "운영자" },
+  "statusLegend": { "live": "실데이터로 동작", "mock": "화면만(목업 데이터)", "planned": "미착수(스펙 있음)", "next": "다음 스펙" },
+  "journeys": [
+    {
+      "id": "first", "title": "첫 여정(예시, 바꿔 쓴다)", "actor": "user", "lane": "사용자 여정",
+      "goal": "배우가 이루려는 목표 한 문장",
+      "steps": [
+        { "id": "start", "label": "첫 장면", "intent": "사용자가 원해서 하는 일", "status": "mock", "screens": ["/"], "capture": null, "refs": [], "reviewedAt": "2026-01-01" }
+      ]
+    }
+  ],
+  "captures": { "dir": "map/captures", "note": "장면 캡처(JPEG 720px). 화면이 바뀌면 같은 이름으로 다시 만든다." }
+}

@@ -1,0 +1,8 @@
+{ "project": { "name": "Mini", "host": "https://mini.local" }, "actors": { "u": "사용자" }, "statusLegend": {},
+  "journeys": [
+    { "id": "j1", "title": "여정 하나", "actor": "u", "lane": "L", "goal": "g", "steps": [
+      { "id": "s1", "label": "동작 장면", "status": "live", "screens": ["/live"], "refs": ["DEC-01", "PN-02", "sample"] },
+      { "id": "s2", "label": "목업 장면", "status": "mock", "screens": ["/mocked"] },
+      { "id": "s3", "label": "없는 라우트", "status": "planned", "screens": ["/nope"] }
+    ] }
+  ] }
