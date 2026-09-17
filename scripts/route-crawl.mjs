@@ -428,7 +428,9 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
       } else if (x.filtersRowsByKind) checks.filtersRowsByKind = false;
     }
     if (x.syncsSelection) {
-      const cands = (await syncCandidates(page, t.selector, x.syncsSelection)).filter((c) => !c.selected);
+      // 선택되지 않은 요소를 먼저 누른다. 기능이 하나뿐이라 모두 이미 선택돼 있으면 그 요소를 다시 눌러 동기가 유지되는지 본다.
+      const pickable = (cs) => (cs.some((c) => !c.selected) ? cs.filter((c) => !c.selected) : cs);
+      const cands = pickable(await syncCandidates(page, t.selector, x.syncsSelection));
       out.syncCandidates = cands.length;
       if (!cands.length) { checks.syncsSelection = false; out.reason = '동기 목록에 이름이 있는 선택 가능 요소 없음'; }
       else {
@@ -439,7 +441,7 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
         checks.syncsSelection = syncOk(st);
         for (const key of x.keys || []) {
           await reloadOverview(page, base);
-          const kc = (await syncCandidates(page, t.selector, x.syncsSelection)).filter((z) => !z.selected);
+          const kc = pickable(await syncCandidates(page, t.selector, x.syncsSelection));
           const z = kc[0];
           if (!z) { checks[`key ${JSON.stringify(key)}`] = false; continue; }
           await loc(z.i).focus(); await page.keyboard.press(key === ' ' ? 'Space' : key); await quiet(page);
