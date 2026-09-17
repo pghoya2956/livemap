@@ -1,5 +1,7 @@
 import React from 'react';
 import { SignalsPanel } from '@pghoya2956/livemap-ui';
-import { data } from '../sample/monitor';
+import { data, quietSignals } from '../sample/monitor';
 
-export const Default = () => (<div className="col" style={{ width: 420, height: 520, display: 'grid' }}><SignalsPanel roadmap={data.roadmap} journeys={data.journeys} activity={data.activity} changes={data.changes as any} refIso={data.generatedAt} at="17:30 기준" /></div>);
+const box = { width: 300, height: 290, display: 'grid' } as const;
+export const Default = () => (<div className="col" style={box}><SignalsPanel roadmapItems={data.roadmapItems} milestones={data.milestones} signals={data.signals} generatedAt={data.generatedAt} at="17:30 기준" /></div>);
+export const Quiet = () => (<div className="col" style={box}><SignalsPanel roadmapItems={[]} milestones={[]} signals={quietSignals} generatedAt={data.generatedAt} at="17:30 기준" /></div>);

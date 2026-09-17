@@ -2,4 +2,6 @@ import React from 'react';
 import { ProgressPanel } from '@pghoya2956/livemap-ui';
 import { data } from '../sample/monitor';
 
-export const Default = () => (<div style={{ width: 380 }}><ProgressPanel steps={data.steps} total={data.stepsTotal} journeysLive={data.journeysLive} journeysTotal={data.journeysTotal} at="17:30 기준" /></div>);
+const c = data.counts;
+export const AllSteps = () => (<div style={{ width: 380 }}><ProgressPanel steps={c.steps} journeysLive={c.journeysLive} journeysTotal={c.journeys} at="17:30 기준" /></div>);
+export const CurrentMilestone = () => (<div style={{ width: 380 }}><ProgressPanel steps={c.steps} journeysLive={c.journeysLive} journeysTotal={c.journeys} milestone={data.milestones.find((m) => m.id === data.currentMilestone)} at="17:30 기준" /></div>);
