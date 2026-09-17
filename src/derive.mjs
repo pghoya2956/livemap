@@ -1,6 +1,22 @@
 // 파생: 그래프(코드 사실) + 여정 파일(뜻)을 합쳐 화면이 읽는 뷰 모델을 만든다. 화면은 여기서 만든 것만 그린다.
 const ROADMAP_STATUS = ['완료', '진행', '다음', '대기', '이후'];
 const RANK = { live: 0, partial: 1, mixed: 1, mock: 2, planned: 3, next: 4, static: 5 };
+const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+// YYYY-MM-DD 이고 달력에 있는 날짜인가
+export const isDay = (s) => { const m = String(s ?? '').match(DAY); if (!m) return false; const t = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return t.getUTCFullYear() === +m[1] && t.getUTCMonth() === +m[2] - 1 && t.getUTCDate() === +m[3]; };
+
+// 문구 정리: 링크 글자만, 강조·백틱 제거, 공백 정리, n자(코드 포인트) 넘으면 말줄임
+export function plain(text, n) {
+  const s = String(text ?? '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*|`/g, '').replace(/\s+/g, ' ').trim();
+  const cp = [...s];
+  return n && cp.length > n ? cp.slice(0, n - 1).join('') + '…' : s;
+}
+// 결정 대기 "<주체>: <질문>" 나누기. 주체는 콜론 없는 1~20자, 콜론 뒤 공백 필수(URL·시각은 주체가 아니다)
+export function splitWaiting(text) {
+  const t = plain(text);
+  const m = t.match(/^([^:：\s][^:：]{0,19}?)\s*[:：]\s+(.+)$/);
+  return m ? { who: m[1].trim(), what: m[2] } : { who: null, what: t };
+}
 
 export function derive(g, sem, cfg, { captureExists }) {
   const screens = g.of('screen'), apis = g.of('api'), fns = g.of('function'), tests = g.of('test'), commits = g.of('commit').sort((a, b) => b.props.date.localeCompare(a.props.date));
@@ -96,14 +112,55 @@ export function derive(g, sem, cfg, { captureExists }) {
   const stepByRef = Object.fromEntries(journeys.flatMap((j) => j.steps.map((s) => [`${j.id}/${s.id}`, { journey: j.id, step: s.id, label: `${j.title} › ${s.label}`, status: s.status, grade: s.grade, fixed: s.screenNodes.some((n) => (n.fixedVia || []).length) }])));
   const milestones = g.of('milestone').sort((a, b) => a.props.order - b.props.order);
   const milestoneIds = new Set(milestones.map((m) => m.id));
+  const releases = g.of('release').sort((a, b) => a.props.order - b.props.order);
+  const releaseIds = new Set(releases.map((r) => r.id));
   const roadmap = milestones.map((m) => {
     const p = m.props;
     const scenes = p.scenes.map((r) => stepByRef[r] ? { ref: r, ...stepByRef[r] } : { ref: r, missing: true });
     const trackedTasks = p.tasks.map((name) => { const t = taskView.find((x) => x.name === name); return t ? { name, title: t.title, stage: t.stage, status: t.status, pnDone: t.pnDone, pnOpen: t.pnOpen } : { name, missing: true }; });
     const problems = [...scenes.filter((s) => s.missing).map((s) => `장면 없음: ${s.ref}`), ...trackedTasks.filter((t) => t.missing).map((t) => `작업 폴더 없음: ${t.name}`), ...p.deps.filter((d) => !milestoneIds.has(d)).map((d) => `선행 항목 없음: ${d}`)];
     if (!ROADMAP_STATUS.includes(p.status)) problems.push(`알 수 없는 상태: ${p.status || '(비어 있음)'}`);
+    if (p.milestone && !releaseIds.has(p.milestone)) problems.push(`마일스톤 없음 ${p.milestone}`);
     const live = scenes.filter((s) => s.status === 'live').length;
-    return { id: m.id, order: p.order, title: m.label, status: p.status, mode: p.mode, goal: p.goal, waitingOn: p.waitingOn, done: p.done, deps: p.deps.map((d) => ({ id: d, title: milestones.find((x) => x.id === d)?.label || d, status: milestones.find((x) => x.id === d)?.props.status || null })), scenes, tasks: trackedTasks, progress: { live, total: scenes.length, fixed: scenes.filter((s) => s.fixed).length }, problems, src: m.src };
+    const deps = p.deps.map((d) => ({ id: d, title: milestones.find((x) => x.id === d)?.label || d, status: milestones.find((x) => x.id === d)?.props.status || null }));
+    const waiting = splitWaiting(p.waitingOn);
+    // 막힘: 결정 대기(비완료), 선행 미완(진행·다음), 추적 작업 대기
+    const blockedBy = [];
+    if (p.status !== '완료' && p.waitingOn) blockedBy.push('waiting');
+    if (['진행', '다음'].includes(p.status) && deps.some((d) => d.status !== '완료')) blockedBy.push('deps');
+    if (trackedTasks.some((t) => t.status === '대기')) blockedBy.push('task');
+    return { id: m.id, order: p.order, title: m.label, status: p.status, mode: p.mode, goal: p.goal, waitingOn: p.waitingOn, done: p.done, deps, scenes, tasks: trackedTasks, progress: { live, total: scenes.length, fixed: scenes.filter((s) => s.fixed).length }, problems, src: m.src,
+      milestone: p.milestone ?? null, completedAt: p.completedAt ?? null, waitingSince: p.waitingSince ?? null, waitingWho: waiting.who, waitingWhat: waiting.what, blockedBy };
+  });
+  for (const t of taskView) t.roadmapItems = roadmap.filter((m) => m.tasks.some((x) => x.name === t.name)).map((m) => m.id);
+
+  // ---- 마일스톤(release 노드): 소속 항목·진척·막힘. problems·warnings는 check가 그대로 싣는 완성 문장이다 ----
+  const itemIds = new Set(roadmap.map((m) => m.id));
+  const milestoneView = releases.map((r) => {
+    const p = r.props;
+    const items = roadmap.filter((m) => m.milestone === r.id);
+    const sceneRefs = new Map(items.flatMap((m) => m.scenes.filter((s) => !s.missing)).map((s) => [s.ref, s]));
+    const planTasks = new Map(items.flatMap((m) => m.tasks.filter((t) => !t.missing)).map((t) => [t.name, t]));
+    const waiting = splitWaiting(p.waitingOn);
+    const at = `마일스톤 ${r.label}: `;
+    const problems = [], warnings = [];
+    if (p.idMissing) problems.push(`${at}id 없음`);
+    if (p.duplicates || itemIds.has(r.id)) problems.push(`마일스톤 id 중복: ${r.id}`);
+    if (!ROADMAP_STATUS.includes(p.status)) problems.push(`${at}알 수 없는 상태 ${p.status || '(비어 있음)'}`);
+    for (const [key, v] of [['완료일', p.completedOn], ['목표일', p.targetOn]]) if (v && !isDay(v)) problems.push(`${at}날짜 형식 ${key} ${v}`);
+    const open = items.filter((m) => m.status !== '완료');
+    if (p.status === '완료' && open.length) warnings.push(`${at}완료인데 미완료 항목 ${open.length}`);
+    if (p.status !== '완료' && items.length && !open.length) warnings.push(`${at}항목이 모두 완료인데 상태 ${p.status}`);
+    if (['다음', '대기', '이후'].includes(p.status) && items.some((m) => m.status === '진행')) warnings.push(`${at}진행 항목이 있는데 상태 ${p.status}`);
+    if (!items.length) warnings.push(`${at}묶인 항목 없음`);
+    if ((p.status === '완료') !== !!p.completedOn) warnings.push(`${at}완료일과 상태가 맞지 않음`);
+    return {
+      id: r.id, order: p.order, title: r.label, status: p.status, goal: p.goal, completedOn: p.completedOn || null, targetOn: p.targetOn || null,
+      waitingOn: p.waitingOn, waitingWho: waiting.who, waitingWhat: waiting.what, waitingSince: p.waitingSince ?? null,
+      items: items.map((m) => m.id), progress: { live: [...sceneRefs.values()].filter((s) => s.status === 'live').length, total: sceneRefs.size },
+      plans: { done: [...planTasks.values()].reduce((n, t) => n + (t.pnDone || 0), 0), total: [...planTasks.values()].reduce((n, t) => n + (t.pnDone || 0) + (t.pnOpen || 0), 0) },
+      blocked: !!p.waitingOn || open.some((m) => m.blockedBy.length > 0), problems, warnings, src: r.src,
+    };
   });
 
   const plans = taskView.filter((t) => t.pnDone + t.pnOpen > 0).map((t) => ({ task: t.name, title: t.title, done: t.pnDone, open: t.pnOpen, oq: t.oq }));
@@ -122,7 +179,7 @@ export function derive(g, sem, cfg, { captureExists }) {
     adapters: g.toJSON().adapters, semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, journeys },
     summary, orphans, coverage, tasks: taskView, roadmap, ledger, decisions: decisionView, plans, commits: commitView, areaCounts,
     screens: screenView, apis: apiView, functions: fnView, migrations: migView, tests: testView,
-    issues: g.issues.map((i) => ({ ...i })),
+    milestones: milestoneView, issues: g.issues.map((i) => ({ ...i })), sources: { semantic: cfg.semantic, roadmap: cfg.roadmap?.file ?? null },
   };
 }
 

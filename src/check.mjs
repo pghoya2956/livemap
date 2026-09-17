@@ -30,6 +30,22 @@ export function check(d, cfg) {
     for (const p of m.problems) err(`로드맵 ${m.title}: ${p}`);
     if (m.status === '진행' && !m.tasks.length) warn(`로드맵 ${m.title}: 진행인데 작업 폴더가 없음`);
   }
+  // 마일스톤: 문장은 derive가 만든다. 마일스톤 절이 없으면 줄이 없다
+  for (const m of d.milestones || []) { for (const p of m.problems) err(p); for (const w of m.warnings) warn(w); }
+  const running = (d.milestones || []).filter((m) => m.status === '진행');
+  if (running.length > 1) warn(`진행 마일스톤 ${running.length}개: ${running.map((m) => m.title).join(', ')}`);
+  for (const m of d.roadmap || []) {
+    if (m.status !== '진행') continue;
+    if ((d.milestones || []).length && !m.milestone) warn(`로드맵 ${m.title}: 진행인데 마일스톤 없음`);
+    const open = (m.deps || []).filter((x) => x.status !== '완료');
+    if (open.length) warn(`로드맵 ${m.title}: 진행인데 선행 미완 ${open.map((x) => x.title).join(', ')}`);
+  }
+  // 배우 사전: 여정 배우, 여정과 다른 단계 배우가 사전 키에 없으면 경고(사전이 없는 프로젝트는 건너뜀)
+  const actors = d.semantic.actors || {};
+  if (Object.keys(actors).length) for (const j of d.semantic.journeys) {
+    if (j.actor && !(j.actor in actors)) warn(`${j.title}: 배우 사전에 없는 값 ${j.actor}`);
+    for (const s of j.steps) if (s.actor && s.actor !== j.actor && !(s.actor in actors)) warn(`${j.title} › ${s.label}: 배우 사전에 없는 값 ${s.actor}`);
+  }
   if (d.orphans.screens.length) warn(`여정에 없는 화면 ${d.orphans.screens.length}: ${d.orphans.screens.join(', ')}`);
   if (d.orphans.apis.length) warn(`어느 화면도 부르지 않는 API ${d.orphans.apis.length}: ${d.orphans.apis.join(', ')}`);
   if (d.orphans.tests.length) warn(`라우트·API에 붙지 않는 검사 ${d.orphans.tests.length}: ${d.orphans.tests.join(', ')}`);
