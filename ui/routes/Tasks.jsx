@@ -50,13 +50,13 @@ function TaskDetail({ t, roadmapById }) {
           <div>마지막 변경<b>{t.last ? <>{t.last.date} {t.last.sha} <span data-text="commit">{t.last.subject}</span></> : '—'}</b></div>
         </div>
         <div>
-          <h4>닿는 여정</h4>
+          <h4>닿는 기능</h4>
           {t.journeys.length ? t.journeys.map((j) => (
             <div className="node" key={j.id}>
               <div className="node-n"><a href={`#/journeys/${encodeURIComponent(j.id)}`}><Proj>{j.title}</Proj></a> <StatusChip status={j.status} /></div>
-              <div className="node-s">{j.steps.join(' → ')}</div>
+              <div className="node-s"><Proj>{j.steps.join(' → ')}</Proj></div>
             </div>
-          )) : <Empty>여정 단계가 이 작업을 참조하지 않음</Empty>}
+          )) : <Empty>기능 단계가 이 작업을 참조하지 않음</Empty>}
         </div>
         <div>
           <h4>추적하는 로드맵 항목</h4>
@@ -65,7 +65,7 @@ function TaskDetail({ t, roadmapById }) {
             return (
               <div className="node" key={rid}>
                 <div className="node-n">
-                  <a href={`#/roadmap/${encodeURIComponent(rid)}`}>{r ? <Proj>{r.title}</Proj> : rid}</a>
+                  {r ? <a href={`#/roadmap/${encodeURIComponent(rid)}`}><Proj>{r.title}</Proj></a> : <span>{rid}</span>}
                   {r && <RoadmapTag status={r.status} />}
                 </div>
               </div>

@@ -383,8 +383,8 @@ function AboutTab({ ov, data }) {
       </Card>
 
       <Card className="mm-prose">
-        <p>화면의 기능·단계 = 여정 파일의 journey·step.</p>
-        <p>사람이 적는 곳: 여정 파일, 로드맵(마일스톤 포함), 작업 장부, 작업 폴더 문서.</p>
+        <p>화면의 기능·단계 = 기능 정본 파일의 journey·step.</p>
+        <p>사람이 적는 곳: 기능 정본 파일, 로드맵(마일스톤 포함), 작업 장부, 작업 폴더 문서.</p>
         {(src.semantic || src.roadmap) && (
           <p className="src">{[src.semantic && `기능 정본 ${src.semantic}`, src.roadmap && `로드맵 정본 ${src.roadmap}`].filter(Boolean).join(' · ')}</p>
         )}

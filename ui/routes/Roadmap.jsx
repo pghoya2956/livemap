@@ -83,14 +83,14 @@ function ItemCard({ m, selected, refIso }) {
         </div>
         {m.goal && <p className="rm-goal"><Md text={m.goal} /></p>}
         {m.problems?.length > 0 && (
-          <p className="rm-warn">{m.problems.map((x, i) => <React.Fragment key={i}>{i > 0 && <br />}{x}</React.Fragment>)}</p>
+          <p className="rm-warn">{m.problems.map((x, i) => <React.Fragment key={i}>{i > 0 && <br />}{x.replace(/^장면 없음/, '단계 없음')}</React.Fragment>)}</p>
         )}
         <dl className="rm-kv">
           {waiting && <><dt>결정 대기</dt><dd className="rm-wait"><Waiting who={m.waitingWho} what={m.waitingWhat} raw={m.waitingOn} since={m.waitingSince} refIso={refIso} /></dd></>}
           {m.done && <><dt>완료 기준</dt><dd><Md text={m.done} /></dd></>}
           {m.deps?.length > 0 && (
             <><dt>선행</dt><dd className="rm-deps">{m.deps.map((x) => (
-              <span key={x.id}><a href={`#/roadmap/${encodeURIComponent(x.id)}`}><Proj>{x.title}</Proj></a>{x.status && <> <RoadmapTag status={x.status} /></>}</span>
+              <span key={x.id}>{x.status ? <a href={`#/roadmap/${encodeURIComponent(x.id)}`}><Proj>{x.title}</Proj></a> : <Proj>{x.title}</Proj>}{x.status && <> <RoadmapTag status={x.status} /></>}</span>
             ))}</dd></>
           )}
           <dt>작업</dt>

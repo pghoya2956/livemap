@@ -56,7 +56,7 @@ function Scene({ j, s, i, actors, selected }) {
         </div>
         <div className="scene-actor">{(actors[s.actor] || s.actor) ? <Proj>{actors[s.actor] || s.actor}</Proj> : null}</div>
         <div className="scene-intent">{(s.intent || s.note) ? <Proj>{s.intent || s.note}</Proj> : null}</div>
-        {s.warnings.length > 0 && <div className="scene-warn">⚠ {s.warnings[0]}</div>}
+        {s.warnings.length > 0 && <div className="scene-warn">⚠ {s.warnings[0].replace(/장면/g, '단계')}</div>}
       </div>
     </a>
   );
@@ -77,14 +77,14 @@ function StepDetail({ data, j, s, actors, tasks }) {
       </h3>
       {s.note && <p className="detail-note"><Proj>{s.note}</Proj></p>}
       {s.warnings.length > 0 && (
-        <p className="detail-warn">{s.warnings.map((w, i) => <React.Fragment key={i}>{i > 0 && <br />}{w}</React.Fragment>)}</p>
+        <p className="detail-warn">{s.warnings.map((w, i) => <React.Fragment key={i}>{i > 0 && <br />}{w.replace(/장면/g, '단계')}</React.Fragment>)}</p>
       )}
       <div className="cols">
         <div>
           {s.captureFile
             ? <img className="detail-big" src={`${CAP}${s.captureFile}`} alt={`${s.label} 확정 화면`} loading="lazy" />
             : <Empty>캡처 없음</Empty>}
-          <div className="src" style={{ marginTop: 6 }}>확인일 {s.reviewedAt || '—'} · 여정 파일 {data.sources?.semantic || ''}</div>
+          <div className="src" style={{ marginTop: 6 }}>확인일 {s.reviewedAt || '—'} · {data.sources?.semantic || ''}</div>
         </div>
         <div>
           <h4>화면</h4>
