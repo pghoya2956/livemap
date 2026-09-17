@@ -47,7 +47,8 @@ export function derive(g, sem, cfg, { captureExists }) {
   const report = g.get('testreport', 'last')?.props || null;
   const short = (t) => t.split('.').pop();
   const testsOf = (kind, id) => g.in(kind, id, 'covers').map((t) => t.label);
-  const testsPassedFresh = (kind, id) => g.in(kind, id, 'covers').some((t) => t.props.lastRun?.passed && t.props.lastRun?.fresh);
+  // 등급 A: 덮는 검사 파일 중 하나가 최신 실행에서 검사 1개 이상·실패 0(파일 경로 정확 일치는 testreport 어댑터가 맞춘다)
+  const testsPassedFresh = (kind, id) => g.in(kind, id, 'covers').some((t) => t.props.lastRun?.passed && t.props.lastRun?.fresh && (t.props.lastRun.tests ?? 1) >= 1);
 
   // ---- 화면·API·함수 뷰 ----
   const screenView = screens.map((s) => ({
@@ -234,6 +235,8 @@ export function derive(g, sem, cfg, { captureExists }) {
 
   return {
     schemaVersion: 1, generatedAt: new Date().toISOString(), project: sem.project || cfg.project, head, deploy: homelab, testreport: report,
+    // 결과 실행 목록(러너·출처·sha·시각·exit·최신 여부만, dirtyPaths는 싣지 않는다)
+    testRuns: report?.runs || [],
     adapters: g.toJSON().adapters, semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, journeys },
     summary, orphans, coverage, tasks: taskView, roadmap, ledger, decisions: decisionView, plans, commits: commitView, areaCounts,
     screens: screenView, apis: apiView, functions: fnView, migrations: migView, tests: testView,
@@ -334,7 +337,7 @@ export function overviewSlice(d, opts = {}) {
     tasks: d.tasks.filter((t) => t.status !== '폐기' && t.status !== '기록').slice().sort((a, b) => (a.status === '진행' ? -1 : 1) - (b.status === '진행' ? -1 : 1) || b.recentCommits - a.recentCommits).slice(0, 6).map((t) => ({ id: t.name, title: t.title, stage: t.stage, status: t.status, pnDone: t.pnDone, pnOpen: t.pnOpen, oq: t.oq, openQuestions: t.openQuestions ?? null, reading: t.reading || {} })),
     signals: {
       deploy: d.deploy ? (d.deploy.behindRuntime === 0 ? 'ok' : d.deploy.behindRuntime === null ? 'unknown' : 'behind') : 'unknown', deployBehind: d.deploy?.behindRuntime ?? null,
-      tests: lastRun ? (lastRun.failures ? 'fail' : lastRun.fresh ? 'ok' : 'stale') : 'none', lastRun,
+      tests: d.testreport?.signal || (lastRun ? (lastRun.failures ? 'fail' : lastRun.fresh ? 'ok' : 'stale') : 'none'), lastRun,
       adapters: d.adapters.some((a) => a.status === 'failed') ? 'fail' : d.adapters.some((a) => a.status === 'partial') ? 'partial' : 'ok', adapterNotes: d.adapters.filter((a) => a.status !== 'ok').map((a) => `${a.name}: ${a.error}`),
       warnings: d.summary.warnings, orphans: d.summary.orphans, gated: d.tests.filter((t) => t.gated).reduce((n, t) => n + t.count, 0),
       deployBehindAll: d.deploy?.behind ?? null,

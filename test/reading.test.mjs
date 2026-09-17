@@ -88,14 +88,14 @@ test('읽기 상태 건수: 노드에 적힌 상태만 값별·필드별(<종류
   assert.deepEqual(r.fields, { 'task.plan': { rule: 1, unknown: 1 }, 'task.openQuestions': { partial: 1 }, 'test.count': { partial: 1 } });
 });
 
-test('읽기 상태 생성물: 작업·배포 어댑터만 상태를 적은 mini는 작업 세 필드와 배포 behind(매니페스트 sha가 이력에 없어 unknown)만 세고 잔여 질문 절이 없어 열린 질문이 partial', async () => {
+test('읽기 상태 생성물: 작업·배포·검사 결과 어댑터만 상태를 적은 mini는 작업 세 필드, 배포 behind(매니페스트 sha가 이력에 없어 unknown), 검사 lastRun(결과 없음 unknown)만 세고 잔여 질문 절이 없어 열린 질문이 partial', async () => {
   const { data, overview } = await buildWith(null);
-  assert.deepEqual(overview.counts.reading, { plans: 'rule', openQuestions: 'partial', tests: 'rule', grades: 'rule' });
-  assert.deepEqual(data.readings.values, { ...Object.fromEntries(VALUES.map((v) => [v, 0])), rule: 2, unknown: 2 });
-  assert.deepEqual(data.readings.fields, { 'task.plan': { rule: 1 }, 'task.openQuestions': { unknown: 1 }, 'task.stage': { rule: 1 }, 'deploy.behind': { unknown: 1 } });
+  assert.deepEqual(overview.counts.reading, { plans: 'rule', openQuestions: 'partial', tests: 'rule', grades: 'partial' });
+  assert.deepEqual(data.readings.values, { ...Object.fromEntries(VALUES.map((v) => [v, 0])), rule: 2, unknown: 3 });
+  assert.deepEqual(data.readings.fields, { 'task.plan': { rule: 1 }, 'task.openQuestions': { unknown: 1 }, 'task.stage': { rule: 1 }, 'deploy.behind': { unknown: 1 }, 'test.lastRun': { unknown: 1 } });
   assert.deepEqual(data.tasks.map((t) => t.reading), [{ plan: 'rule', openQuestions: 'unknown', stage: 'rule' }]);
   assert.match(data.tasks[0].readingNotes.openQuestions, /잔여 질문 절 없음/);
-  assert.deepEqual(data.tests.map((t) => t.reading), [{}]);
+  assert.deepEqual(data.tests.map((t) => t.reading), [{ lastRun: 'unknown' }]);
   assert.deepEqual(data.screens.map((s) => s.reading), [{}, {}]);
   assert.deepEqual(overview.tasks.map((t) => t.reading), [{ plan: 'rule', openQuestions: 'unknown', stage: 'rule' }]);
 });
@@ -112,11 +112,11 @@ test('SC-5 SC-10 읽기 상태 생성물: 노드 상태가 data·overview까지 
   assert.equal(graph.nodes.find((n) => n.kind === 'test').props.reading.count, 'partial');
   assert.deepEqual(data.tasks[0].reading, { plan: 'rule', openQuestions: 'partial', stage: 'rule' });
   assert.match(data.tasks[0].readingNotes.openQuestions, /final\.md:9/);
-  assert.deepEqual(data.tests[0].reading, { count: 'partial' });
+  assert.deepEqual(data.tests[0].reading, { count: 'partial', lastRun: 'unknown' });
   assert.deepEqual(data.screens.find((s) => s.path === '/live').reading, { apis: 'rule' });
-  assert.deepEqual(data.readings.values, { observed: 0, rule: 3, judged: 0, partial: 2, stale: 0, unknown: 1, none: 0 });
-  assert.deepEqual(data.readings.fields, { 'task.plan': { rule: 1 }, 'task.openQuestions': { partial: 1 }, 'task.stage': { rule: 1 }, 'test.count': { partial: 1 }, 'screen.apis': { rule: 1 }, 'deploy.behind': { unknown: 1 } });
-  assert.deepEqual(overview.counts.reading, { plans: 'rule', openQuestions: 'partial', tests: 'partial', grades: 'rule' });
+  assert.deepEqual(data.readings.values, { observed: 0, rule: 3, judged: 0, partial: 2, stale: 0, unknown: 2, none: 0 });
+  assert.deepEqual(data.readings.fields, { 'task.plan': { rule: 1 }, 'task.openQuestions': { partial: 1 }, 'task.stage': { rule: 1 }, 'test.count': { partial: 1 }, 'test.lastRun': { unknown: 1 }, 'screen.apis': { rule: 1 }, 'deploy.behind': { unknown: 1 } });
+  assert.deepEqual(overview.counts.reading, { plans: 'rule', openQuestions: 'partial', tests: 'partial', grades: 'partial' });
   assert.deepEqual(overview.tasks[0].reading, { plan: 'rule', openQuestions: 'partial', stage: 'rule' });
   // 개요에는 이유 문장(파일·줄)이 없다
   assert.equal(JSON.stringify(overview).includes('final.md:9'), false);
@@ -124,11 +124,14 @@ test('SC-5 SC-10 읽기 상태 생성물: 노드 상태가 data·overview까지 
 });
 
 test('읽기 상태 생성물: 등급 상태는 검사 lastRun과 화면 apis 상태의 합계다', async () => {
+  // mini에는 검사 결과가 없어 lastRun이 unknown이다. 다른 구성 요소만 보려고 먼저 observed로 덮는다
+  const fresh = "  setReading(g.get('test', 'tests/api.test.mjs'), 'lastRun', 'observed');\n";
+  assert.equal((await buildWith(fresh)).overview.counts.reading.grades, 'rule');
   const stale = await buildWith("  setReading(g.get('test', 'tests/api.test.mjs'), 'lastRun', 'stale', '검사 뒤 코드 변경');");
   assert.equal(stale.overview.counts.reading.grades, 'partial');
   assert.equal(stale.overview.counts.reading.tests, 'rule');
-  const apis = await buildWith("  setReading(g.get('screen', '/mocked'), 'apis', 'partial');");
+  const apis = await buildWith(fresh + "  setReading(g.get('screen', '/mocked'), 'apis', 'partial');");
   assert.equal(apis.overview.counts.reading.grades, 'partial');
-  const plan = await buildWith("  setReading(g.get('task', '20260101-sample'), 'plan', 'unknown');");
+  const plan = await buildWith(fresh + "  setReading(g.get('task', '20260101-sample'), 'plan', 'unknown');");
   assert.deepEqual(plan.overview.counts.reading, { plans: 'partial', openQuestions: 'partial', tests: 'rule', grades: 'rule' });
 });
