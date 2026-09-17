@@ -2,3 +2,4 @@ node_modules/
 *.tgz
 test/fixtures/mini/map/.out/
 .DS_Store
+ui/dist/
