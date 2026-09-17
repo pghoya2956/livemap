@@ -14,9 +14,24 @@ export default function name(g, fs, cfg) {
 }
 ```
 
-- `g` — 그래프. `g.add(kind, id, label, props, src)`, `g.link(fromKind, fromId, edgeKind, toKind, toId)`, `g.get`, `g.of(kind)`, `g.in`, `g.out`.
+- `g` — 그래프. `g.add(kind, id, label, props, src)`, `g.link(fromKind, fromId, edgeKind, toKind, toId)`, `g.get`, `g.of(kind)`, `g.in`, `g.out`, `g.issue(level, label, message)`(1.1.0부터).
 - `fs` — 저장소 접근. `read(rel)`, `has(rel)`, `isDir(rel)`, `walk(dir, pred)`, `ls(dir)`, `git(...args)`(실패 시 빈 문자열), `hasGit()`, `resolveRef(name)`(main → origin/main → HEAD), `lastCommit(rel)`, `lineOf(text, needle)`.
 - `cfg` — `map/config.json` 전체. 자기 키(`cfg.<name>`)만 읽고, 다른 어댑터의 키는 `?.`로 방어한다.
+
+## 오류·경고 보고(g.issue)
+
+어댑터가 읽은 사실에서 프로젝트 규칙 위반을 찾았으면 `g.issue(level, label, message)`로 낸다. 반환값 partial·throw는 "어댑터가 제대로 읽었나"를, `g.issue`는 "읽은 내용에 문제가 있나"를 알린다. 1.1.0부터 쓸 수 있다.
+
+```js
+g.issue('warn', '로드맵', '결정 대기 30일 넘음: 결제 흐름');
+g.issue('error', '여정 파일', '필수 키 없음: owner');
+```
+
+- `level`은 `'error'` 또는 `'warn'`이다. 그 밖의 값이거나 `label`·`message`가 문자열이 아니면 `throw`하고, 그 어댑터는 failed가 된다. 다른 어댑터는 계속 돈다.
+- 엔진이 지금 실행 중인 어댑터 이름을 함께 기록한다(`config.adapters`의 이름). 어댑터가 throw하기 전에 낸 문제도 남는다.
+- `graph.json`·`data.json`의 최상위 `issues[]`에 `{level, label, message, adapter}`로 남는다.
+- `livemap check`는 기존 검사 뒤에 error를 `✗ {label}: {message}`로, warn을 `△ {label}: {message}`로 출력한다. error는 종료 코드 1에 센다.
+- 개요에는 나오지 않고 더보기의 상황판 설명 화면에 목록으로 나온다.
 
 ## 어디에 두나
 
@@ -44,6 +59,7 @@ export default function name(g, fs, cfg) {
 | ledger | `running-i`·`waiting-i` | tasks |
 | deploy | `head`·`homelab` | git, deploy |
 | testreport | `last` | testreport |
+| release | 마일스톤 id(1.x 임시 이름, 1.1.0부터) | roadmap |
 
 엣지: `shows`(step→screen, 파생이 만든다), `calls`(screen→api), `invokes`(api→function), `touches`(function→table), `covers`(test→screen|api|function), `changes`(commit→screen|api|migration), `defines`(task→decision), `contains`(migration→table|function). 새 종류가 필요하면 엔진 저장소의 `src/lib/graph.mjs` 목록에 더한다(minor 릴리스). 화면이 그 종류를 그리려면 `src/derive.mjs`도 손봐야 하므로, 먼저 기존 종류로 표현할 수 없는지 본다.
 

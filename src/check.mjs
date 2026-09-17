@@ -34,5 +34,7 @@ export function check(d, cfg) {
   if (d.orphans.apis.length) warn(`어느 화면도 부르지 않는 API ${d.orphans.apis.length}: ${d.orphans.apis.join(', ')}`);
   if (d.orphans.tests.length) warn(`라우트·API에 붙지 않는 검사 ${d.orphans.tests.length}: ${d.orphans.tests.join(', ')}`);
   if (d.deploy && d.deploy.behind === null) warn('배포 sha가 main 이력에 없어 뒤처짐을 계산하지 못함');
+  // 어댑터가 g.issue로 낸 문제: 기존 검사 뒤에 그대로 싣는다. error는 종료 코드 1에 센다.
+  for (const i of d.issues || []) (i.level === 'error' ? err : warn)(`${i.label}: ${i.message}`);
   return out;
 }

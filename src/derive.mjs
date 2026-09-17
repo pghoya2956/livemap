@@ -122,6 +122,7 @@ export function derive(g, sem, cfg, { captureExists }) {
     adapters: g.toJSON().adapters, semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, journeys },
     summary, orphans, coverage, tasks: taskView, roadmap, ledger, decisions: decisionView, plans, commits: commitView, areaCounts,
     screens: screenView, apis: apiView, functions: fnView, migrations: migView, tests: testView,
+    issues: g.issues.map((i) => ({ ...i })),
   };
 }
 
