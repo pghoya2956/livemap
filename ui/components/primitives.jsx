@@ -4,7 +4,7 @@ import React from 'react';
 /** 패널 틀. 머리줄(아이콘·제목·보조 문구·기준 시각)과 본문. */
 export function Panel({ icon, title, sub, at, badge, more, budget, children, className = "" }) {
   return (
-    <section className={`panel ${className}`} data-budget={budget}>
+    <section className={className ? `panel ${className}` : 'panel'} data-budget={budget}>
       <div className="ph">
         {icon}
         <h2>{title}</h2>
@@ -16,6 +16,11 @@ export function Panel({ icon, title, sub, at, badge, more, budget, children, cla
       {children}
     </section>
   );
+}
+
+/** 프로젝트가 작성한 문구(기능·단계·로드맵·작업 이름 등). 판정의 내부 용어 검사에서 빠진다. */
+export function Proj({ children }) {
+  return children == null || children === '' ? null : <span data-text="project">{children}</span>;
 }
 
 /** 누를 수 있는 필터 칩. `on`이면 강조한다. */
@@ -35,8 +40,8 @@ export function Tag({ kind, children }) {
 }
 
 /** 상단 바 알약. tone: good | warn | plain */
-export function Pill({ tone = 'plain', href, children }) {
-  const cls = `pill ${tone === 'plain' ? '' : tone}`;
+export function Pill({ tone = 'plain', href, className = '', children }) {
+  const cls = ['pill', tone === 'plain' ? '' : tone, className].filter(Boolean).join(' ');
   return href
     ? <a className={cls} href={href} target="_blank" rel="noopener noreferrer">{children}</a>
     : <span className={cls}>{children}</span>;
@@ -58,14 +63,14 @@ export const Icons = {
   table: <svg width="15" height="15" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.4" /></svg>,
 };
 
-/** 단계 상태 모양 표식(12px): 동작 채운 원, 목업 반 채움, 계획 실선 빈 원, 구상 점선 빈 원. */
+/** 단계 상태 모양 표식(12px): 동작 채운 원, 목업 반 채움, 계획 실선 빈 원, 구상 점선 빈 원. 기능 상태 partial은 초록 반 채움. */
 export function StepMark({ status, size = 12 }) {
   const r = size / 2 - 1.5, c = size / 2;
-  const color = { live: 'var(--green)', mock: 'var(--amber)', planned: 'var(--plan)', next: 'var(--violet)' }[status] || 'var(--muted)';
+  const color = { live: 'var(--green)', mock: 'var(--amber)', planned: 'var(--plan)', next: 'var(--violet)', partial: 'var(--green)' }[status] || 'var(--muted)';
   return (
     <svg className="stepmark" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       {status === 'live' && <circle cx={c} cy={c} r={r + 0.75} fill={color} />}
-      {status === 'mock' && <><circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="1.5" /><path d={`M${c} ${c - r}A${r} ${r} 0 0 0 ${c} ${c + r}Z`} fill={color} /></>}
+      {(status === 'mock' || status === 'partial') && <><circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="1.5" /><path d={`M${c} ${c - r}A${r} ${r} 0 0 0 ${c} ${c + r}Z`} fill={color} /></>}
       {status === 'planned' && <circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="1.5" />}
       {status === 'next' && <circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="1.5" strokeDasharray="2.5 2" />}
     </svg>

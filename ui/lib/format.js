@@ -38,3 +38,9 @@ export const freshness = (generatedAt, now = Date.now()) => {
 export const waitDays = (sinceIso, refIso) => Math.round((Date.parse(seoulYmd(refIso)) - Date.parse(seoulYmd(sinceIso))) / 864e5) + 1;
 export const ROADMAP_TAG = { 완료: 'live', 진행: 'mock', 다음: 'next', 대기: 'next', 이후: 'next' };
 export const roadmapWord = (s) => (s === '진행' ? '진행 중' : s);
+/** 기능 상태 문구: 모두 동작 "완성", 일부 동작 "{동작}/{단계} 동작", 그 밖 가장 앞선 상태의 짧은 이름. */
+export const journeyWord = (j) => (j.status === 'live' ? '완성' : j.counts.live ? `${j.counts.live}/${j.steps.length} 동작` : STATUS[j.status]?.word ?? j.status);
+/** 기능 상태 색. 1.0.1 기능 상태 partial(일부 동작)은 동작 색. */
+export const journeyColor = (j) => STATUS[j.status === 'partial' ? 'live' : j.status]?.color;
+/** 기능 상태 표식 모양. partial은 초록 반 채움. */
+export const journeyMark = (j) => (j.status === 'partial' ? 'partial' : j.status);
