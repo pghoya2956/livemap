@@ -44,3 +44,5 @@ export const journeyWord = (j) => (j.status === 'live' ? '완성' : j.counts.liv
 export const journeyColor = (j) => STATUS[j.status === 'partial' ? 'live' : j.status]?.color;
 /** 기능 상태 표식 모양. partial은 초록 반 채움. */
 export const journeyMark = (j) => (j.status === 'partial' ? 'partial' : j.status);
+/** 하위 화면 시각 표기(1.0.1 kst): "09. 17. 02:29", withTime이 거짓이면 "09. 17." */
+export const kst = (iso, withTime = true) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: TZ, month: '2-digit', day: '2-digit', ...(withTime ? { hour: '2-digit', minute: '2-digit', hour12: false } : {}) }) : '');

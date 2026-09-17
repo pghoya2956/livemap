@@ -5,6 +5,7 @@ import { FeatureMap } from './components/FeatureMap.jsx';
 import { TopBar, Ticker, MilestonePanel, ProgressPanel, ChangesPanel, FeatureTrendPanel, SignalsPanel, CapturePanel, FeatureTablePanel } from './components/panels.jsx';
 import { hm, sum } from './lib/format.js';
 import { mapJourneys } from './lib/fit.js';
+import { readLastVisit } from './lib/visit.js';
 
 /** 전광판 항목. 규모 숫자는 1.0.1 counts, 로드맵이 없으면 "로드맵 완료"를 뺀다. */
 export function tickerItems(d) {
@@ -25,19 +26,18 @@ export function tickerItems(d) {
   ];
 }
 
-function lastVisitValue() { try { return localStorage.getItem('map:lastVisit'); } catch { return null; } }
-
-export function Overview({ data: d, captureBase }) {
+/** current: 선택할 내비 순번(알 수 없는 경로는 -1) */
+export function Overview({ data: d, captureBase, current = 0 }) {
   const firstIncomplete = d.journeys.find((j) => j.status !== 'live') || d.journeys[0];
   const [selected, setSelected] = React.useState(firstIncomplete?.id);
   const at = `${hm(d.generatedAt)} 기준`;
   const next = d.roadmapItems.find((r) => r.status !== '완료' && r.status !== '진행') || null;
   const cur = d.milestones.find((m) => m.id === d.currentMilestone) || null;
-  const lastVisit = React.useMemo(lastVisitValue, []);
+  const lastVisit = React.useMemo(readLastVisit, []);
   const onMap = React.useMemo(() => mapJourneys(d.journeys, d.currentMilestone), [d.journeys, d.currentMilestone]);
   return (
     <div className="screen" data-screen="overview">
-      <TopBar project={d.project} signals={d.signals} generatedAt={d.generatedAt} />
+      <TopBar project={d.project} signals={d.signals} generatedAt={d.generatedAt} current={current} />
       <Ticker items={tickerItems(d)} />
       <main className="grid">
         <div className="col l">

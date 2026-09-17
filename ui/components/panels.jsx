@@ -6,6 +6,7 @@ import { Panel, Chip, Tag, Pill, Dot, Icons, StepMark, Proj } from './primitives
 import { Gauge, Sparkline, AreaChart } from './charts.jsx';
 import { STATUS, STATUS_ORDER, clock, longDate, hostOf, ago, sum, mdKo, freshness, waitDays, ROADMAP_TAG, roadmapWord, journeyWord, journeyColor, journeyMark } from '../lib/format.js';
 import { useFitRows } from '../lib/fit.js';
+import { isNewer } from '../lib/visit.js';
 
 const roadmapHref = (id) => `#/roadmap/${encodeURIComponent(id)}`;
 
@@ -189,7 +190,7 @@ export function ChangesPanel({ changes, activity, generatedAt, lastVisit, at }) 
               <a className="row" key={i} href="#/more/changes">
                 <Tag kind={c.kind}>{c.kind}</Tag>
                 <div className="body">
-                  <div className="tt" title={c.subject}>{lastVisit && Date.parse(c.date) > Date.parse(lastVisit) && <span className="newdot" />}<span data-text="commit">{c.subject}</span></div>
+                  <div className="tt" title={c.subject}>{isNewer(c.date, lastVisit) && <span className="newdot" />}<span data-text="commit">{c.subject}</span></div>
                   <div className="meta">{ago(c.date, generatedAt)}{c.journeys.length ? <> · <Proj>{c.journeys.slice(0, 2).join(', ')}</Proj>{more > 0 ? ` 외 ${more}` : ''}</> : null}</div>
                 </div>
               </a>
