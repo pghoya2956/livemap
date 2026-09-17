@@ -329,6 +329,16 @@ a.row:hover .tt,button.row:hover .tt{color:#fff}
 @media (max-width:640px){[data-screen="roadmap"] .rm-item{grid-template-columns:1fr}[data-screen="roadmap"] .rm-num{text-align:left}[data-screen="roadmap"] .rm-kv{grid-template-columns:1fr}[data-screen="roadmap"] .rm-ms .rm{margin-left:0}}
 
 /* routes: tasks */
+[data-screen="tasks"] .tk-filter{margin:0 0 12px}
+[data-screen="tasks"] .detail{margin-bottom:12px}
+[data-screen="tasks"] .tk-name{margin-left:2px;font:12px var(--mono);color:var(--muted)}
+[data-screen="tasks"] .tk-pipe{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 0}
+[data-screen="tasks"] .tk-stage{display:inline-flex;align-items:center;height:18px;padding:0 7px;border:1px solid var(--line2);border-radius:999px;font-size:10.5px;color:var(--dim);white-space:nowrap}
+[data-screen="tasks"] .tk-stage.on{color:var(--green);background:var(--green-soft);border-color:transparent}
+[data-screen="tasks"] .tk-date{font:11.5px var(--mono);color:var(--muted);white-space:nowrap}
+[data-screen="tasks"] .tk-num{font:12px var(--mono);white-space:nowrap}
+[data-screen="tasks"] .t-폐기{color:var(--red);background:var(--red-soft)}
+[data-screen="tasks"] .t-기록{color:var(--muted);background:transparent}
 
 /* routes: more */
 
