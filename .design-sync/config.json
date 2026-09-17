@@ -30,6 +30,15 @@
     },
     "Panel": {
       "cardMode": "column"
+    },
+    "ChangesPanel": {
+      "cardMode": "column"
+    },
+    "MilestonePanel": {
+      "cardMode": "column"
+    },
+    "ProgressPanel": {
+      "cardMode": "column"
     }
   },
   "readmeHeader": ".design-sync/conventions.md"

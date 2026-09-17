@@ -15,6 +15,7 @@
 ## Known render warns
 
 - `[RENDER_THIN] Sparkline`: 글자가 없는 선 그림이라 뜬다. 스크린샷으로 선이 그려진 것을 확인했다.
+- `[FONT_MISSING] "Apple SD Gothic Neo"`: `--sans` 서체 목록의 운영체제 한글 대체 서체라 싣지 않는다. 브랜드 서체 Pretendard Variable은 `fonts/`로 실린다(2026-09-17 재동기화에서 확인).
 
 ## Re-sync risks
 
