@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { setReading } from '../lib/reading.mjs';
 // 검사 어댑터: tests/ 파일에서 test 노드를 만들고, 파일 안의 goto('/…')·'/api/…' 문자열로 screen·api를 덮는(covers) 엣지를 잇는다.
 export default function tests(g, fs, cfg) {
   const c = cfg.tests;
@@ -19,8 +20,11 @@ export default function tests(g, fs, cfg) {
     const own = fs.read(f);
     const t = [...closure(f)].map(fs.read).join('\n');
     const count = (own.match(/^\s*(?:test|it)\(/gm) || []).length;
+    // 제목이 ${ 를 가진 템플릿 문자열이면 반복문으로 여러 번 등록될 수 있어 줄 수가 실제 개수보다 작을 수 있다.
+    const templated = own.split('\n').flatMap((line, i) => (/^\s*(?:test|it)\(\s*`[^`]*\$\{/.test(line) ? [i + 1] : []));
     const id = f;
-    g.add('test', id, f.replace(`${c.dir}/`, '').replace(/\.(test|spec)\.mjs$/, ''), { kind: f.endsWith('.spec.mjs') ? 'e2e' : 'unit', count, gated: gate.test(own) }, { file: f, line: 1, rule: 'tests:test(|it(' });
+    const node = g.add('test', id, f.replace(`${c.dir}/`, '').replace(/\.(test|spec)\.mjs$/, ''), { kind: f.endsWith('.spec.mjs') ? 'e2e' : 'unit', count, gated: gate.test(own) }, { file: f, line: 1, rule: 'tests:test(|it(' });
+    if (templated.length) setReading(node, 'count', 'partial', `제목이 템플릿 문자열인 호출(${f}:${templated.join(',')})은 반복 등록이면 실제 개수가 더 많다`);
     for (const s of g.of('screen')) {
       const goto = s.id.replace(/:\w+/g, '');
       if ((goto.length > 1 && t.includes(`goto('${goto}`)) || (s.id === '/' && t.includes("goto('/')"))) g.link('test', id, 'covers', 'screen', s.id);

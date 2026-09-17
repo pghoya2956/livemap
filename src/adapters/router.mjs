@@ -16,8 +16,8 @@ export default function router(g, fs, cfg) {
   const closure = (file, depth = 3, seen = new Set()) => {
     if (seen.has(file) || depth < 0) return seen;
     seen.add(file);
-    for (const m of fs.read(file).matchAll(/from\s+'(\.[^']+)'/g)) {
-      const t = resolveLocal(file, m[1]);
+    for (const m of fs.read(file).matchAll(/from\s+(['"])(\.[^'"]+)\1/g)) {
+      const t = resolveLocal(file, m[2]);
       if (t && c.localDirs.some((d) => t.startsWith(d + '/'))) closure(t, depth - 1, seen);
     }
     return seen;

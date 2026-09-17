@@ -52,7 +52,8 @@ export async function buildGraph(root = process.cwd()) {
     if (loaded.shadowed) shadowed.push(name);
     runAdapter(g, name, (g) => loaded.fn(g, fs, cfg));
   }
-  const sem = fs.has(cfg.semantic) ? JSON.parse(fs.read(cfg.semantic)) : { journeys: [] };
+  // 설정에 semantic 키가 없으면 여정 입력이 없는 것으로 본다(없는 키는 뺀다)
+  const sem = cfg.semantic && fs.has(cfg.semantic) ? JSON.parse(fs.read(cfg.semantic)) : { journeys: [] };
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);
   const data = derive(g, sem, cfg, { captureExists });
   return { g, cfg, sem, data, fs, shadowed };
