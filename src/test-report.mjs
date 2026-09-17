@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync, rmSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gitStamp, resultsPath, writeResults, DEFAULT_REPORT } from './results.mjs';
+import { gitStamp, importRuns, resultsPath, toRootPath, writeResults, DEFAULT_REPORT } from './results.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const NODE_REPORTER = join(here, 'reporters', 'node-results.mjs');
@@ -40,4 +40,19 @@ export function testReport({ root, cfg }) {
   writeResults(abs(results), { ...run, source: TEST_REPORT_SOURCE, exit });
   console.log(`test report → ${report}, ${results} (sha ${stamp.sha ? stamp.sha.slice(0, 7) : '-'}, exit ${r.status})`);
   return exit;
+}
+
+// livemap test-report --import <파일> [--sha <커밋>]: 러너를 돌리지 않고 다른 러너의 출력을 결과 JSON에 넣는다.
+// 판별할 수 없거나 파일이 없으면 exit 2이고 결과 JSON을 건드리지 않는다.
+export function importReport({ root, cfg, file, sha, cwd = process.cwd() }) {
+  if (!file || file.startsWith('--')) { console.error('usage: livemap test-report --import <파일> [--sha <커밋>]'); return 2; }
+  const abs = resolve(cwd, file);
+  if (!existsSync(abs)) { console.error(`가져올 파일 없음: ${file}`); return 2; }
+  const source = toRootPath(root, abs) ?? abs;
+  const runs = importRuns({ root, text: readFileSync(abs, 'utf8'), source, sha });
+  if (!runs) { console.error(`형식을 판별할 수 없음: ${file} (livemap 리포터 출력·Playwright JSON·JUnit XML)`); return 2; }
+  const results = resultsPath(cfg);
+  writeResults(resolve(root, results), ...runs);
+  for (const r of runs) console.log(`test report import → ${results}: ${r.runner} ${r.source} (파일 ${r.files.length}, sha ${r.sha ? r.sha.slice(0, 7) : '-'})`);
+  return 0;
 }

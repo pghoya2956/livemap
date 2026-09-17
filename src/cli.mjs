@@ -5,7 +5,8 @@
 //   livemap serve   [--port 4180] [--static <dir>]     loopback 서빙. 기본은 요청마다 재빌드(5초 캐시), --static은 export 폴더를 그대로 준다
 //   livemap export  <dir> [--out map/.out]             화면·서체·캡처·생성물을 /map/ 주소 배치 그대로 한 폴더에 모은다
 //   livemap init                                       없는 파일만 템플릿으로 만들고 .gitignore·npm 스크립트를 넣는다
-//   livemap test-report                                단위 검사를 JUnit과 결과 JSON으로 남긴다(config.tests.dir → config.tests.report 폴더의 test-results.json)
+//   livemap test-report [--import <파일> [--sha <커밋>]]  단위 검사를 JUnit과 결과 JSON(config.tests.report 폴더의 test-results.json)으로 남긴다.
+//                                                      --import는 러너를 돌리지 않고 livemap 리포터·Playwright JSON·JUnit 출력을 결과 JSON에 넣는다
 //   livemap --version
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
@@ -84,6 +85,7 @@ const USAGE = `usage: livemap <command>
   export <dir> [--out map/.out]               화면·서체·캡처·생성물을 한 폴더에(먼저 build)
   init                                        map/ 초안 파일·.gitignore·npm 스크립트
   test-report                                 단위 검사를 JUnit 리포트와 결과 JSON으로
+  test-report --import <파일> [--sha <커밋>]  Playwright JSON·JUnit·livemap 리포터 출력을 결과 JSON에
   --version                                   엔진 버전`;
 
 function readConfig(root) {
@@ -163,7 +165,8 @@ export async function main(argv = []) {
     return exportSite({ root, out, captures: resolve(root, capturesDir(cfg)), target: resolve(process.cwd(), target) });
   }
   if (cmd === 'test-report') {
-    const { testReport } = await import('./test-report.mjs');
+    const { testReport, importReport } = await import('./test-report.mjs');
+    if (argv.includes('--import')) return importReport({ root, cfg, file: opt('import'), sha: opt('sha') });
     return testReport({ root, cfg });
   }
   return 2;
