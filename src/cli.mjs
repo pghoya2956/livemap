@@ -61,7 +61,7 @@ export async function build(root = process.cwd(), out = resolve(root, 'map/.out'
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'graph.json'), JSON.stringify(r.g.toJSON()));
   writeFileSync(join(out, 'data.json'), JSON.stringify(r.data));
-  writeFileSync(join(out, 'overview.json'), JSON.stringify(overviewSlice(r.data)));
+  writeFileSync(join(out, 'overview.json'), JSON.stringify(overviewSlice(r.data, { sinceDays: r.cfg.git?.sinceDays })));
   return r;
 }
 

@@ -11,6 +11,26 @@ export function plain(text, n) {
   const cp = [...s];
   return n && cp.length > n ? cp.slice(0, n - 1).join('') + '…' : s;
 }
+// 변경 종류: 커밋 제목의 관례 접두어(`feat(범위)!:`)만 본다. 프로젝트의 영역 이름을 가정하지 않는다
+const KINDS = { feat: '기능', fix: '수정', docs: '문서', test: '검사', refactor: '정리', perf: '정리', style: '정리', build: '운영', ci: '운영', chore: '운영', deploy: '운영', release: '운영' };
+const PREFIX = /^([a-z]+)(\([^)]*\))?!?:\s*/i;
+export function changeKind(subject) {
+  const m = String(subject ?? '').match(PREFIX);
+  return (m && KINDS[m[1].toLowerCase()]) || '변경';
+}
+// 커밋 제목 정리: 접두어·[skip ci]·내부 ID·식별자 낱말을 지우고 괄호·끝 기호를 정리한다. 2자 미만이면 "{종류} 변경"
+export function subjectPlain(subject, n) {
+  const kind = changeKind(subject);
+  let s = plain(String(subject ?? '').replace(PREFIX, '').replace(/\[(skip ci|ci skip)\]/gi, ''));
+  s = s.replace(/\b(PN|DEC|OQ|AC|P\d)-\d+(?:\s*[·,~]\s*\d+)*/g, '').replace(/\b(PN|DEC|OQ|AC)\b/g, '').replace(/\bQ\d+\b/g, '');
+  s = s.split(' ').filter((w) => !/^[0-9a-f]{7,40}$/i.test(w) && !w.includes('/api/') && !/\.(tsx|mjs|sql)$/.test(w) && !w.startsWith('web/src')).join(' ');
+  s = s.replace(/\(\s*[,·\s]*/g, '(').replace(/[,·\s]*\)/g, ')').replace(/\(\)/g, '').replace(/\s+/g, ' ').replace(/[\s\-–—:·,]+$/, '').trim();
+  if ([...s].length < 2) s = `${kind} 변경`;
+  return plain(s, n);
+}
+// Asia/Seoul 날짜(YYYY-MM-DD). 커밋 시각의 Z·+09:00 혼용을 Date로 통일한다
+const seoulDay = (t) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
+const STEP_STATUS = ['live', 'mock', 'planned', 'next'];
 // 결정 대기 "<주체>: <질문>" 나누기. 주체는 콜론 없는 1~20자, 콜론 뒤 공백 필수(URL·시각은 주체가 아니다)
 export function splitWaiting(text) {
   const t = plain(text);
@@ -184,13 +204,89 @@ export function derive(g, sem, cfg, { captureExists }) {
 }
 
 // 첫 화면 전용 조각: 시스템 식별자(경로·파일·sha)를 뺀다. 개요는 이것만 받는다.
-export function overviewSlice(d) {
+// 창은 generatedAt의 Asia/Seoul 날짜로 끝나는 opts.sinceDays(기본 14)일, 커밋 수는 작성자가 [bot]으로 끝나지 않는 사람 커밋만 센다.
+export function overviewSlice(d, opts = {}) {
   const A = d.semantic.actors;
+  const days = opts.sinceDays ?? 14;
+  const lastDay = Date.parse(`${seoulDay(d.generatedAt)}T00:00:00+09:00`);
+  const dates = Array.from({ length: days }, (_, i) => seoulDay(lastDay - (days - 1 - i) * 864e5));
+  const dayIndex = new Map(dates.map((x, i) => [x, i]));
+  const zeros = () => new Array(days).fill(0);
+  const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+  const isBot = (c) => /\[bot\]$/.test(c.author || '');
+  const inWindow = (d.commits || []).filter((c) => dayIndex.has(seoulDay(c.date)));
+  const human = inWindow.filter((c) => !isBot(c));
+  const act = { commits: zeros(), runtime: zeros(), bots: zeros() };
+  for (const c of inWindow) { const i = dayIndex.get(seoulDay(c.date)); if (isBot(c)) act.bots[i] += 1; else { act.commits[i] += 1; if (c.runtime) act.runtime[i] += 1; } }
+
+  // 기능별 계열, 단계 hits, 기능 쌍 연결(닿은 기능이 2개 이상·전체 절반 이하인 커밋만)
+  const nJourneys = d.semantic.journeys.length;
+  const series = {}, hits = {}, pairs = new Map();
+  for (const c of human) {
+    const i = dayIndex.get(seoulDay(c.date));
+    const js = [...new Set(c.journeys.map((x) => x.journey))];
+    for (const j of js) (series[j] ||= zeros())[i] += 1;
+    for (const k of new Set(c.journeys.map((x) => `${x.journey}/${x.step}`))) hits[k] = (hits[k] || 0) + 1;
+    if (js.length >= 2 && js.length <= Math.floor(nJourneys / 2)) {
+      for (let a = 0; a < js.length; a++) for (let b = a + 1; b < js.length; b++) { const k = [js[a], js[b]].sort().join('|'); pairs.set(k, (pairs.get(k) || 0) + 1); }
+    }
+  }
+  const links = [...pairs].map(([k, n]) => { const [a, b] = k.split('|'); return { a, b, n }; }).sort((x, y) => y.n - x.n || `${x.a}${x.b}`.localeCompare(`${y.a}${y.b}`)).slice(0, 30);
+
+  // 로드맵 항목·마일스톤: 문구는 plain으로 줄이고, 항목 문구는 비완료만 싣는다
+  const milestoneList = d.milestones || [];
+  const milestoneById = new Map(milestoneList.map((m) => [m.id, m]));
+  const roadmapItems = (d.roadmap || []).slice().sort((a, b) => a.order - b.order).map((r) => {
+    const done = r.status === '완료';
+    const waitingOn = done ? '' : plain(r.waitingOn, 140);
+    const w = splitWaiting(waitingOn);
+    const scenes = (r.scenes || []).filter((s) => !s.missing);
+    return {
+      id: r.id, order: r.order, title: r.title, status: r.status, mode: r.mode, milestone: milestoneById.has(r.milestone) ? r.milestone : null,
+      goal: done ? '' : plain(r.goal, 140), waitingOn, waitingWho: w.who, waitingWhat: w.what, waitingSince: waitingOn ? r.waitingSince ?? null : null, completedAt: r.completedAt ?? null,
+      sceneCounts: Object.fromEntries(STEP_STATUS.map((k) => [k, scenes.filter((s) => s.status === k).length])),
+      tasks: (r.tasks || []).filter((t) => !t.missing).map((t) => ({ name: t.name, title: plain(t.title, 60), stage: t.stage, status: t.status, pnDone: t.pnDone, pnOpen: t.pnOpen })),
+      blockedBy: r.blockedBy || [],
+    };
+  });
+  const milestones = milestoneList.map((m) => {
+    const waitingOn = plain(m.waitingOn, 140);
+    const w = splitWaiting(waitingOn);
+    return {
+      id: m.id, order: m.order, title: m.title, status: m.status, goal: plain(m.goal, 140), completedOn: isDay(m.completedOn) ? m.completedOn : null, targetOn: isDay(m.targetOn) ? m.targetOn : null,
+      waitingWho: w.who, waitingWhat: w.what, waitingSince: waitingOn ? m.waitingSince ?? null : null, items: m.items, steps: m.progress, plans: m.plans, blocked: m.blocked,
+    };
+  });
+  const currentMilestone = (milestones.find((m) => m.status === '진행') || milestones.find((m) => m.status === '다음'))?.id ?? null;
+  const openItems = (d.roadmap || []).filter((r) => r.status !== '완료').sort((a, b) => a.order - b.order);
+
+  const captures = [];
+  for (const j of d.semantic.journeys) {
+    const s = j.steps.find((x) => x.status === 'live' && x.captureFile && !captures.some((c) => c.file === x.captureFile));
+    if (s && captures.length < 5) captures.push({ file: s.captureFile, journey: j.id, step: s.id });
+  }
+  const changes = human.slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 20).map((c) => {
+    const touched = new Set(c.journeys.map((x) => x.journey));
+    const titles = d.semantic.journeys.filter((j) => touched.has(j.id)).map((j) => j.title).slice(0, 3);
+    return { date: new Date(c.date).toISOString(), kind: changeKind(c.subject), subject: subjectPlain(c.subject, 70), journeys: titles, journeysMore: touched.size - titles.length };
+  });
+  const stepCounts = Object.fromEntries(STEP_STATUS.map((k) => [k, 0]));
+  for (const j of d.semantic.journeys) for (const s of j.steps) if (s.status in stepCounts) stepCounts[s.status] += 1;
   const lastRun = d.testreport ? { fresh: d.testreport.fresh, failures: d.testreport.failures, total: d.testreport.total, at: d.testreport.at } : null;
   return {
     generatedAt: d.generatedAt, project: d.project, headDate: d.head?.date || null,
     line: summaryLine(d),
-    journeys: d.semantic.journeys.map((j) => ({ id: j.id, title: j.title, actor: A[j.actor] || j.actor, lane: j.lane, status: j.status, warnings: j.warnings, steps: j.steps.map((s) => ({ id: s.id, label: s.label, status: s.status, grade: s.grade, warn: s.warnings.length > 0 })) })),
+    journeys: d.semantic.journeys.map((j) => {
+      const item = openItems.find((r) => (r.scenes || []).some((s) => !s.missing && s.journey === j.id));
+      const ms = item && milestoneById.get(item.milestone);
+      const js = series[j.id] || zeros();
+      return {
+        id: j.id, title: j.title, actor: A[j.actor] || j.actor, lane: j.lane, status: j.status, warnings: j.warnings,
+        steps: j.steps.map((s) => ({ id: s.id, label: s.label, status: s.status, grade: s.grade, warn: s.warnings.length > 0, hits: hits[`${j.id}/${s.id}`] || 0 })),
+        goal: plain(j.goal, 80), counts: j.counts, roadmapItem: item ? { id: item.id, title: item.title, status: item.status } : null, milestone: ms ? { id: ms.id, title: ms.title, status: ms.status } : null,
+        commits: sum(js), week: sum(js.slice(-7)), series: js,
+      };
+    }),
     running: d.ledger.running.map((r) => ({ work: r.work, owner: r.owner })),
     roadmap: d.roadmap.filter((m) => m.status !== '완료').slice(0, 4).map((m) => ({ id: m.id, title: m.title, status: m.status, mode: m.mode, live: m.progress.live, total: m.progress.total, waiting: !!m.waitingOn })),
     roadmapDone: d.roadmap.filter((m) => m.status === '완료').length, roadmapTotal: d.roadmap.length,
@@ -201,11 +297,16 @@ export function overviewSlice(d) {
       tests: lastRun ? (lastRun.failures ? 'fail' : lastRun.fresh ? 'ok' : 'stale') : 'none', lastRun,
       adapters: d.adapters.some((a) => a.status === 'failed') ? 'fail' : d.adapters.some((a) => a.status === 'partial') ? 'partial' : 'ok', adapterNotes: d.adapters.filter((a) => a.status !== 'ok').map((a) => `${a.name}: ${a.error}`),
       warnings: d.summary.warnings, orphans: d.summary.orphans, gated: d.tests.filter((t) => t.gated).reduce((n, t) => n + t.count, 0),
+      deployBehindAll: d.deploy?.behind ?? null,
     },
-    counts: { stepsLive: d.summary.stepsLive, stepsTotal: d.summary.stepsTotal, screensLive: d.summary.liveRoutes, screensFixed: d.summary.fixedRoutes, screens: d.summary.routes, apis: d.summary.apis, functions: d.summary.dbFunctions, tests: d.summary.tests, pnDone: d.summary.pnDone, pnTotal: d.summary.pnDone + d.summary.pnOpen, oq: d.summary.oq, decisions: d.decisions.filter((x) => x.status === 'current').length, proposed: d.decisions.filter((x) => x.status === 'proposed').length, grades: d.summary.grades },
+    counts: { stepsLive: d.summary.stepsLive, stepsTotal: d.summary.stepsTotal, screensLive: d.summary.liveRoutes, screensFixed: d.summary.fixedRoutes, screens: d.summary.routes, apis: d.summary.apis, functions: d.summary.dbFunctions, tests: d.summary.tests, pnDone: d.summary.pnDone, pnTotal: d.summary.pnDone + d.summary.pnOpen, oq: d.summary.oq, decisions: d.decisions.filter((x) => x.status === 'current').length, proposed: d.decisions.filter((x) => x.status === 'proposed').length, grades: d.summary.grades,
+      steps: stepCounts, journeys: nJourneys, journeysLive: d.semantic.journeys.filter((j) => j.status === 'live').length, tasksRunning: d.tasks.filter((t) => t.status === '진행').length },
     areas: Object.entries(d.areaCounts).sort((a, b) => b[1] - a[1]).slice(0, 6),
     recent: d.commits.filter((c) => c.journeys.length).slice(0, 6).map((c) => ({ date: c.date, subject: c.subject, scenes: c.journeys.map((x) => x.label) })),
     openQuestions: d.plans.filter((p) => p.oq).map((p) => ({ title: p.title, oq: p.oq })),
+    roadmapItems, milestones, currentMilestone,
+    activity: { sinceDays: days, days: dates.map((date, i) => ({ date, commits: act.commits[i], runtime: act.runtime[i], bots: act.bots[i] })), total: sum(act.commits), runtime: sum(act.runtime), bots: sum(act.bots) },
+    changes, links, captures,
   };
 }
 
