@@ -20,7 +20,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "build:ui": "node scripts/build-ui.mjs"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.63.0 <2"

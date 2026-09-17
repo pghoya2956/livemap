@@ -1,7 +1,7 @@
 # design-sync 기록(livemap)
 
 - 동기화 대상은 저장소 루트 패키지가 아니라 `ui/package.json`(`@pghoya2956/livemap-ui`, private)이다. 루트 패키지에는 types가 없고 npm 배포 대상도 아니다.
-- 빌드: `node scripts/build-ui.mjs` → `ui/dist-lib/index.js`(React 외부 ESM)와 `ui/fonts/`(site/fonts 사본). 변환기는 `--entry ./ui/dist-lib/index.js --node-modules ./node_modules`.
+- 빌드: `node scripts/build-ui.mjs --lib` → `ui/dist-lib/index.js`(React 외부 ESM)와 `ui/fonts/`(site/fonts 사본). 변환기는 `--entry ./ui/dist-lib/index.js --node-modules ./node_modules`.
 - `ui/index.d.ts`는 손으로 쓴 타입이다. 컴포넌트 props를 바꾸면 같이 고친다.
 - `Icons`는 컴포넌트가 아니라 `componentSrcMap`에서 뺐다.
 - 미리보기 자료는 `.design-sync/sample/monitor.ts`의 가상 제품(CampNote)이다. 공개 저장소라 실제 프로젝트 자료를 넣지 않는다. 모양은 livemap 1.1.0 `overview.json`(`OverviewData`)이고, 마일스톤 있는 `data`와 마일스톤 없는 `roadmapOnly` 두 벌이다. 캡처만 같은 출처 파일 대신 `src`(data: 그림)를 쓴다.

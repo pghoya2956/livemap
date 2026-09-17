@@ -4,7 +4,7 @@
   "pkg": "@pghoya2956/livemap-ui",
   "globalName": "Livemap",
   "cssEntry": "styles.css",
-  "buildCmd": "node scripts/build-ui.mjs",
+  "buildCmd": "node scripts/build-ui.mjs --lib",
   "componentSrcMap": {
     "Icons": null
   },

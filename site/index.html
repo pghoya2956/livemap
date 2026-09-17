@@ -4,22 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>상황판</title>
-<!-- 서빙 CSP(default-src 'self')에 맞춰 스타일·스크립트·서체는 같은 출처의 /map/ 아래 파일만 쓴다. 인라인은 넣지 않는다. -->
-<link rel="stylesheet" href="/map/map.css">
+<link rel="stylesheet" href="map.css">
 </head>
 <body>
-
-<div class="app">
-  <aside class="side">
-    <div class="brand"><span id="brandName">상황판</span><small id="brandSha"></small></div>
-    <nav class="nav" id="nav"></nav>
-    <div class="foot" id="sideFoot"></div>
-  </aside>
-  <main class="main">
-    <div class="head"><h1 id="title"></h1><span class="sub" id="subtitle"></span><div class="meta" id="meta"></div></div>
-    <div id="view"><p class="empty">불러오는 중…</p></div>
-  </main>
-</div>
-<script src="/map/map.js"></script>
+<div id="root"></div>
+<script src="map.js"></script>
 </body>
 </html>
