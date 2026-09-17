@@ -2,6 +2,113 @@
 
 버전마다 `## [X.Y.Z] - YYYY-MM-DD` 절을 둔다. 릴리스 워크플로가 태그 버전의 절이 있는지 확인한다.
 
+## [1.2.0] - 날짜 미정
+
+엔진이 못 읽은 곳을 0으로 세지 않고 "?"와 근거 줄이 달린 이슈로 드러내고, 에이전트나 사람이 적은 판정 파일을 원문과 대조해 값으로 받는다. 검사 결과는 러너가 낸 파일별 결과 JSON으로, 화면→API 호출은 화면 코드의 경로 리터럴로 관측한다. 엔진은 계속 LLM·네트워크를 부르지 않는다. README 「버전」이 major로 정한 항목(config 키, 여정 형식, 어댑터 계약, 명령·종료 코드, 생성물 파일 이름, export 배치, 예산 설정 경로)은 더하기만 했다. 새 설정 키는 없다. 1.1.1 생성물의 필드는 지우거나 이름을 바꾸지 않았고, 규칙이 바로잡히며 값이 바뀌는 필드는 아래 「값이 바뀌는 것」에 모았다.
+
+### 추가
+
+check와 이슈 계약
+
+- `livemap check --json`: stdout에 `{ schema, engine, errors, warnings, problems[] }` JSON만 낸다. 문제마다 안정 코드, 대상(`subject`), 근거 줄(`anchors`, 원문 조각 120 코드 포인트까지), 허용 처리(`resolutions`: source·judge·config·code·engine), 판정 초안(`judgmentDraft`)이 붙는다. 텍스트 출력의 1.1.1 줄 문구·순서는 그대로다.
+- 새 코드 13개(`tasks.*` 7, `judgment.*` 2, `router.*` 3, `journey.api-not-observed`)와 1.1.1 check 줄에 붙인 코드. 코드 표의 정본은 새 문서 `docs/issue-codes.md`다. 같은 새 코드가 6건 이상이면 텍스트 출력에서 한 줄로 묶는다.
+- `livemap check --strict`: `tasks.*`·`judgment.*` 경고를 오류로 센다(옵트인, 배포 게이트에는 두지 않는다).
+- `livemap check --staged`와 `livemap init`의 커밋 전 훅: `.githooks/pre-commit`(`npx --no livemap check --staged`)과 `git config core.hooksPath .githooks`. 스테이징한 작업 폴더 문서·장부·판정 파일에 걸린 `tasks.*`·`judgment.*` 문제가 있으면 종료 코드 1로 커밋을 멈추고 근거 줄과 판정 초안을 출력한다. 대상 파일이 없거나 git 저장소가 아니면 0이다. 기존 `core.hooksPath`나 훅 관리자(husky·lefthook·pre-commit), `.git/hooks/pre-commit`이 있으면 덮지 않고 넣을 한 줄을 출력한다.
+- 어댑터 계약 `g.issue(level, label, message, detail?)`: 넷째 인자로 코드·대상·근거 줄·처리·판정 초안을 붙인다. 세 인자 호출은 1.1.0 그대로다.
+
+작업 문서 읽기
+
+- md 블록 읽개(`src/lib/md-blocks.mjs`): 제목·목록 항목·표 행을 줄 번호와 함께 나누고 코드 펜스 안 줄은 건너뛴다.
+- 식별자 줄 문법: 굵은 결정 줄(`- **DEC-7**`), 임의 접두어 계획 항목(`[A-Z]{1,4}[0-9]?-[0-9]+`), 번호 없는 체크박스, 취소선 정의. 규칙이 못 읽는 줄(표로 적은 결정, 첫 칸이 번호 하나가 아닌 잔여 질문 행, 계획 파일이 불분명한 체크박스)은 `tasks.unread-*` 이슈와 `partial`로 드러낸다.
+- 파일 대체 규칙: 계획 파일이 없으면 체크박스를 가진 루트 md 하나(단일 `spec.md` 등), `spec/final.md`가 없으면 작업 폴더 루트 `final.md`.
+- 잔여 질문: 제목에 "잔여"·"질문"이 든 절의 표만 세고, 체크한 계획 항목 설명이 같은 번호로 시작하면 닫힌 질문으로 본다. 새 필드 `openQuestions`·`openQuestionIds`, 개요 `counts.openQuestions`.
+- 장부 상태: 절 제목 표시어(완료·complete·done, 진행·in progress, 대기·paused, 폐기·cancel 등)로 분류한다. spec-kit 장부 절(`In Progress`·`Paused`·`Completed`)을 읽는다.
+- 번호 참조: 같은 번호를 정의한 작업을 결정 노드 `definers`·`definedAt`에 모으고, 여럿이면 `tasks.ambiguous-ref`. 여정 `refs`에 `<작업 폴더>#<번호>` 한정 참조를 받는다.
+- 판정 파일 `map/judgments/<작업 폴더>.json`: `planFile`, `lines[]`(definition·ignore), `questions.none`·`questions.items[]`. 근거는 줄 번호 대신 원문 한 줄 안의 20자 이상 조각으로 대조해, 한 줄이면 적용(`judged`), 0줄이면 `judgment.stale`, 여러 줄이면 `judgment.invalid`다. 판정은 체크 여부·장부 상태·단계를 바꾸지 못한다. `data.json` `judgments[]`.
+
+읽기 상태
+
+- 노드 `props.reading`·`props.readingNotes`: `observed`·`rule`·`judged`·`partial`·`stale`·`unknown`·`none`. 작업 `plan`·`openQuestions`·`stage`, 검사 `count`·`lastRun`, 화면 `apis`, 배포 `behind`에 붙는다. `data.json` `readings`(값별·필드별 건수), `overview.json` `counts.reading`(개요 수치의 상태만, 경로 없음).
+- 화면: 값 뒤 "?"와 이유 분류(개요), 이유 문장·근거 줄·판정 파일(작업 상세, 더보기 > 이 상황판의 읽기 상태·판정 카드). 작업 화면에서 결정 열을 뺐다. 검사 탭은 낡은 결과의 이유 문장을 보인다(`data.json` `tests[].readingNotes`).
+
+검사 결과
+
+- Node 사용자 리포터 `src/reporters/node-results.mjs`(패키지 공개 경로)와 결과 JSON(`tests.report` 폴더의 `test-results.json`, 필드 이름은 CTRF). `livemap test-report`가 JUnit과 이 리포터를 함께 붙여 돌린다.
+- `livemap test-report --import <파일> [--sha <커밋>]`: livemap 리포터 출력, Playwright JSON 리포터 출력, JUnit XML을 결과 JSON에 넣는다. 가릴 수 없으면 종료 코드 2.
+- 최신 판정: 결과 커밋이 HEAD의 조상이고, 그 뒤 커밋과 실행 때 변경이 설정의 문서 경로(`tasks.dir`, 위키 인덱스 폴더, `semantic`, `roadmap.file`, `captures.site`, `deploy.manifest`, `map/judgments`) 밖을 건드리지 않으면 최신이다.
+- 검사 노드 `lastRun`의 `failed`·`skipped`·`pending`·`flaky`·`runner`·`sha`·`at`·`tags`, `runCount`, `data.json` `testRuns[]`, `testreport:last`의 `signal`·`runs`. 결과 파일 경로와 검사 파일 경로를 글자 그대로 맞춘다.
+- 문서 `docs/test-results.md`(형식, 최신 판정, 리포터·import 명령, CI 배선 예).
+
+화면→API 관측
+
+- router가 페이지의 import 닫힘에서 `/api/` 문자열 리터럴을 모아 화면 노드 `apiLiterals[]`에 적고, 모든 어댑터 뒤 연결 단계(`src/link.mjs`)가 API 노드에 대응해 `calls` 엣지와 `matched`를 채운다. 확장 닫힘은 리터럴 추출에만 쓰고 화면 `files`·`source`와 변경 연결은 1.1.1 그대로다.
+- 맞는 API가 없으면 `router.unknown-api`, 여정 `apis`에만 있고 화면에서 관측되지 않은 API는 `journey.api-not-observed`. 고아 API는 관측한 화면 호출만 센다.
+- `router.hookApi`가 있으면 1.1.1처럼 읽고(합집합) 항목마다 `router.hookapi-redundant`·`router.hookapi-only`를 알린다. 화면 노드 `hookApiKeys`.
+
+기타
+
+- 배포 노드 `behindManifestOnly`(뺀 매니페스트 전용 커밋 수).
+- 문서: `docs/adapter-contract.md`(넷째 인자, 읽기 상태, 리터럴과 연결 단계), `docs/semantic-authoring.md`(작업 문서 규칙, 판정 파일, 한정 참조), `docs/semantic-schema.md`(읽기 상태, 새 필드), `docs/issue-codes.md`, `docs/test-results.md`, `docs/migrate.md` 2.0.0 예고.
+
+### 고친 것(1.1.1 결함)
+
+- 설정에 `semantic` 키가 없으면 `build`·`check`가 `path` TypeError로 멈췄다. 이제 여정 입력 없음으로 본다.
+- `livemap test-report`를 `node --test` 안에서(검사·CI 래퍼) 부르면 자식 러너가 `NODE_TEST_CONTEXT`를 물려받아 검사 파일을 하나도 돌리지 않고 종료 코드 0을 냈다. 이제 그 변수를 빼고 러너를 띄운다.
+- Node 22 JUnit 리포터가 최상위 `<testcase>`를 `<testsuite>` 밖에 써서 1.1.1 testreport가 통과한 실행을 검사 0건으로 읽었다(결과가 늘 최신 아님). 최상위·중첩 `<testcase>`를 모두 센다.
+- 배포 뒤처짐(`behind`)이 배포 봇이 매니페스트만 바꾼 커밋까지 세어, 배포 직후에도 1로 보였다. 매니페스트 경로만 바꾼 커밋을 빼고 센다.
+- router의 로컬 import 닫힘이 작은따옴표 import만 따라가, 큰따옴표로 import한 페이지의 데이터 출처(live·mock)와 변경 연결이 빠졌다.
+
+### 값이 바뀌는 것
+
+같은 입력을 1.1.1과 1.2.0으로 build·check한 값이다. "실사용 프로젝트 사본"은 화면 29·API 55·작업 24개인 제품 저장소, "스펙 작업 코퍼스"는 작업 폴더 36개뿐인 문서 저장소다. 두 사본 모두 판정 파일이 없고, 원문은 고치지 않았다.
+
+| 값 | 대상 | 1.1.1 | 1.2.0 | 까닭 |
+|---|---|---|---|---|
+| 조용히 잘못 읽은 작업 문서 줄(후보인데 세지도 알리지도 않은 줄) | 실사용 프로젝트 사본 | 67줄(작업 8/24) | 0 | 굵은 결정·임의 접두어 체크박스·단일 `spec.md`를 규칙으로 읽고, 못 읽는 줄은 이슈로 알림 |
+| | 스펙 작업 코퍼스 | 177줄(작업 16/36) | 0 | 같은 까닭과 루트 `final.md` 대체, 잔여 질문 표의 번호 하나가 아닌 행 |
+| 개요 열린 질문 | 실사용 프로젝트 사본 | 29(`counts.oq`) | 1?(`counts.openQuestions`, 읽기 상태 partial) | 답한 `## 열린 질문` 표를 세지 않고 잔여 질문 절만 셈. 남은 1은 완료 작업의 닫히지 않은 질문(판정 파일로 0) |
+| | 스펙 작업 코퍼스 | 92 | 28?(partial) | 같은 까닭. 체크한 계획 항목 설명이 번호로 시작하면 닫힘 |
+| 계획 항목 완료/전체(작업 합) | 실사용 프로젝트 사본 | 149/181 | 189/221 | 계획 파일 없는 작업의 체크박스 40줄(단일 `spec.md` 세 작업 포함)과 임의 접두어 항목을 셈. 네 작업의 0/0이 4/4·6/6·5/5·6/6 |
+| | 스펙 작업 코퍼스 | 768/897 | 771/901 | 번호 없는 체크박스와 루트 `final.md` 작업 |
+| 결정 수 `dec`(작업 합, 화면에서는 뺌) | 실사용 프로젝트 사본 | 149 | 176 | 굵은 결정 줄 |
+| | 스펙 작업 코퍼스 | 206 | 360 | 굵은 결정 줄, 루트 `final.md` |
+| 작업 상태 분포 | 실사용 프로젝트 사본 | 완료 20·진행 2·폐기 1·기록 1 | 완료 21·진행 2·폐기 1 | `완료 실행 이력` 절을 표시어로 완료로 읽음 |
+| | 스펙 작업 코퍼스 | 기록 36 | 완료 28·진행 7·폐기 1 | spec-kit 장부 절 `In Progress`·`Completed`와 `폐기` 절을 읽음 |
+| 화면→API 쌍(`calls` 엣지) | 실사용 프로젝트 사본, hookApi 설정 그대로 | 215 | 257 | 1.1.1 쌍 215개 모두 유지, 리터럴로 42쌍 추가(2단계 hook이 부르는 세션 확인, 같은 경로의 메서드 노드, 대응표에 없던 견적 화면 호출) |
+| | 같은 사본, hookApi를 지운 설정 | 0 | 257 | 대응표 없이 리터럴로 관측 |
+| 고아 API | 실사용 프로젝트 사본 | 2 | 1 | 관측한 화면 호출로 셈 |
+| 배포 뒤처짐(`signals.deployBehindAll`) | 실사용 프로젝트 사본, 매니페스트 전용 커밋 직후 두 시점 | 1 | 0 | 매니페스트만 바꾼 커밋을 뺌(`behindManifestOnly` 1) |
+| 검사 신호·등급 A | 엔진 결과 픽스처, 통과한 실행 뒤 build | stale·A 0 | ok·A 1 | JUnit 최상위 testcase 합산과 결과 JSON |
+| | 같은 픽스처, 통과 뒤 작업 문서만 바꾼 커밋 | stale·A 0 | ok·A 1 | 최신 판정이 커밋 일치에서 "결과 커밋 뒤 문서 경로 밖 변경 없음"으로 바뀜 |
+| | 같은 픽스처, 통과 뒤 코드를 바꾼 커밋 | stale·A 0 | stale·A 0 | 그대로 |
+| 검사 개수 읽기 상태 | 실사용 프로젝트 사본 | 없음 | `counts.reading.tests` partial | 제목이 템플릿 문자열인 검사 호출 1파일 |
+| check 경고 수(오류 수·종료 코드는 그대로 0) | 실사용 프로젝트 사본 | 2 | 87 | `router.hookapi-redundant` 54(묶음 줄 한 줄), `tasks.ambiguous-ref` 29, 완료 작업 열린 질문 1, 번호 참조 대상 없음 1, 고아 줄 2(API 1·검사 1) |
+| | 스펙 작업 코퍼스 | build 실패(`semantic` 키 없음) | 17(오류 0) | `tasks.questions-open-done` 9, `tasks.unread-definition` 6, `tasks.questions-unknown` 1, `tasks.stage-unknown` 1 |
+| build 요약 경고(`signals.warnings`) | 실사용 프로젝트 사본 | 0 | 1 | 여정 refs의 잔여 질문 번호가 정의로 풀리지 않음(아래 알려진 한계) |
+
+등급 A의 뜻이 바뀐다. 1.1.1은 JUnit 결과의 커밋이 main HEAD와 같을 때만 A였다. 1.2.0은 결과 커밋이 HEAD의 조상이고 그 뒤 설정의 문서 경로 밖을 바꾼 커밋과 실행 때 변경이 없으면 A다. 그래서 작업 문서·판정 파일·여정만 바꾼 커밋 뒤에도 A가 남고, 코드·CI·설정 파일을 바꾼 커밋 뒤에는 다시 검사를 돌려야 A다. 오래된 결과를 지금 HEAD로 `--import`하면 최신으로 보이므로 러너 바로 뒤에 가져온다.
+
+### 업그레이드하면 check가 실패할 수 있는 항목
+
+새 경고는 종료 코드를 바꾸지 않는다. 다음 경우에만 1.1.1에서 통과하던 `check`가 1이 될 수 있다.
+
+- 판정 파일을 둔 프로젝트: `map/judgments/*.json`의 JSON·필드 형식 위반, 없는 작업 폴더·`planFile`·근거 파일, 20자 미만이거나 여러 줄에 걸린 근거 조각, 번호가 없는 근거 줄은 `judgment.invalid`(error)다. 판정 파일이 없는 프로젝트는 해당 없다.
+- 프로젝트 어댑터가 `g.issue`에 넷째 인자를 넘기던 경우: 1.1.1은 무시했지만 1.2.0은 형식을 검사해, 모르는 키·틀린 코드 모양·코드 표와 다른 수준이면 `throw`하고 그 어댑터가 failed(오류)가 된다.
+- 여정 `refs`의 한정 참조(`<폴더>#<번호>`): 그 폴더가 번호를 정의하지 않았으면 "참조 미해결" 오류다. 1.1.1에는 이 모양이 없어 새로 쓴 참조에만 해당한다.
+- `check --strict`를 CI에 배선하면 `tasks.*`·`judgment.*` 경고가 오류가 된다(옵트인).
+- `livemap init`을 다시 돌려 커밋 전 훅을 설치하면 `check` 자체는 그대로지만, 스테이징한 작업 문서에 걸린 `tasks.*`·`judgment.*` 문제가 있는 커밋이 멈춘다.
+
+### 알려진 한계
+
+- 검사 어댑터(`tests`)가 검사 파일의 로컬 import를 따라갈 때 작은따옴표 import만 읽는다(router는 두 따옴표 모두 읽음).
+- 화면 import 닫힘 밖 모듈의 경로 리터럴(예: 공용 요청 클라이언트의 세션 확인)은 어느 화면에도 붙지 않고 수도 남기지 않는다.
+- 닫힘이 파일 단위라 공유 컴포넌트가 가진 호출은 그 컴포넌트를 쓰는 모든 화면에 붙는다. 변수로 조립한 경로는 잡히지 않고 그 API는 고아 경고로 드러난다.
+- 라우트 페이지가 아닌 틀(레이아웃) 컴포넌트의 호출은 화면 호출로 세지 않아, 그 API가 고아로 남을 수 있다.
+- `execution/`에 헤더만 있는 실행 기록 파일이 있어도 작업 단계가 "실행"이다(1.1.1 단계 규칙 그대로). 계획 단계에서 실행 기록 틀을 만드는 워크플로는 실행 전에도 "실행"으로 보인다.
+- 잔여 질문 번호(`OQ-28`)는 정의로 보지 않아 여정 `refs`의 대상으로 풀리지 않고 "번호 참조 대상 없음" 경고가 된다.
+- 템플릿 문자열 검사 제목 판정은 한 줄 단위라, `test(` 다음 줄에서 제목이 시작하는 호출은 `partial`로 잡지 못한다.
+- 설정 루트가 git 저장소의 하위 폴더이면 배포 `behind`는 그 폴더를 건드린 커밋만 세고 `behindManifestOnly`에 폴더 밖 커밋이 섞인다.
+
 ## [1.1.1] - 2026-09-17
 
 작업 어댑터가 계획 항목·결정·열린 질문을 파일 하나에서만 센다. 생성물의 키와 형식은 그대로고 값만 바뀐다.

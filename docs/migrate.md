@@ -20,3 +20,18 @@
    - 끝으로 `npm run map:budget`이 통과하고 스크린샷 `map/.out/overview-1440.png`이 전환 전과 같은 정보를 보이는지 본다.
 
 로컬에서 고친 엔진을 끼워 볼 때는 `npm install --no-save --install-links <엔진 저장소 경로>`를 쓴다. `--install-links` 없이 폴더를 설치하면 심링크가 되어 예산 설정이 `@playwright/test`를 엔진 저장소 쪽에서 찾다 실패한다.
+
+## 1.x → 2.0.0(예고)
+
+2.0.0은 아직 나오지 않았다. 1.2.0까지 폐기를 예고했거나 1.x 호환 때문에 남긴 항목을 모아 지울 예정이다. 목록은 바뀔 수 있고, 판이 나오면 이 절을 이행 절차로 바꾼다. 1.x에서 미리 옮겨 두면 2.0.0 올림이 설정·참조 수정 없이 끝난다.
+
+| 항목 | 2.0.0 예정 | 1.x에서 미리 할 일 |
+|---|---|---|
+| 설정 `router.hookApi` | 키를 지운다. 화면→API는 리터럴 관측만 쓴다 | `livemap check`의 `router.hookapi-redundant` 항목을 설정에서 지우고, `router.hookapi-only` 항목은 화면 코드가 경로 리터럴을 쓰게 고친다 |
+| `data.json` `tasks[].dec`·`oq`, `overview.json` `counts.oq` | 지운다 | 화면·스크립트가 `openQuestions`·`counts.openQuestions`를 읽게 한다 |
+| 1.0.1 잔여 필드(`line`, `running`, `waiting`, `tasks`, 최상위 `openQuestions`, `areas`, `recent`, `roadmap[]`) | 지운다 | `overview.json` 1.1.0 필드를 읽는다 |
+| 결정·계획 항목 노드 id | 전역 번호(`DEC-57`)에서 `<작업 폴더>#<번호>`로 | 여정 `refs`를 `<작업 폴더>#<번호>` 한정 참조로 적는다(`tasks.ambiguous-ref` 0) |
+| 노드 종류 이름 | `milestone` → `roadmapItem`, `release` → `milestone` | 프로젝트 어댑터·스크립트가 노드 종류 이름에 기대는 곳을 찾아 둔다 |
+| 여정 파일 | md 여정 어댑터를 더할 수 있다 | 없음 |
+| 읽기 상태 강제 | `partial`·`stale`·`unknown`을 기본으로 오류로 셀지 정한다 | `livemap check --strict`로 과거 작업 채우기가 끝났는지 본다 |
+| `config.json` `engine` | `2` | 2.0.0으로 올리는 커밋에서 바꾼다. 엔진은 major가 다르면 멈추고 이 문서를 가리킨다 |

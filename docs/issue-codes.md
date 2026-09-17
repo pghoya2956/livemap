@@ -21,7 +21,8 @@
       "msg": "작업 문서: 완료 작업에 닫히지 않은 잔여 질문 1",
       "subject": { "kind": "task", "id": "20260101-sample" },
       "anchors": [{ "file": "tasks/20260101-sample/spec/final.md", "line": 12, "excerpt": "| OQ-02 | 남은 질문 |" }],
-      "resolutions": ["judge"]
+      "resolutions": ["judge"],
+      "judgmentDraft": { "task": "20260101-sample", "questions": { "items": [{ "id": "OQ-02", "state": null, "at": null }] } }
     }
   ]
 }
@@ -32,8 +33,36 @@
 - `subject`는 `{ kind, id }`이고 대상이 하나로 정해지지 않는 문제(고아 목록 등)는 `null`이다. `kind`는 그래프 노드 종류 이름(`task`, `step`, `journey`, `milestone`은 로드맵 항목, `release`는 마일스톤)이나 `adapter`·`config`다.
 - `anchors`는 `{ file, line, excerpt? }` 배열이다. `line`이 `null`이면 파일 단위 근거다. `excerpt`는 120 코드 포인트까지 자른다.
 - `resolutions` 값: `source`(원문을 규칙대로 고침), `judge`(판정 파일), `config`(설정), `code`(프로젝트 코드), `engine`(엔진 결함 보고).
+- `judgmentDraft`는 판정으로 처리할 수 있는 문제에만 있다(아래 「판정 초안」).
 
 `livemap check --strict`는 `tasks.*`·`judgment.*` 경고를 오류로 센다. 텍스트 줄 기호가 `✗`로 바뀌고 JSON의 `level`이 `error`가 된다. 과거 작업 채우기가 끝났는지 한 번 확인할 때 쓰고, 배포를 막는 CI 잡에는 배선하지 않는다.
+
+## 판정 초안(judgmentDraft)
+
+처리에 `judge`가 있는 작업 문서 문제는 `judgmentDraft`를 싣는다. 판정 파일(`semantic-authoring.md` 「판정 파일」)의 모양에서 원문을 읽어야 정할 값(`at`, `as`, `state`, `planFile`)을 `null`로 둔 초안이다.
+
+| 코드 | 초안 |
+|---|---|
+| `tasks.unread-definition`(표 첫 칸 결정) | `{ task, lines: [{ at: null, as: null, id }] }` |
+| `tasks.unread-definition`(잔여 질문 행) | `{ task, questions: { items: [{ id, state: null, at: null }] } }`. `id`는 칸 원문의 번호 모양 그대로(`OQ-04·OQ-05` 행은 둘, `R-OQ-01`·`OQ-H2b`는 하나) |
+| `tasks.unread-checklist`(계획 파일 불분명) | `{ task, planFile: null }` |
+| `tasks.questions-unknown`(잔여 질문 절 없음) | `{ task, questions: { none: { at: null } } }` |
+| `tasks.questions-open-done`(닫히지 않은 질문) | `{ task, questions: { items: [{ id, state: null, at: null }] } }` |
+| `judgment.stale`(근거 조각 사라짐) | 낡은 판정 항목(`at: null`)과 `candidates: [{ file, line, excerpt }]`(같은 파일에서 그 번호를 가진 줄) |
+
+`judgment.invalid`에는 초안이 없다. 파일 모양 문제는 파일 전체를, 근거 조각 문제는 그 항목만 적용하지 않으며 위반마다 한 건이다. 대상은 `{ kind: 'judgment', id: <작업 폴더> }`이고 첫 근거는 판정 파일(줄 `null`), 나머지는 근거 파일이다. `judgment.stale`이 난 판정이 맡던 규칙 문제(같은 줄의 후보, 같은 번호의 `tasks.questions-open-done`)는 다시 내지 않는다.
+
+## 커밋 전 훅(check --staged)
+
+`livemap check --staged`는 스테이징된 파일 중 작업 설정 `dir` 바로 아래 `<8자리 날짜>-` 작업 폴더 안 파일, 장부 파일(작업 설정 `index`), `map/judgments/*.json`만 대상으로 본다. 목록은 `git diff --cached --name-only --relative --no-renames`에서 얻는다.
+
+- 오류로 세는 문제는 코드가 `tasks.`·`judgment.`로 시작하고 대상이 작업·장부·판정 파일이면서, 대상이 스테이징된 작업 폴더·판정 파일이거나 근거 줄이 스테이징된 대상 파일에 있는 것이다. 나머지 문제는 보이지 않는다.
+- `tasks.ambiguous-ref`는 대상이 여정 단계이고 고칠 곳이 여정 파일이라 세지 않는다. 코드만 바꾼 커밋과 과거 작업의 남은 문제는 막지 않는다.
+- 대상 파일이 없거나 git 저장소가 아니면 빌드하지 않고 종료 코드 0이다.
+- 출력은 문제마다 `✗ <코드> <문구>`, `처리:`, `근거:`(파일:줄과 원문 조각), `판정 초안(judgmentDraft):` 한 줄 JSON이고, 끝 줄이 `map check --staged: 오류 n (…)`와 처리 안내다. 통과는 `map check --staged: 통과 (대상 파일 n)`, 대상 없음은 `map check --staged: 대상 없음`, git 저장소가 아니면 `map check --staged: git 저장소 아님, 건너뜀`이다. `--json`을 함께 주면 `check --json`과 같은 모양으로 낸다.
+- 오류가 있으면 종료 코드 1이라 커밋이 멈춘다. 멈춘 출력을 받은 에이전트 세션이 원문을 식별자 줄 규칙대로 고치거나 판정 파일을 써서 스테이징하고 다시 커밋한다. `--no-verify`로 넘기지 않는다.
+
+`livemap init`이 `.githooks/pre-commit`(`npx --no livemap check --staged`)을 만들고 `git config core.hooksPath .githooks`를 둔다. 이미 다른 `core.hooksPath`, 훅 관리자(`.husky`, lefthook 설정, `.pre-commit-config.yaml`), `.git/hooks/pre-commit`, 내용이 다른 `.githooks/pre-commit`이 있으면 덮지 않고 그 설정에 넣을 한 줄을 출력한다. `core.hooksPath`는 git 설정이라 클론마다 한 번 `livemap init`을 돌린다.
 
 ## 어댑터가 코드를 붙이는 법
 
@@ -47,9 +76,9 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 ```
 
 - 세 인자 호출(1.1.0 계약)은 그대로 받고 check에서 코드 `adapter.issue`가 된다.
-- 넷째 인자는 객체이고 키는 `code`·`subject`·`anchors`·`resolutions`만 쓴다. `code`는 `<영역>.<이름>`(소문자·숫자·하이픈) 모양이어야 한다. 아래 표에 있는 코드는 표의 수준과 `level`이 같아야 한다. 형식이 틀리면 `throw`하고 그 어댑터는 failed가 된다.
+- 넷째 인자는 객체이고 키는 `code`·`subject`·`anchors`·`resolutions`·`judgmentDraft`만 쓴다. 모르는 키가 있으면 `throw`한다. `code`는 `<영역>.<이름>`(소문자·숫자·하이픈) 모양이어야 한다. 아래 표에 있는 코드는 표의 수준과 `level`이 같아야 한다. 형식이 틀리면 `throw`하고 그 어댑터는 failed가 된다.
 - `subject`·`anchors`·`resolutions`를 빼면 `null`·`[]`·표의 처리 값이 들어간다. 표에 없는 프로젝트 코드는 처리 기본값이 `[]`다.
-- 넷째 인자를 준 문제만 `graph.json`·`data.json` `issues[]`에 `code`·`subject`·`anchors`·`resolutions`가 더해진다.
+- 넷째 인자를 준 문제만 `graph.json`·`data.json` `issues[]`에 `code`·`subject`·`anchors`·`resolutions`(있으면 `judgmentDraft`)가 더해진다.
 
 ## 1.2.0 새 코드
 

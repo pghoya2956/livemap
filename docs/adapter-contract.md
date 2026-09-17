@@ -14,17 +14,23 @@ export default function name(g, fs, cfg) {
 }
 ```
 
-- `g` — 그래프. `g.add(kind, id, label, props, src)`, `g.link(fromKind, fromId, edgeKind, toKind, toId)`, `g.get`, `g.of(kind)`, `g.in`, `g.out`, `g.issue(level, label, message)`(1.1.0부터).
+- `g` — 그래프. `g.add(kind, id, label, props, src)`, `g.link(fromKind, fromId, edgeKind, toKind, toId)`, `g.get`, `g.of(kind)`, `g.in`, `g.out`, `g.issue(level, label, message, detail?)`(1.1.0부터, 넷째 인자는 1.2.0부터).
 - `fs` — 저장소 접근. `read(rel)`, `has(rel)`, `isDir(rel)`, `walk(dir, pred)`, `ls(dir)`, `git(...args)`(실패 시 빈 문자열), `hasGit()`, `resolveRef(name)`(main → origin/main → HEAD), `lastCommit(rel)`, `lineOf(text, needle)`.
 - `cfg` — `map/config.json` 전체. 자기 키(`cfg.<name>`)만 읽고, 다른 어댑터의 키는 `?.`로 방어한다.
 
 ## 오류·경고 보고(g.issue)
 
-어댑터가 읽은 사실에서 프로젝트 규칙 위반을 찾았으면 `g.issue(level, label, message)`로 낸다. 반환값 partial·throw는 "어댑터가 제대로 읽었나"를, `g.issue`는 "읽은 내용에 문제가 있나"를 알린다. 1.1.0부터 쓸 수 있다.
+어댑터가 읽은 사실에서 프로젝트 규칙 위반을 찾았으면 `g.issue(level, label, message, detail?)`로 낸다. 반환값 partial·throw는 "어댑터가 제대로 읽었나"를, `g.issue`는 "읽은 내용에 문제가 있나"를 알린다. 세 인자 호출은 1.1.0부터, 넷째 인자는 1.2.0부터 쓸 수 있다.
 
 ```js
 g.issue('warn', '로드맵', '결정 대기 30일 넘음: 결제 흐름');
 g.issue('error', '여정 파일', '필수 키 없음: owner');
+g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질문 1', {
+  code: 'tasks.questions-open-done',
+  subject: { kind: 'task', id: '20260101-sample' },
+  anchors: [{ file: 'tasks/20260101-sample/spec/final.md', line: 12, excerpt: '| OQ-02 | 남은 질문 |' }],
+  resolutions: ['judge'],
+});
 ```
 
 - `level`은 `'error'` 또는 `'warn'`이다. 그 밖의 값이거나 `label`·`message`가 문자열이 아니면 `throw`하고, 그 어댑터는 failed가 된다. 다른 어댑터는 계속 돈다.
@@ -32,6 +38,37 @@ g.issue('error', '여정 파일', '필수 키 없음: owner');
 - `graph.json`·`data.json`의 최상위 `issues[]`에 `{level, label, message, adapter}`로 남는다.
 - `livemap check`는 기존 검사 뒤에 error를 `✗ {label}: {message}`로, warn을 `△ {label}: {message}`로 출력한다. error는 종료 코드 1에 센다.
 - 개요에는 나오지 않고 더보기 > 이 상황판(`#/more/about`)에 목록으로 나온다.
+
+넷째 인자(1.2.0):
+
+- 키는 `code`·`subject`·`anchors`·`resolutions`·`judgmentDraft`만 받는다. 모르는 키가 있거나 형식이 틀리면 `throw`하고 그 어댑터는 failed가 된다.
+- `code`는 `<영역>.<이름>`(소문자·숫자·하이픈)이다. 엔진 코드 표(`issue-codes.md`)에 있는 코드는 표의 수준과 `level`이 같아야 한다. 프로젝트 코드는 표 밖 이름을 쓴다.
+- `subject`는 `{ kind, id }` 또는 생략(`null`). `anchors`는 `{ file, line?, excerpt? }` 배열이고 `line`은 1 이상 정수이거나 생략(`null`, 파일 단위 근거)이다. `excerpt`는 엔진이 120 코드 포인트에서 자른다(`data.json`은 서빙되므로 긴 원문을 싣지 않는다).
+- `resolutions`는 `source`·`judge`·`config`·`code`·`engine` 중에서 고른다. 생략하면 표의 처리 값, 표 밖 코드는 `[]`다.
+- `judgmentDraft`는 판정 파일 초안 객체다. `check --json`과 `check --staged` 출력에 그대로 실린다.
+- 넷째 인자를 준 문제만 `issues[]` 항목에 `code`·`subject`·`anchors`·`resolutions`(있으면 `judgmentDraft`)가 더해진다. 세 인자 호출의 항목 모양은 1.1.0 그대로이고, check에서는 코드 `adapter.issue`로 나온다.
+
+## 읽기 상태(props.reading)
+
+1.2.0부터 노드 값마다 어떻게 읽었는지를 적는다. 화면은 이 상태로 값 뒤에 "?"와 이유를 붙인다.
+
+- `props.reading`은 `{ 필드: 상태 }`, `props.readingNotes`는 `{ 필드: 이유 문장 }`이다. 이유 문장에는 파일·줄이 들어갈 수 있어 개요(`overview.json`)에는 싣지 않는다.
+- 상태 값은 일곱이다: `observed`(구조화된 출력이나 livemap 소유 형식), `rule`(규칙으로 읽었고 같은 범위의 후보 줄이 모두 읽힘), `judged`(판정 파일이 값을 채움), `partial`(안 읽힌 후보 줄이나 뜻 확인이 필요한 행이 있음), `stale`(판정 근거나 검사 결과가 낡음), `unknown`(소스가 없거나 형식 밖), `none`(대상 없음).
+- 적지 않은 필드는 `rule`로 본다. 합계는 구성 요소 중 하나라도 `partial`·`stale`·`unknown`이면 `partial`이다.
+- 프로젝트 어댑터는 `props.reading`에 직접 적어도 된다. 참조 어댑터는 `src/lib/reading.mjs`의 `setReading(node, field, value, note?)`를 쓴다.
+- 참조 어댑터가 상태를 적는 필드: 작업 `plan`·`openQuestions`·`stage`(tasks), 검사 `count`(tests·testreport)·`lastRun`(testreport), 화면 `apis`(연결 단계), 배포 `behind`(deploy). 뜻은 `semantic-schema.md`.
+
+## 화면 리터럴과 연결 단계(apiLiterals)
+
+1.2.0 router 어댑터는 화면에서 API로 가는 호출을 대응표(`router.hookApi`) 대신 코드의 문자열 리터럴로 관측한다.
+
+1. router는 페이지 파일에서 로컬 import를 따라가며(작은따옴표·큰따옴표, `import type` 제외, `export … from` 재수출 포함) 리터럴을 모은다. `router.localDirs` 안 파일은 파일 전체, `router.app` 폴더 안이지만 `localDirs` 밖인 모듈은 가져온 이름의 최상위 선언만(그 선언이 같은 모듈의 다른 최상위 선언을 쓰면 깊이 2까지) 넣는다. 이 확장 닫힘은 리터럴 추출에만 쓰고, 화면 `files`·`source`·`mockVia`·`fixedVia`와 git 변경 연결은 1.1.1 파일 닫힘 그대로다.
+2. 따옴표·백틱 바로 뒤가 `/api/`인 문자열을 뽑아 `?`·`#` 뒤와 끝 `/`를 떼고, 조각 전체가 `${…}`면 `:param`, 조각 중간의 `${…}`는 앞 글자까지 남기고 열린 끝으로 둔다.
+3. router는 화면 노드 `apiLiterals[]`에 `{ path, open?, file, line, matched }`를 적기만 한다. 어댑터 순서상 router가 bff보다 먼저 돌아 대응할 API 노드가 아직 없기 때문이다.
+4. 모든 어댑터가 끝난 뒤 엔진 연결 단계(`src/link.mjs`)가 리터럴을 API 노드에 대응해 `calls` 엣지와 `matched`(맞은 API 노드 id 배열)를 채운다. 경로 조각 수가 같고 조각마다 같거나 한쪽이 `:이름`이면 맞고, 같은 경로의 메서드 노드는 모두 잇는다. 맞는 노드가 없으면 `router.unknown-api`다. 연결 단계는 `adapters[]`에 들지 않고, 실패하면 오류 이슈(`연결 단계: …`)로 남는다.
+5. 설정에 `router.hookApi`가 있으면 router가 1.1.1처럼 노드와 엣지도 만들고(합집합), 화면 노드 `hookApiKeys`에 쓴 키를 적는다. 연결 단계가 키마다 `router.hookapi-redundant`(리터럴로도 나옴, 지워도 됨) 또는 `router.hookapi-only`(hookApi로만 나옴)를 한 건 낸다. `router.hookApi`는 2.0.0에서 지울 예정이다.
+
+프로젝트 어댑터가 다른 방식으로 화면 호출을 찾으면 `calls` 엣지를 직접 이어도 된다. `apiLiterals`를 적으면 연결 단계가 같은 규칙으로 대응한다.
 
 ## 어디에 두나
 
@@ -68,7 +105,7 @@ g.issue('error', '여정 파일', '필수 키 없음: owner');
 
 ## 순서
 
-`config.adapters` 순서로 돈다. `tests`·`git`은 `screen`·`api`가 있어야 covers·changes를 잇고, `testreport`는 `git`이 만든 `deploy:head`로 "최신 커밋" 여부를 판정한다. 새 어댑터가 다른 어댑터의 노드에 기대면 그 뒤에 둔다.
+`config.adapters` 순서로 돈다. `tests`·`git`은 `screen`·`api`가 있어야 covers·changes를 잇고, `testreport`는 `git`이 만든 `deploy:head`로 검사 결과가 최신인지 판정한다(`test-results.md`). 새 어댑터가 다른 어댑터의 노드에 기대면 그 뒤에 둔다. 모든 어댑터가 끝나면 엔진 연결 단계가 화면 리터럴을 API 노드에 잇는다(위 「화면 리터럴과 연결 단계」). 어댑터 순서를 바꾸지 않아도 되므로 기존 설정의 `adapters` 순서는 그대로 둔다.
 
 ## 골격
 
@@ -109,7 +146,7 @@ test('openapi: paths → api 노드', () => {
 | Express·Fastify·Hono | OpenAPI 문서(있으면) | 라우터 등록 호출 `app.get('/x'` 정규식 |
 | Rails·Django·Spring | `rails routes`/`manage.py show_urls`/Actuator 덤프를 CI에서 파일로 저장 → 파일 어댑터 | 소스 파싱은 tree-sitter |
 | Prisma·Django ORM·Alembic | migration 폴더 관례 | 스키마 파일(`schema.prisma`) |
-| Jest·pytest·Go test | JUnit XML(거의 모든 러너가 낸다) → testreport | 소스에서 라우트 문자열 grep |
+| Jest·pytest·Go test | JUnit XML(거의 모든 러너가 낸다)을 `livemap test-report --import`로 결과 JSON에 넣음 → testreport | 소스에서 라우트 문자열 grep |
 | 작업 문서가 tasks/가 아님 | tasks 어댑터의 `dir`·절 이름만 바꿈 | Linear·GitHub Issues는 CI에서 JSON 덤프 → 파일 어댑터 |
 
 원칙은 "스택이 이미 내놓는 산출물을 읽는다"이다. 산출물은 형식이라 언어를 넘어 재사용되고, 소스 정규식은 그 프로젝트에서만 산다.
