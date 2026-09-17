@@ -1,6 +1,6 @@
 {
   "name": "@pghoya2956/livemap",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Project status board engine: scans a repository into a graph and serves a one-screen map of journeys, screens, APIs, tests and work.",
   "license": "MIT",
   "type": "module",
