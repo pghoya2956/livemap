@@ -278,3 +278,17 @@ test('SC-7 판정 파일이 없는 프로젝트: judgment.* 없음, 노드 judge
   assert.deepEqual(r.out.trim().split('\n'), ['△ 작업 문서: 스펙 final 표 첫 칸의 결정 번호 1줄을 규칙으로 읽지 않음', 'map check: 통과 (경고 1)']);
   assert.equal(readFileSync(join(p.dir, 'tasks/20260101-done/spec/final.md'), 'utf8'), DONE_SPEC);
 });
+
+test('SC-7 판정 초안 번호: 잔여 질문 표 첫 칸의 하이픈 둘인 번호(R-OQ-01)와 다른 번호 모양을 칸 원문 번호 그대로 싣는다', async () => {
+  const spec = md('# 스펙', '## 잔여 열린 질문', '| ID | 질문 |', '|---|---|',
+    '| R-OQ-01 | 검토에서 남긴 첫 질문 |', '| R-OQ-02 | 검토에서 남긴 둘째 질문 |', '| OQ-04·OQ-05 | 두 질문을 한 행에 묶어 적은 행 |',
+    '| ~~OQ-01~~ | 취소선으로 닫은 질문 |', '| OQ-H2b | 영문 소문자가 붙은 번호 |', '| OQ-B1 | 문자와 숫자를 섞은 번호 |');
+  const p = await project({
+    'tasks/index.md': index('## 진행', '| [a](20260101-a/task_plan.md) |'),
+    'tasks/20260101-a/spec/final.md': spec,
+    'tasks/20260101-a/task_plan.md': md('# 계획', '- [ ] PN-01 a'),
+  });
+  assert.deepEqual(p.codes(), ['tasks.unread-definition']);
+  const ids = p.problems[0].judgmentDraft.questions.items.map((e) => e.id);
+  assert.deepEqual(ids, ['R-OQ-01', 'R-OQ-02', 'OQ-04', 'OQ-05', 'OQ-01', 'OQ-H2b', 'OQ-B1']);
+});

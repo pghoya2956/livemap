@@ -39,8 +39,8 @@ const descriptionOf = (item) => {
   return t.trim().replace(/^[*_~`"'“]+/, '');
 };
 const cut = (s) => s.trim();
-// 판정 초안에 실을 번호: 칸 글자의 번호 모양(취소선·굵게 표시는 벗긴다). 없으면 칸 글자
-const idsIn = (cell) => { const m = cell.replace(/[*_~]/g, '').match(/[A-Z][A-Z0-9]*-[A-Z0-9]+/g); return m ? [...new Set(m)] : [cell]; };
+// 판정 초안에 실을 번호: 칸 글자의 번호 모양(취소선·굵게 표시는 벗긴다, 하이픈이 여럿인 R-OQ-01과 소문자가 붙은 OQ-H2b도 끝까지). 없으면 칸 글자
+const idsIn = (cell) => { const m = cell.replace(/[*_~]/g, '').match(/[A-Z][A-Z0-9]*(?:-[A-Za-z0-9]+)+/g); return m ? [...new Set(m)] : [cell]; };
 
 export default function tasks(g, fs, cfg) {
   const c = cfg.tasks;
