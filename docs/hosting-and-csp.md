@@ -58,7 +58,16 @@ async function serveMap(res, sub) {
 - Google Fonts 등 외부 스타일·폰트
 - `data:` 이미지
 
-엔진 화면은 그래서 `index.html`(마크업만) + `map.css` + `map.js`이고, 동적 폭은 `data-w` 속성을 붙인 뒤 JS에서 `el.style.width = …`로 적용한다(CSSOM 조작은 허용된다). 화면을 고칠 때 이 셋을 지키면 어느 CSP에서도 뜬다. 로컬 serve와 예산 검사가 같은 CSP를 걸어 회귀를 잡는다.
+엔진 서빙(`serve`)이 거는 정책은 `default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`다. 엔진 화면은 이 정책 아래에서 뜨도록 만들고, 로컬 serve와 예산 검사가 같은 정책으로 확인한다. 배포 서버 정책은 이것과 같거나 더 느슨해야 한다(`data/*.json`을 읽으므로 `connect-src 'self'`가 필요하다).
+
+엔진 화면은 그래서 `index.html`(`<div id="root">`와 같은 출처 `map.css`·`map.js`만) + `map.css` + `map.js`다. 1.1.0부터 화면 원본은 엔진 저장소 `ui/`의 React이고, esbuild가 이 세 파일로 번들한다. 파일 이름·위치는 1.0.1과 같다.
+
+- React는 브라우저에서만 렌더한다(`createRoot`). 크기·위치 같은 동적 값은 React `style` prop으로 주는데, React는 이것을 `element.style`(CSSOM)로 넣으므로 `style-src 'self'`가 막지 않는다. 마크업에 `style="…"` 속성으로 남지 않는다.
+- 서버 렌더·미리 렌더한 HTML은 쓰지 않는다. 렌더 결과가 마크업의 `style` 속성으로 남아 CSP 위반이 된다.
+- `<style>` 요소를 주입하는 CSS-in-JS·컴포넌트 라이브러리, 외부 서체, `data:` 이미지, `eval`을 쓰지 않는다. 그림은 SVG 속성과 `map.css` 클래스, 애니메이션은 `map.css`의 `@keyframes`, 캡처는 같은 출처 `captures/<id>.jpg`다.
+- 번들 끝에 React 라이선스 고지가 있다(`legalComments: 'eof'`).
+
+화면을 고칠 때 이 규칙을 지키면 위 정책에서 뜬다.
 
 ## CI
 
@@ -95,4 +104,19 @@ Dockerfile에는 `COPY map/.out/site/ ./map/site/` 한 줄. 생성기·어댑터
 
 ## 배포 뒤 검증
 
-상태 코드 200은 렌더를 증명하지 않는다. Chromium으로 열어 `.panel` 개수, 사이드바 배경색, 콘솔 오류 0을 본다. 포트포워드 뒤에서 프로덕션 호스트 헤더가 필요하면 `page.route('**/*', …)`로 요청을 로컬 포트로 바꿔 태운다(Chromium은 `extraHTTPHeaders`의 Host를 거부한다).
+상태 코드 200은 렌더를 증명하지 않는다. 배포한 `/map/`을 Chromium으로 열어 다음을 본다.
+
+| 확인 | 기대 |
+|---|---|
+| 셸 | 상단 바(`.top`)와 내비 링크 5개가 보인다 |
+| 스타일 적용 | `body` 계산 배경색이 `rgb(5, 7, 10)`이다. 투명이면 `map.css`가 막혔거나 경로가 틀렸다 |
+| 패널 | `.panel` 8개 |
+| 콘솔 | 오류 0, CSP 위반(`securitypolicyviolation`) 0 |
+| 서체 | `fonts/PretendardVariable.woff2` 응답 200 |
+| 자료 | `data/overview.json` 응답 200, `cache-control: no-store` |
+
+상황판은 보통 인증 게이트 뒤에 있어 검증 스크립트가 로그인 화면에 막힌다. 게이트를 우회하는 설정을 서버에 더하지 말고, 서버 자체에 바로 붙는 경로를 쓴다.
+
+- 게이트 앞단을 거치지 않는 포트포워드(클러스터면 서비스·파드로, 단독 서버면 SSH 터널)로 앱 서버 포트를 로컬에 연다.
+- 앱 서버가 Host 헤더로 경로나 CSP를 나누면 공개 도메인 Host가 필요하다. Chromium은 `extraHTTPHeaders`의 Host를 거부하므로, 브라우저는 공개 주소를 열게 두고 `page.route('**/*', …)`로 요청을 로컬 포트로 바꿔 태우거나 Host를 공개 도메인으로 바꿔 주는 loopback 프록시를 둔다.
+- 이렇게 확인한 것은 서버와 export 폴더다. 게이트 설정 자체(로그인 뒤 `/map/` 접근)는 사람이 브라우저로 한 번 연다.

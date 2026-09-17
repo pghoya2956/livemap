@@ -9,8 +9,8 @@
 export default function name(g, fs, cfg) {
   // ... 노드·엣지 추가
   return null;                 // 정상
-  // return '설명';            // partial: 일부만 읽음(예: 파일 없음). 생성은 계속되고 상단에 주황 점
-  // throw new Error('…');     // failed: 빨간 점 + check 오류. 그래도 다른 어댑터는 돈다
+  // return '설명';            // partial: 일부만 읽음(예: 파일 없음). 생성은 계속되고 더보기 > 이 상황판의 어댑터 상태에 남는다
+  // throw new Error('…');     // failed: 개요 특보 "자료 일부 누락" + check 오류. 그래도 다른 어댑터는 돈다
 }
 ```
 
@@ -31,7 +31,7 @@ g.issue('error', '여정 파일', '필수 키 없음: owner');
 - 엔진이 지금 실행 중인 어댑터 이름을 함께 기록한다(`config.adapters`의 이름). 어댑터가 throw하기 전에 낸 문제도 남는다.
 - `graph.json`·`data.json`의 최상위 `issues[]`에 `{level, label, message, adapter}`로 남는다.
 - `livemap check`는 기존 검사 뒤에 error를 `✗ {label}: {message}`로, warn을 `△ {label}: {message}`로 출력한다. error는 종료 코드 1에 센다.
-- 개요에는 나오지 않고 더보기의 상황판 설명 화면에 목록으로 나온다.
+- 개요에는 나오지 않고 더보기 > 이 상황판(`#/more/about`)에 목록으로 나온다.
 
 ## 어디에 두나
 
@@ -59,9 +59,12 @@ g.issue('error', '여정 파일', '필수 키 없음: owner');
 | ledger | `running-i`·`waiting-i` | tasks |
 | deploy | `head`·`homelab` | git, deploy |
 | testreport | `last` | testreport |
+| milestone | 로드맵 항목 id(1.x 이름) | roadmap |
 | release | 마일스톤 id(1.x 임시 이름, 1.1.0부터) | roadmap |
 
-엣지: `shows`(step→screen, 파생이 만든다), `calls`(screen→api), `invokes`(api→function), `touches`(function→table), `covers`(test→screen|api|function), `changes`(commit→screen|api|migration), `defines`(task→decision), `contains`(migration→table|function). 새 종류가 필요하면 엔진 저장소의 `src/lib/graph.mjs` 목록에 더한다(minor 릴리스). 화면이 그 종류를 그리려면 `src/derive.mjs`도 손봐야 하므로, 먼저 기존 종류로 표현할 수 없는지 본다.
+로드맵 항목과 마일스톤의 노드 종류 이름은 1.x 동안 `milestone`·`release`이고, 2.0.0에서 `roadmapItem`·`milestone`으로 바꾼다(어댑터 계약 변경이라 major).
+
+엣지: `shows`(step→screen, 파생이 만든다), `calls`(screen→api), `invokes`(api→function), `touches`(function→table), `covers`(test→screen|api|function), `changes`(commit→screen|api|migration), `defines`(task→decision), `contains`(migration→table|function, release→milestone), `tracks`(milestone→task). 새 종류가 필요하면 엔진 저장소의 `src/lib/graph.mjs` 목록에 더한다(minor 릴리스). 화면이 그 종류를 그리려면 `src/derive.mjs`와 화면 원본 `ui/`도 손봐야 하므로, 먼저 기존 종류로 표현할 수 없는지 본다.
 
 ## 순서
 

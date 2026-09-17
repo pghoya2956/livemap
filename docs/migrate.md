@@ -12,6 +12,11 @@
 4. `config.json`에 `"engine": 1`을 더한다.
 5. npm 스크립트를 `livemap` 명령으로 바꾼다(`livemap init`이 없는 스크립트만 넣고 값이 다른 스크립트는 보고한다). 어댑터 단위 검사 스크립트는 지운다. 참조 어댑터 검사는 엔진 저장소 CI가 돈다.
 6. 배포: 이미지 빌드 전에 `npm run map` → `npm run map:export`, 서버는 export 폴더 한 루트를 `/map/`로 준다(`hosting-and-csp.md`).
-7. 확인: 전환 전후 `data.json`이 `generatedAt`을 빼면 같고 `check` 출력이 같은지, `npm run map:budget`이 통과하는지 본다.
+7. 확인: 전환 전(옛 설치)과 전환 뒤(패키지)를 같은 커밋에서 연속으로 돌려 비교한다.
+   - 비교 대상은 `map/.out/`의 `graph.json`·`data.json`·`overview.json`과 `npm run map:check` 출력이다. 전환 전 결과를 다른 폴더에 복사해 두고 전환 뒤 같은 명령으로 다시 만든다.
+   - 옛 설치와 같은 판의 엔진으로 옮기면 세 파일이 `generatedAt`을 빼면 같고 `check` 출력도 같다.
+   - 전환하면서 엔진 판도 올리면 파일이 같지 않다. minor 판은 필드·노드를 더하기만 하므로, 전환 전 파일의 모든 경로·값이 전환 뒤 파일에 있는지(포함) 보고 새로 생긴 경로가 그 판의 CHANGELOG 항목인지 확인한다. `check`는 전환 전 출력에 CHANGELOG가 적은 새 줄만 더해져야 하고 오류 수는 같아야 한다.
+   - 활동 숫자는 실행 시각 기준 14일 창(`git.sinceDays`)이라 두 실행 사이에 창 경계를 넘는 커밋이 있으면 달라진다. 차이가 경계 커밋뿐인지 보고 연속으로 다시 돌린다. `npm ci`와 설치 시간은 두 실행 사이가 아니라 앞에 둔다.
+   - 끝으로 `npm run map:budget`이 통과하고 스크린샷 `map/.out/overview-1440.png`이 전환 전과 같은 정보를 보이는지 본다.
 
 로컬에서 고친 엔진을 끼워 볼 때는 `npm install --no-save --install-links <엔진 저장소 경로>`를 쓴다. `--install-links` 없이 폴더를 설치하면 심링크가 되어 예산 설정이 `@playwright/test`를 엔진 저장소 쪽에서 찾다 실패한다.
