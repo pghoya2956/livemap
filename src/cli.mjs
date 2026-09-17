@@ -5,7 +5,7 @@
 //   livemap serve   [--port 4180] [--static <dir>]     loopback 서빙. 기본은 요청마다 재빌드(5초 캐시), --static은 export 폴더를 그대로 준다
 //   livemap export  <dir> [--out map/.out]             화면·서체·캡처·생성물을 /map/ 주소 배치 그대로 한 폴더에 모은다
 //   livemap init                                       없는 파일만 템플릿으로 만들고 .gitignore·npm 스크립트를 넣는다
-//   livemap test-report                                단위 검사를 JUnit으로 남긴다(config.tests.dir → config.tests.report)
+//   livemap test-report                                단위 검사를 JUnit과 결과 JSON으로 남긴다(config.tests.dir → config.tests.report 폴더의 test-results.json)
 //   livemap --version
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
@@ -83,7 +83,7 @@ const USAGE = `usage: livemap <command>
   serve        [--port 4180] [--static <dir>] 로컬 뷰 http://127.0.0.1:<port>/map/
   export <dir> [--out map/.out]               화면·서체·캡처·생성물을 한 폴더에(먼저 build)
   init                                        map/ 초안 파일·.gitignore·npm 스크립트
-  test-report                                 단위 검사를 JUnit 리포트로
+  test-report                                 단위 검사를 JUnit 리포트와 결과 JSON으로
   --version                                   엔진 버전`;
 
 function readConfig(root) {
