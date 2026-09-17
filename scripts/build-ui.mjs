@@ -16,3 +16,11 @@ cpSync(join(ROOT, 'ui/styles.css'), join(out, 'map.css'));
 cpSync(join(ROOT, 'ui/index.html'), join(out, 'index.html'));
 cpSync(join(ROOT, 'site/fonts'), join(out, 'fonts'), { recursive: true });
 console.log(`ui build → ${out}`);
+
+// Claude Design 동기화용 라이브러리 판: React를 밖에 둔 ESM(ui/dist-lib)과 서체 사본(ui/fonts).
+await build({
+  entryPoints: [join(ROOT, 'ui/index.js')], bundle: true, format: 'esm', target: 'es2020', jsx: 'automatic',
+  external: ['react', 'react-dom', 'react/jsx-runtime'], outfile: join(ROOT, 'ui/dist-lib/index.js'), legalComments: 'none',
+});
+cpSync(join(ROOT, 'site/fonts'), join(ROOT, 'ui/fonts'), { recursive: true });
+console.log('ui lib → ui/dist-lib/index.js');

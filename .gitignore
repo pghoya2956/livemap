@@ -3,3 +3,10 @@ node_modules/
 test/fixtures/mini/map/.out/
 .DS_Store
 ui/dist/
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+ui/dist-lib/
+ui/fonts/

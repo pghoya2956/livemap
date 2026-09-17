@@ -1,0 +1,36 @@
+{
+  "projectId": "14eb836b-44b5-4026-9d32-bd1797697bea",
+  "shape": "package",
+  "pkg": "@pghoya2956/livemap-ui",
+  "globalName": "Livemap",
+  "cssEntry": "styles.css",
+  "buildCmd": "node scripts/build-ui.mjs",
+  "componentSrcMap": {
+    "Icons": null
+  },
+  "overrides": {
+    "Overview": {
+      "cardMode": "single",
+      "viewport": "1440x900"
+    },
+    "FeatureMap": {
+      "cardMode": "column"
+    },
+    "TopBar": {
+      "cardMode": "column"
+    },
+    "Ticker": {
+      "cardMode": "column"
+    },
+    "AreaChart": {
+      "cardMode": "column"
+    },
+    "CapturePanel": {
+      "cardMode": "column"
+    },
+    "Panel": {
+      "cardMode": "column"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}
