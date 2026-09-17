@@ -24,3 +24,17 @@ export const hostOf = (raw) => {
   } catch { return null; }
 };
 export const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+
+const seoulYmd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d));
+/** "9월 17일" */
+export const mdKo = (isoOrYmd) => { const [, m, d] = (isoOrYmd.length === 10 ? isoOrYmd : seoulYmd(isoOrYmd)).split('-'); return `${+m}월 ${+d}일`; };
+/** 자료 신선도: 15분 이하면 live, 넘으면 "n분/시간/일 전 자료" */
+export const freshness = (generatedAt, now = Date.now()) => {
+  const m = Math.max(0, Math.round((now - Date.parse(generatedAt)) / 60000));
+  if (m <= 15) return { live: true, label: 'LIVE' };
+  return { live: false, label: m < 60 ? `${m}분 전 자료` : m < 1440 ? `${Math.round(m / 60)}시간 전 자료` : `${Math.round(m / 1440)}일 전 자료` };
+};
+/** 결정 대기 경과일: 두 Asia/Seoul 날짜 차 + 1 */
+export const waitDays = (sinceIso, refIso) => Math.round((Date.parse(seoulYmd(refIso)) - Date.parse(seoulYmd(sinceIso))) / 864e5) + 1;
+export const ROADMAP_TAG = { 완료: 'live', 진행: 'mock', 다음: 'next', 대기: 'next', 이후: 'next' };
+export const roadmapWord = (s) => (s === '진행' ? '진행 중' : s);

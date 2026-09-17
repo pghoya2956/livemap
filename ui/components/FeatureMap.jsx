@@ -2,6 +2,7 @@
 // 컨테이너 픽셀 크기를 좌표계로 써서 글자가 실제 크기로 그려진다. 함께 바뀐 기능은 흐르는 선으로 잇는다.
 import React from 'react';
 import { STATUS } from '../lib/format.js';
+import { StepMark } from './primitives.jsx';
 
 const LAYERS = [['live', '동작'], ['mock', '목업'], ['planned', '계획'], ['next', '구상'], ['links', '연결']];
 
@@ -102,7 +103,7 @@ export function FeatureMap({ journeys, links = [], selected, onSelect, nextNote,
           const hot = [...j.steps].sort((a, b) => b.hits - a.hits)[0];
           const d = `M${hx} ${cy} ` + pts.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
           return (
-            <g key={j.id} className={`jg ${j.id === selected ? 'sel' : ''}`} onClick={() => pick(j.id)}>
+            <g key={j.id} className={`jg jrow ${j.id === selected ? 'sel' : ''}`} onClick={() => pick(j.id)} tabIndex={0} role="button" aria-label={`${j.title}, ${j.actor}, 동작 ${j.counts.live}/${j.steps.length}`} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(j.id); } }}>
               <title>{j.title} · {j.goal}</title>
               <rect x={z.x + 4} y={rowTop} width={z.w - 8} height={rowH} fill="transparent" />
               <path className={`route ${j.status}`} d={d} />
@@ -138,7 +139,7 @@ export function FeatureMap({ journeys, links = [], selected, onSelect, nextNote,
       <div className="layers" aria-label="레이어">
         {LAYERS.map(([k, word]) => (
           <button key={k} className={`lyr ${on[k] ? '' : 'off'}`} aria-pressed={on[k]} onClick={() => setOn({ ...on, [k]: !on[k] })}>
-            <span className="sw" style={{ background: k === 'links' ? 'var(--cyan)' : STATUS[k].color }} />{word} <span className="num">{counts[k] ?? 0}</span>
+            {k === 'links' ? <span className="sw" style={{ background: 'var(--cyan)' }} /> : <StepMark status={k} />}{word} <span className="num">{counts[k] ?? 0}</span>
           </button>
         ))}
       </div>

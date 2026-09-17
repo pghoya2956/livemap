@@ -2,15 +2,16 @@
 import React from 'react';
 
 /** 패널 틀. 머리줄(아이콘·제목·보조 문구·기준 시각)과 본문. */
-export function Panel({ icon, title, sub, at, badge, children, className = '' }) {
+export function Panel({ icon, title, sub, at, badge, more, budget, children, className = "" }) {
   return (
-    <section className={`panel ${className}`}>
+    <section className={`panel ${className}`} data-budget={budget}>
       <div className="ph">
         {icon}
         <h2>{title}</h2>
         {badge}
         {sub != null && <span className="sub">{sub}</span>}
         {at && <span className="at">{at}</span>}
+        {more && <a className="more" href={more.href}>외 {more.n} →</a>}
       </div>
       {children}
     </section>
@@ -56,3 +57,17 @@ export const Icons = {
   screen: <svg width="15" height="15" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" fill="none" /><path d="M6.5 6v4l3.5-2z" fill="currentColor" /></svg>,
   table: <svg width="15" height="15" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.4" /></svg>,
 };
+
+/** 단계 상태 모양 표식(12px): 동작 채운 원, 목업 반 채움, 계획 실선 빈 원, 구상 점선 빈 원. */
+export function StepMark({ status, size = 12 }) {
+  const r = size / 2 - 1.5, c = size / 2;
+  const color = { live: 'var(--green)', mock: 'var(--amber)', planned: 'var(--plan)', next: 'var(--violet)' }[status] || 'var(--muted)';
+  return (
+    <svg className="stepmark" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      {status === 'live' && <circle cx={c} cy={c} r={r + 0.75} fill={color} />}
+      {status === 'mock' && <><circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="1.5" /><path d={`M${c} ${c - r}A${r} ${r} 0 0 0 ${c} ${c + r}Z`} fill={color} /></>}
+      {status === 'planned' && <circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="1.5" />}
+      {status === 'next' && <circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="1.5" strokeDasharray="2.5 2" />}
+    </svg>
+  );
+}
