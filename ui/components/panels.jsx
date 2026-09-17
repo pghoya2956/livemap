@@ -223,20 +223,20 @@ export function FeatureTrendPanel({ journeys, selected, onSelect, at }) {
   );
 }
 
-/** 특보: 결정 대기(로드맵 화면으로)와 이상 신호(검사 실패는 더보기 > 검사, 나머지는 더보기 > 이 상황판)만. */
+/** 특보: 이상 신호(검사 실패는 더보기 > 검사, 나머지는 더보기 > 이 상황판) 다음 결정 대기(로드맵 화면으로). 넘치면 결정 대기가 '외 n' 뒤로 간다. */
 export function SignalsPanel({ roadmapItems, milestones, signals, generatedAt, at }) {
   const rows = [];
-  [...milestones, ...roadmapItems].filter((r) => r.status !== '완료' && (r.waitingOn || r.waitingWhat)).forEach((r) => rows.push({
-    key: `w-${r.id}`, cls: 'wait', mag: '대기', tone: 'warm', href: roadmapHref(r.id),
-    title: <><Proj>{r.waitingWho ? `${r.waitingWho} ` : ''}</Proj>결정 대기 · <Proj>{r.title}</Proj></>, titleText: `${r.waitingWho ? `${r.waitingWho} ` : ''}결정 대기 · ${r.title}`,
-    meta: <>{r.waitingSince ? `${waitDays(r.waitingSince, generatedAt)}일째 · ` : ''}<Proj>{r.waitingWhat || r.waitingOn}</Proj></>, metaText: r.waitingWhat || r.waitingOn,
-  }));
   const sig = (key, mag, tone, title, meta, href = '#/more/about') => rows.push({ key, cls: 'sig', mag, tone, title, titleText: title, meta, metaText: meta, href });
   if (signals.deploy === 'behind') sig('deploy', '배포', 'hot', `미배포 ${signals.deployBehind}커밋`, '제품 코드 변경이 배포되지 않음');
   if (signals.warnings > 0) sig('warn', '경고', 'hot', `경고 ${signals.warnings}`, '상태와 코드가 어긋난 단계');
   if (signals.tests === 'fail') sig('tests', '검사', 'hot', `검사 실패 ${signals.lastRun?.failures ?? ''}`.trim(), '마지막 검사 리포트', '#/more/tests');
   if (signals.adapters === 'fail') sig('adapters', '자료', 'hot', '자료 일부 누락', '읽지 못한 자료가 있음');
   if (signals.deploy === 'ok' && signals.deployBehindAll > 0) sig('board', '뒤', '', `상황판 ${signals.deployBehindAll}커밋 뒤`, '제품 배포는 최신');
+  [...milestones, ...roadmapItems].filter((r) => r.status !== '완료' && (r.waitingOn || r.waitingWhat)).forEach((r) => rows.push({
+    key: `w-${r.id}`, cls: 'wait', mag: '대기', tone: 'warm', href: roadmapHref(r.id),
+    title: <><Proj>{r.waitingWho ? `${r.waitingWho} ` : ''}</Proj>결정 대기 · <Proj>{r.title}</Proj></>, titleText: `${r.waitingWho ? `${r.waitingWho} ` : ''}결정 대기 · ${r.title}`,
+    meta: <>{r.waitingSince ? `${waitDays(r.waitingSince, generatedAt)}일째 · ` : ''}<Proj>{r.waitingWhat || r.waitingOn}</Proj></>, metaText: r.waitingWhat || r.waitingOn,
+  }));
   const [ref, n] = useFitRows(rows.length, 48);
   return (
     <Panel icon={Icons.alert} title="특보" badge={<Tag kind={rows.length ? 'mock' : 'live'}>{rows.length}</Tag>} at={at} budget="list" className="signals" more={rows.length > n ? { n: rows.length - n, href: '#/roadmap' } : null}>
