@@ -362,7 +362,9 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
         const how = await clickLoc(loc(i)); await quiet(page);
         const hash = await page.evaluate(() => location.hash);
         const m = ctx.match(hash);
-        const expectPat = pats ? pats.find((p) => patternRegex(p).test(href)) : ctx.match(href)?.route.pattern;
+        // 정규식이 같은 패턴(로드맵 항목 id·마일스톤 id)은 자료에 있는 개체로 고른 패턴을 기대값으로 쓴다
+        const known = ctx.match(href)?.route.pattern;
+        const expectPat = pats ? (pats.includes(known) ? known : pats.find((p) => patternRegex(p).test(href))) : known;
         const screens = await C(page, 'screenAttr');
         const chk = m ? checkFor(m.route.pattern, ctx, m.tuple) : null;
         let content = chk ? await C(page, 'routeCheck', chk.kind, chk.arg) : null;
