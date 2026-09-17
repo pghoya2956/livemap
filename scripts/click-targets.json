@@ -8,7 +8,7 @@
     { "pattern": "#/journeys/<journey>/<step>", "screen": "journeys", "params": { "journey": "semantic.journeys[].id", "step": "semantic.journeys[].steps[].id" }, "check": ".scene.on 1개, .detail 보임" },
     { "pattern": "#/roadmap", "screen": "roadmap", "check": "항목 카드 수 = data.roadmap 수" },
     { "pattern": "#/roadmap/<item>", "screen": "roadmap", "params": { "item": "roadmap[].id" }, "check": "#rm-<id> 강조·뷰포트 안" },
-    { "pattern": "#/roadmap/<milestone>", "screen": "roadmap", "params": { "milestone": "milestones[].id" }, "check": "그 마일스톤 details[open]" },
+    { "pattern": "#/roadmap/<milestone>", "optional": true, "when": "milestones >= 1", "screen": "roadmap", "params": { "milestone": "milestones[].id" }, "check": "그 마일스톤 details[open]" },
     { "pattern": "#/tasks", "screen": "tasks", "check": "표 행 1개 이상(작업이 있을 때)" },
     { "pattern": "#/tasks/<task>", "screen": "tasks", "params": { "task": "tasks[].name" }, "check": ".detail 보임, 강조 행" },
     { "pattern": "#/changes", "screen": "more", "check": "#/more/changes와 같은 탭 선택" },

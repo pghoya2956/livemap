@@ -626,7 +626,9 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
     else {
       await reloadOverview(page, base);
       routes = await crawlRoutes(page, log, ctx, { scope });
-      patternsMissing = routes.byPattern.filter((p) => p.entities === 0).map((p) => ({ pattern: p.pattern, reason: '자료에 개체 없음(방문 못 함)' }));
+      // 표에서 optional인 패턴(예: 마일스톤을 쓰지 않는 프로젝트의 마일스톤 경로)은 개체가 없어도 실패로 세지 않는다
+      const optionalPat = new Set(targets.routes.filter((r) => r.optional).map((r) => r.pattern));
+      patternsMissing = routes.byPattern.filter((p) => p.entities === 0 && !optionalPat.has(p.pattern)).map((p) => ({ pattern: p.pattern, reason: '자료에 개체 없음(방문 못 함)' }));
       timing.routes = Date.now() - t;
     }
     const navMissing = sum(overviewTargets.map((o) => o.screenAttrMissing || 0));
