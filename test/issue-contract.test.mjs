@@ -163,7 +163,9 @@ test('SC-7 check --json: stdout은 JSON 하나, schema·engine·errors·warnings
   assert.equal(j.warnings, 6 + MINI_NEW_MSGS_1_2_0.length);
   assert.equal(j.problems.length, MINI_CHECK_1_1_1.length - 1 + MINI_NEW_MSGS_1_2_0.length);
   for (const p of j.problems) {
-    assert.deepEqual(Object.keys(p), ['level', 'code', 'msg', 'subject', 'anchors', 'resolutions'], p.msg);
+    // judgmentDraft는 판정(judge)으로 처리할 수 있는 문제에만 붙는다(1.2.0 판정 파일)
+    assert.deepEqual(Object.keys(p), ['level', 'code', 'msg', 'subject', 'anchors', 'resolutions', ...('judgmentDraft' in p ? ['judgmentDraft'] : [])], p.msg);
+    if ('judgmentDraft' in p) assert.ok(p.resolutions.includes('judge'), p.msg);
     assert.match(p.code, /^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/, p.msg);
     assert.ok(Array.isArray(p.anchors) && Array.isArray(p.resolutions), p.msg);
   }

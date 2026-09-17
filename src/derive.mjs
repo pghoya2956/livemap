@@ -253,6 +253,8 @@ export function derive(g, sem, cfg, { captureExists }) {
     milestones: milestoneView, issues: g.issues.map((i) => ({ ...i })), sources: { semantic: cfg.semantic, roadmap: cfg.roadmap?.file ?? null },
     // 읽기 상태 건수: 노드에 적힌 상태만 값별·필드별로 센다(적지 않은 필드는 rule로 보지만 세지 않는다)
     readings: countReadings([...g.nodes.values()]),
+    // 판정 파일: 작업마다 판정 파일 경로·by·note와 적용·낡음·무효 항목 수(작업 폴더 이름 순). 파일 모양이 틀린 판정 파일은 issues에만 있다
+    judgments: tasks.filter((t) => t.props.judged).map((t) => ({ task: t.id, file: t.props.judged, ...t.props.judgment })).sort((a, b) => a.task.localeCompare(b.task)),
   };
 }
 

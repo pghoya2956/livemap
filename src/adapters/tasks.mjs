@@ -6,8 +6,12 @@
 //   식별자 줄  md 블록 읽개(lib/md-blocks.mjs) 위에서 줄 모양으로 읽고, 같은 범위의 후보 줄 중 규칙이 읽지 못한 줄은 근거 줄을 단 이슈로 낸다
 //   센 줄      노드 readLines { 파일: [줄 번호] } — 결정 정의, 계획 파일 체크박스, 잔여 질문 표 행
 //   읽기 상태  plan·openQuestions·stage(lib/reading.mjs)
+//   판정 파일  map/judgments/<작업 폴더>.json(lib/judgments.mjs). 적용 순서: 규칙 → planFile → lines → questions → 읽기 상태.
+//              확인된 판정이 채우거나 고친 값은 judged, 근거가 사라진 판정이 맡던 값은 stale(값은 규칙으로 돌아가고 규칙 이슈는 다시 내지 않는다).
+//              판정은 체크 여부·장부 상태·단계를 바꾸지 못한다
 import { readBlocks } from '../lib/md-blocks.mjs';
 import { setReading } from '../lib/reading.mjs';
+import { readJudgments, JUDGMENT_LABEL } from '../lib/judgments.mjs';
 
 const DEC_ID = /^DEC-\d+$/;
 const PLAN_ID = /^[A-Z]{1,4}[0-9]?-[0-9]+$/;
@@ -35,6 +39,8 @@ const descriptionOf = (item) => {
   return t.trim().replace(/^[*_~`"'“]+/, '');
 };
 const cut = (s) => s.trim();
+// 판정 초안에 실을 번호: 칸 글자의 번호 모양(취소선·굵게 표시는 벗긴다). 없으면 칸 글자
+const idsIn = (cell) => { const m = cell.replace(/[*_~]/g, '').match(/[A-Z][A-Z0-9]*-[A-Z0-9]+/g); return m ? [...new Set(m)] : [cell]; };
 
 export default function tasks(g, fs, cfg) {
   const c = cfg.tasks;
@@ -56,6 +62,7 @@ export default function tasks(g, fs, cfg) {
     return cache.get(rel);
   };
   const anchor = (file, line) => ({ file, line, excerpt: cut(doc(file).lines[line - 1] ?? '') });
+  const judgments = readJudgments(fs, new Set(dirs), c.dir);
 
   // 장부 상태: 표 행 중 (<폴더>/ 또는 (<폴더>) 링크를 가진 행만, 절 제목 표시어로 분류
   const ledgerOf = new Map(); // 작업 → { statuses: Set, dropped }
@@ -120,6 +127,26 @@ export default function tasks(g, fs, cfg) {
       else if (rootBoxes.length > 1) planReading = 'unknown';
       else planReading = 'none';
     }
+    // 판정: 확인된 근거 줄(covered)과 근거가 사라진 판정이 잡고 있는 후보 줄(claimed, 같은 파일에서 그 id를 가진 줄)
+    const jd = judgments.byTask.get(name) || null;
+    const jLines = jd ? jd.lines : [];
+    const jItems = jd ? jd.items : [];
+    const key = (file, line) => `${file}:${line}`;
+    const covered = new Set(), claimed = new Set();
+    for (const e of [...jLines, ...jItems, ...(jd?.none ? [jd.none] : [])]) {
+      if (e.loc.state === 'ok') covered.add(key(e.loc.file, e.loc.line));
+      else if (e.loc.state === 'stale') for (const x of e.loc.candidates) claimed.add(key(x.file, x.line));
+    }
+    // 후보 줄 나누기: 남은 줄, 판정이 확인한 줄 수, stale 판정이 잡은 줄 수
+    const splitCandidates = (file, lines) => ({
+      rest: lines.filter((l) => !covered.has(key(file, l)) && !claimed.has(key(file, l))),
+      judged: lines.filter((l) => covered.has(key(file, l))).length,
+      stale: lines.filter((l) => !covered.has(key(file, l)) && claimed.has(key(file, l))).length,
+    });
+    if (jd?.planFile) {
+      planFile = `${base}/${jd.planFile}`; planReading = 'judged'; rootBoxes = [];
+      notes.plan = `판정 planFile: ${planFile}(${jd.file})`;
+    }
     const planText = plan ? fs.read(plan) : '';
     const led = ledgerOf.get(name);
     // 상태: 계획 문서 머리·장부 완료 행의 **폐기**, 그다음 장부 절 표시어(폐기·진행·완료·대기), 없으면 기록
@@ -132,21 +159,29 @@ export default function tasks(g, fs, cfg) {
     // 결정: 스펙 final 목록 머리 번호(굵게 포함, 취소선 제외)만 센다. 표 첫 칸 DEC 번호는 후보 줄
     let dec = 0, oq = 0;
     const decTable = [];
+    const ruleDefined = new Set();
     if (specFile) {
       const { blocks } = doc(specFile);
       for (const b of blocks) {
         if (b.type === 'item' && b.head && DEC_ID.test(b.head.id)) {
           if (b.head.struck) { struckIds.add(b.head.id); addNode(name, b.head.id, { kind: 'spec-dec' }, specFile, b.line, 'tasks:- DEC-nn', 'never'); continue; }
           dec += 1;
+          ruleDefined.add(b.head.id);
           read(specFile, b.line);
           define(b.head.id, name, specFile, b.line);
           addNode(name, b.head.id, { kind: 'spec-dec' }, specFile, b.line, 'tasks:- DEC-nn', 'always');
-        } else if (b.type === 'row' && /DEC-\d+/.test(b.cells[0])) decTable.push(b.line);
+        } else if (b.type === 'row' && /DEC-\d+/.test(b.cells[0])) decTable.push(b);
       }
       // oq: 1.1.1 규칙(spec/final.md의 `| OQ-n |` 표 행 수) 그대로
       if (spec.final) oq = (fs.read(specFile).match(/^\| OQ-\d+ \|/gm) || []).length;
     }
-    if (decTable.length) issue('tasks.unread-definition', `스펙 final 표 첫 칸의 결정 번호 ${decTable.length}줄을 규칙으로 읽지 않음`, decTable.map((l) => anchor(specFile, l)));
+    // 판정 lines: 표 첫 칸 결정 줄 등 규칙이 못 읽는 줄을 정의로 더하거나(definition) 후보에서 뺀다(ignore)
+    const oddRows = new Set(); // 잔여 질문 절의 번호 하나가 아닌 행(아래 질문 판정이 쓴다)
+    const decRest = splitCandidates(specFile, decTable.map((b) => b.line));
+    const decRows = decTable.filter((b) => decRest.rest.includes(b.line));
+    if (decRows.length) issue('tasks.unread-definition', `스펙 final 표 첫 칸의 결정 번호 ${decRows.length}줄을 규칙으로 읽지 않음`, decRows.map((b) => anchor(specFile, b.line)), {
+      judgmentDraft: { task: name, lines: decRows.flatMap((b) => idsIn(b.cells[0]).map((id) => ({ at: null, as: null, id }))) },
+    });
     // 1.1.1 호환 노드: 계획 파일의 `- DEC-nn` 목록 줄(옮겨 적기). 결정 수·정의 작업·후보에 들지 않는다
     if (plan) for (const b of doc(plan).blocks) if (b.type === 'item' && b.marker === '-' && b.indent === 0 && b.checkbox === null && b.head && !b.head.bold && !b.head.struck && DEC_ID.test(b.head.id)) addNode(name, b.head.id, { kind: 'spec-dec' }, plan, b.line, 'tasks:- DEC-nn', 'created');
 
@@ -164,23 +199,53 @@ export default function tasks(g, fs, cfg) {
       }
       if (planReading === 'rule' && pnDone + pnOpen === 0) planReading = 'none';
     } else if (rootBoxes.length > 1) {
-      issue('tasks.unread-checklist', `계획 파일 없이 체크박스를 가진 루트 문서 ${rootBoxes.length}개`, rootBoxes.flatMap((f) => checkboxes(f).map((b) => anchor(f, b.line))));
+      const parts = rootBoxes.map((f) => [f, splitCandidates(f, checkboxes(f).map((b) => b.line))]);
+      const rest = parts.flatMap(([f, x]) => x.rest.map((l) => anchor(f, l)));
       notes.plan = `계획 파일이 없고 체크박스를 가진 루트 문서가 ${rootBoxes.length}개: ${rootBoxes.join(', ')}`;
+      if (rest.length) issue('tasks.unread-checklist', `계획 파일 없이 체크박스를 가진 루트 문서 ${rootBoxes.length}개`, rest, { judgmentDraft: { task: name, planFile: null } });
+      else planReading = parts.some(([, x]) => x.stale) ? 'stale' : 'judged';
+    }
+    // 판정 lines definition: 결정 번호는 정의와 결정 수에 더한다(규칙이 이미 정의한 번호는 세지 않는다). 잔여 질문 절의 행은 질문 판정에서 쓴다
+    for (const e of jLines) {
+      if (e.loc.state !== 'ok' || e.as !== 'definition') continue;
+      read(e.loc.file, e.loc.line);
+      if (!DEC_ID.test(e.id) || ruleDefined.has(e.id)) continue;
+      ruleDefined.add(e.id);
+      dec += 1;
+      define(e.id, name, e.loc.file, e.loc.line);
+      addNode(name, e.id, { kind: 'spec-dec' }, e.loc.file, e.loc.line, 'judgment:lines definition', 'always');
     }
     // 1.1.1 호환 노드: 스펙 final의 계획 초안 체크박스(PN·P<숫자>). 계획 항목 수·정의 작업에 들지 않는다
     if (spec.final) for (const b of checkboxes(`${base}/spec/final.md`)) if (b.head && LEGACY_PLAN_ID.test(b.head.id)) addNode(name, b.head.id.toUpperCase(), { kind: 'plan-item', done: b.checked }, `${base}/spec/final.md`, b.line, 'tasks:- [ ] PN-nn', 'created');
 
-    // 잔여 질문: 제목에 잔여+질문(remaining+question)이 든 마지막 절의 첫 표
+    // 잔여 질문: 제목에 잔여+질문(remaining+question)이 든 마지막 절의 첫 표. 규칙으로 읽은 뒤 질문 판정(questions.none·items, lines)을 적용한다
     let openQuestions = 0, openQuestionIds = [], qReading = 'none';
+    const qNone = jd?.none || null;
+    const okItems = jItems.filter((e) => e.loc.state === 'ok');
+    const staleItems = jItems.filter((e) => e.loc.state === 'stale');
+    const noneOk = qNone?.loc.state === 'ok', noneStale = qNone?.loc.state === 'stale';
+    const qJudged = noneOk || okItems.length > 0;
+    const qStale = noneStale || staleItems.length > 0;
+    const itemOf = new Map(okItems.map((e) => [e.id, e]));
+    const staleIds = new Set(staleItems.map((e) => e.id));
+    // 절이 없거나 형식 밖인 작업: 판정 items가 열린 질문 목록이 된다
+    const fromItems = () => okItems.filter((e) => e.state === 'open').map((e) => e.id);
+    const judgedNote = () => `판정 questions(${jd.file})`;
+    const orUnjudged = (reading, note, ...issueArgs) => {
+      if (noneOk) { openQuestions = 0; openQuestionIds = []; qReading = qStale ? 'stale' : 'judged'; notes.openQuestions = judgedNote(); return; }
+      if (qJudged || qStale) { openQuestionIds = fromItems(); openQuestions = qJudged ? openQuestionIds.length : null; qReading = qStale ? 'stale' : 'judged'; notes.openQuestions = judgedNote(); return; }
+      qReading = reading; openQuestions = reading === 'unknown' ? null : 0;
+      if (note) notes.openQuestions = note;
+      if (issueArgs.length) issue(...issueArgs);
+    };
     if (status === '폐기') qReading = 'none';
-    else if (!specFile) { if (spec.initial || spec.review) { qReading = 'unknown'; openQuestions = null; notes.openQuestions = '검토 전: spec/final.md 없음'; } }
+    else if (!specFile) { if (spec.initial || spec.review) orUnjudged('unknown', '검토 전: spec/final.md 없음'); else if (qJudged || qStale) orUnjudged('none'); }
     else {
       const { blocks } = doc(specFile);
       const secs = blocks.filter((b) => b.type === 'heading' && isResidualTitle(b.text));
+      const draftNone = { judgmentDraft: { task: name, questions: { none: { at: null } } } };
       if (!secs.length) {
-        qReading = 'unknown'; openQuestions = null;
-        notes.openQuestions = `잔여 질문 절 없음: ${specFile}`;
-        issue('tasks.questions-unknown', '스펙 final에 잔여 질문 절 없음', [{ file: specFile, line: null }]);
+        orUnjudged('unknown', `잔여 질문 절 없음: ${specFile}`, 'tasks.questions-unknown', '스펙 final에 잔여 질문 절 없음', [{ file: specFile, line: null }], draftNone);
       } else {
         const sec = secs[secs.length - 1];
         if (secs.length > 1) notes.openQuestions = `잔여 질문 절 ${secs.length}개 중 마지막(${sec.line}줄)을 읽음`;
@@ -190,9 +255,7 @@ export default function tasks(g, fs, cfg) {
         const rowsOf = tableRows.filter((b) => b.table === first && !b.header);
         const none = inSec.find((b) => b.type === 'text' && /^없음/.test(b.text));
         if (first === null && !none) {
-          qReading = 'unknown'; openQuestions = null;
-          notes.openQuestions = `잔여 질문 절에 표도 \`없음:\` 줄도 없음: ${specFile}:${sec.line}`;
-          issue('tasks.questions-unknown', '잔여 질문 절에 표도 없음: 줄도 없음', [anchor(specFile, sec.line)]);
+          orUnjudged('unknown', `잔여 질문 절에 표도 \`없음:\` 줄도 없음: ${specFile}:${sec.line}`, 'tasks.questions-unknown', '잔여 질문 절에 표도 없음: 줄도 없음', [anchor(specFile, sec.line)], draftNone);
         } else {
           if (none && first === null) read(specFile, none.line);
           const ids = [], odd = [];
@@ -200,22 +263,40 @@ export default function tasks(g, fs, cfg) {
             const cell = b.cells[0];
             if (b.head && !b.head.struck && OQ_ID.test(b.head.id) && b.head.rest.trim() === '') { ids.push({ id: b.head.id, n: Number(b.head.id.match(OQ_ID)[1]), line: b.line }); read(specFile, b.line); }
             else if (isZeroCell(cell)) read(specFile, b.line);
-            else odd.push(b.line);
+            else odd.push(b);
+          }
+          for (const b of odd) oddRows.add(b.line);
+          // 판정 lines definition이 번호를 준 행은 질문으로 센다
+          for (const e of jLines) if (e.loc.state === 'ok' && e.as === 'definition' && e.loc.file === specFile && oddRows.has(e.loc.line)) {
+            const m = e.id.match(OQ_ID);
+            ids.push({ id: e.id, n: m ? Number(m[1]) : null, line: e.loc.line });
           }
           // 질문 닫힘: 체크한 계획 항목의 설명이 같은 번호로 시작(숫자 앞 0 무시)
-          const closes = (q) => checked.some((b) => { const m = descriptionOf(b).match(/^OQ-0*(\d+)(?!\d)/); return m && Number(m[1]) === q.n; });
-          const open = ids.filter((q) => !closes(q));
-          openQuestions = open.length;
-          openQuestionIds = open.map((q) => q.id);
-          qReading = 'rule';
-          if (odd.length) {
-            qReading = 'partial';
-            issue('tasks.unread-definition', `잔여 질문 표에서 첫 칸이 번호 하나가 아닌 행 ${odd.length}`, odd.map((l) => anchor(specFile, l)));
+          const closes = (q) => q.n != null && checked.some((b) => { const m = descriptionOf(b).match(/^OQ-0*(\d+)(?!\d)/); return m && Number(m[1]) === q.n; });
+          const ruleOpen = ids.filter((q) => !closes(q));
+          // 판정 items가 그 번호의 규칙 판정을 덮는다
+          let open = ruleOpen.filter((q) => itemOf.get(q.id)?.state !== 'resolved');
+          for (const e of okItems) if (e.state === 'open' && !open.some((q) => q.id === e.id)) open.push({ id: e.id, line: e.loc.file === specFile ? e.loc.line : Number.MAX_SAFE_INTEGER });
+          open = open.map((q, i) => [q, i]).sort(([a, i], [b, j]) => a.line - b.line || i - j).map(([q]) => q);
+          const oddSplit = splitCandidates(specFile, odd.map((b) => b.line));
+          const oddRest = odd.filter((b) => oddSplit.rest.includes(b.line));
+          const unjudgedOpen = ruleOpen.filter((q) => !itemOf.has(q.id) && !staleIds.has(q.id));
+          if (noneOk) { openQuestions = 0; openQuestionIds = []; }
+          else { openQuestions = open.length; openQuestionIds = open.map((q) => q.id); }
+          const judgedAny = qJudged || oddSplit.judged > 0;
+          const staleAny = qStale || oddSplit.stale > 0;
+          const claimsAll = noneOk || noneStale;
+          const partial = !claimsAll && (oddRest.length > 0 || (status === '완료' && unjudgedOpen.length > 0));
+          qReading = staleAny ? 'stale' : partial ? 'partial' : judgedAny ? 'judged' : 'rule';
+          if (judgedAny || staleAny) notes.openQuestions = judgedNote();
+          if (!claimsAll && oddRest.length) {
+            issue('tasks.unread-definition', `잔여 질문 표에서 첫 칸이 번호 하나가 아닌 행 ${oddRest.length}`, oddRest.map((b) => anchor(specFile, b.line)), {
+              judgmentDraft: { task: name, questions: { items: oddRest.flatMap((b) => idsIn(b.cells[0]).map((id) => ({ id, state: null, at: null }))) } },
+            });
           }
-          if (status === '완료' && open.length) {
-            qReading = 'partial';
-            issue('tasks.questions-open-done', `완료 작업에 닫히지 않은 잔여 질문 ${open.length}`, open.map((q) => anchor(specFile, q.line)), {
-              judgmentDraft: { task: name, questions: { items: open.map((q) => ({ id: q.id, state: null, at: null })) } },
+          if (!claimsAll && status === '완료' && unjudgedOpen.length) {
+            issue('tasks.questions-open-done', `완료 작업에 닫히지 않은 잔여 질문 ${unjudgedOpen.length}`, unjudgedOpen.map((q) => anchor(specFile, q.line)), {
+              judgmentDraft: { task: name, questions: { items: unjudgedOpen.map((q) => ({ id: q.id, state: null, at: null })) } },
             });
           }
         }
@@ -242,6 +323,8 @@ export default function tasks(g, fs, cfg) {
       date: `${name.slice(0, 4)}-${name.slice(4, 6)}-${name.slice(6, 8)}`, slug: name.slice(9), stage, status, spec, plan, phases, execution, verification, dec, pnDone, pnOpen, oq,
       recentCommits: recent, wikiSources, files: fs.walk(base, (p) => p.endsWith('.md')).length, last: fs.lastCommit(base),
       openQuestions, openQuestionIds, planFile, specFile, readLines,
+      judged: jd ? jd.file : null,
+      judgment: jd ? { by: jd.by, note: jd.note, ...jd.counts } : null,
     }, { file: plan || base, line: 1, rule: 'tasks:folder' });
     setReading(node, 'plan', planReading, notes.plan);
     setReading(node, 'openQuestions', qReading, notes.openQuestions);
@@ -249,6 +332,9 @@ export default function tasks(g, fs, cfg) {
     if (specFile && !spec.final) node.props.readingNotes.spec = `스펙 final 대체: ${specFile}`;
     for (const [code, message, anchors, extra] of issues) g.issue('warn', LABEL, message, { code, subject: { kind: 'task', id: name }, anchors, ...extra });
   }
+
+  // 판정 파일 문제: 파일 모양·근거 조각(judgment.invalid error, judgment.stale warn)
+  for (const [level, code, message, detail] of judgments.issues) g.issue(level, JUDGMENT_LABEL, message, { code, ...detail });
 
   // 장부: 표시어 없는 절의 작업 링크 행
   for (const { title, anchors } of unknownSections.values()) g.issue('warn', '작업 장부', `표시어가 없는 절의 작업 링크 행 ${anchors.length}: ${title}`, { code: 'tasks.index-section-unknown', subject: { kind: 'ledger', id: title }, anchors });
