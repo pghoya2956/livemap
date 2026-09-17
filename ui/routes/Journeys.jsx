@@ -95,7 +95,8 @@ function StepDetail({ data, j, s, actors, tasks }) {
             if (n.last) line.push(`${n.last.date} ${n.last.sha}`);
             return (
               <div className="node" key={i}>
-                <div className="node-n"><a href={`#/more/screens/${encodeURIComponent(n.path)}`}>{n.path}</a> <StatusChip status={n.source} /></div>
+                {/* 화면 목록에 없는 경로(missing)는 갈 상세가 없어 링크로 두지 않는다 */}
+                <div className="node-n">{n.source === "missing" ? <span>{n.path}</span> : <a href={`#/more/screens/${encodeURIComponent(n.path)}`}>{n.path}</a>} <StatusChip status={n.source} /></div>
                 <div className="node-s">{line.filter(Boolean).join(' · ')}</div>
                 <div className="node-s">검사: <Tests ts={n.tests} /></div>
               </div>
