@@ -1,6 +1,9 @@
 // 그래프 모델. 어댑터는 노드·엣지만 넣고, 화면은 파생 뷰만 읽는다.
 // 노드: { kind, id, label, props, src: { file, line, rule } }  엣지: { from, to, kind }
 // 문제: { level: 'error'|'warn', label, message, adapter } — 어댑터가 g.issue로 낸 오류·경고. check가 줄로 출력한다.
+//   넷째 인자를 주면 code·subject·anchors·resolutions(이슈 계약, src/lib/issues.mjs)를 더 싣는다. 세 인자 호출은 1.1.0 모양 그대로다.
+import { issueDetail } from './issues.mjs';
+
 export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'table', 'migration', 'test', 'commit', 'decision', 'task', 'ledger', 'deploy', 'testreport', 'milestone', 'release'];
 export const EDGE_KINDS = ['has_step', 'shows', 'uses', 'calls', 'invokes', 'touches', 'covers', 'changes', 'refs', 'defines', 'contains', 'tracks'];
 
@@ -31,11 +34,12 @@ export class Graph {
     const to = this.key(kind, id);
     return this.edges.filter((e) => e.to === to && (!edgeKind || e.kind === edgeKind)).map((e) => this.nodes.get(e.from)).filter(Boolean);
   }
-  // 어댑터가 발견한 문제를 기록한다. level이 틀리면 throw해 그 어댑터가 failed가 된다. adapter는 runAdapter가 설정한 실행 중 이름.
-  issue(level, label, message) {
+  // 어댑터가 발견한 문제를 기록한다. level·넷째 인자 형식이 틀리면 throw해 그 어댑터가 failed가 된다. adapter는 runAdapter가 설정한 실행 중 이름.
+  issue(level, label, message, detail) {
     if (level !== 'error' && level !== 'warn') throw new Error(`issue level은 'error' 또는 'warn': ${level}`);
     if (typeof label !== 'string' || typeof message !== 'string') throw new Error('issue label·message는 문자열');
-    this.issues.push({ level, label, message, adapter: this.adapter });
+    const extra = detail == null ? {} : issueDetail(level, detail);
+    this.issues.push({ level, label, message, adapter: this.adapter, ...extra });
   }
   report(name, status, count, error = null) { this.adapters.push({ name, status, count, error }); }
   toJSON() {

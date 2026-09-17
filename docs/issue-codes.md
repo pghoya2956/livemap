@@ -1,0 +1,121 @@
+# 이슈 코드
+
+`livemap check`가 내는 문제마다 안정 코드, 대상, 근거 줄, 허용 처리가 붙는다. 이 문서가 코드의 뜻과 허용 처리의 정본이다. 코드 이름은 1.x 동안 바꾸거나 지우지 않고 더하기만 한다. 언제 원문을 고치고 언제 판정하는지는 이 코드를 받는 에이전트 절차가 정한다. 엔진은 원문과 판정 파일을 고치지 않는다.
+
+## 출력
+
+`livemap check`의 텍스트 출력은 1.1.1 줄 문구를 그대로 둔다. 새 코드(아래 첫 표) 중 같은 코드가 6건 이상이면 `△ tasks.ambiguous-ref 32건(단계 17): livemap check --json`처럼 한 줄로 묶는다. 괄호 안 수는 서로 다른 대상 수다. 기존 check 줄과 코드 표에 없는 코드는 묶지 않는다.
+
+`livemap check --json`은 stdout에 JSON 하나만 낸다. 빌드 중 어댑터가 찍은 줄과 "프로젝트 어댑터가 참조 어댑터를 가림" 알림은 stderr로 간다. 종료 코드는 텍스트 출력과 같다(오류가 있으면 1).
+
+```json
+{
+  "schema": 1,
+  "engine": "1.2.0",
+  "errors": 0,
+  "warnings": 1,
+  "problems": [
+    {
+      "level": "warn",
+      "code": "tasks.questions-open-done",
+      "msg": "작업 문서: 완료 작업에 닫히지 않은 잔여 질문 1",
+      "subject": { "kind": "task", "id": "20260101-sample" },
+      "anchors": [{ "file": "tasks/20260101-sample/spec/final.md", "line": 12, "excerpt": "| OQ-02 | 남은 질문 |" }],
+      "resolutions": ["judge"]
+    }
+  ]
+}
+```
+
+- `problems`는 수준(error 먼저), 코드, 첫 근거 줄의 파일, 줄 순으로 정렬한다. 나머지가 같으면 check 순서를 지킨다.
+- `msg`는 텍스트 출력의 기호 뒤 문구와 같다.
+- `subject`는 `{ kind, id }`이고 대상이 하나로 정해지지 않는 문제(고아 목록 등)는 `null`이다. `kind`는 그래프 노드 종류 이름(`task`, `step`, `journey`, `milestone`은 로드맵 항목, `release`는 마일스톤)이나 `adapter`·`config`다.
+- `anchors`는 `{ file, line, excerpt? }` 배열이다. `line`이 `null`이면 파일 단위 근거다. `excerpt`는 120 코드 포인트까지 자른다.
+- `resolutions` 값: `source`(원문을 규칙대로 고침), `judge`(판정 파일), `config`(설정), `code`(프로젝트 코드), `engine`(엔진 결함 보고).
+
+`livemap check --strict`는 `tasks.*`·`judgment.*` 경고를 오류로 센다. 텍스트 줄 기호가 `✗`로 바뀌고 JSON의 `level`이 `error`가 된다. 과거 작업 채우기가 끝났는지 한 번 확인할 때 쓰고, 배포를 막는 CI 잡에는 배선하지 않는다.
+
+## 어댑터가 코드를 붙이는 법
+
+```js
+g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질문 1', {
+  code: 'tasks.questions-open-done',
+  subject: { kind: 'task', id: '20260101-sample' },
+  anchors: [{ file: 'tasks/20260101-sample/spec/final.md', line: 12, excerpt: '| OQ-02 | 남은 질문 |' }],
+  resolutions: ['judge'],
+});
+```
+
+- 세 인자 호출(1.1.0 계약)은 그대로 받고 check에서 코드 `adapter.issue`가 된다.
+- 넷째 인자는 객체이고 키는 `code`·`subject`·`anchors`·`resolutions`만 쓴다. `code`는 `<영역>.<이름>`(소문자·숫자·하이픈) 모양이어야 한다. 아래 표에 있는 코드는 표의 수준과 `level`이 같아야 한다. 형식이 틀리면 `throw`하고 그 어댑터는 failed가 된다.
+- `subject`·`anchors`·`resolutions`를 빼면 `null`·`[]`·표의 처리 값이 들어간다. 표에 없는 프로젝트 코드는 처리 기본값이 `[]`다.
+- 넷째 인자를 준 문제만 `graph.json`·`data.json` `issues[]`에 `code`·`subject`·`anchors`·`resolutions`가 더해진다.
+
+## 1.2.0 새 코드
+
+| 코드 | 수준 | 대상 | 처리 | 뜻 |
+|---|---|---|---|---|
+| `tasks.unread-definition` | warn | 작업 | source·judge | 스펙 final 표 첫 칸의 DEC 번호, 잔여 질문 절에서 첫 칸이 번호 하나가 아닌 행 |
+| `tasks.unread-checklist` | warn | 작업 | source·judge | 계획 파일이 없는 작업에 체크박스를 가진 루트 md가 둘 이상 |
+| `tasks.stage-unknown` | warn | 작업 | source | 진행·대기 작업에 파이프라인 문서가 없음 |
+| `tasks.questions-unknown` | warn | 작업 | source·judge | 스펙 final에 잔여 질문 절이 없음 |
+| `tasks.questions-open-done` | warn | 작업 | judge | 완료 작업의 잔여 질문 행이 계획 항목으로 닫히지 않음 |
+| `tasks.index-section-unknown` | warn | 장부 | source | 표시어가 없는 절에 작업 링크 행이 있음 |
+| `tasks.ambiguous-ref` | warn | 단계 | source | 여정 refs 번호를 정의한 작업이 둘 이상 |
+| `judgment.invalid` | error | 판정 파일 | judge | JSON·스키마 위반, 없는 파일·폴더, 조각을 가진 줄이 여럿, 번호 없는 근거 줄 |
+| `judgment.stale` | warn | 판정 파일 | judge | 근거 조각을 가진 줄이 원문에 없음 |
+| `router.unknown-api` | warn | 화면 | code·config | 리터럴 경로에 맞는 API 노드가 없음 |
+| `router.hookapi-redundant` | warn | 설정 | config | hookApi 항목이 리터럴로도 연결됨(지워도 됨), 설정 키 하나에 한 건 |
+| `router.hookapi-only` | warn | 설정 | code·config | hookApi로만 연결되는 항목, 설정 키 하나에 한 건 |
+| `journey.api-not-observed` | warn | 단계 | source·code | 여정 `apis`에 있으나 어느 화면에서도 관측되지 않음 |
+
+## 1.1.1 check 줄의 코드
+
+문구는 1.1.1과 같다. 괄호 안 문구는 줄의 앞부분이다.
+
+| 코드 | 수준 | 대상 | 처리 | 뜻 |
+|---|---|---|---|---|
+| `adapter.failed` | error | 어댑터 | code·engine | 어댑터가 throw함("어댑터 실패 …") |
+| `adapter.issue` | 어댑터가 정함 | 어댑터 | — | 어댑터가 코드 없이 `g.issue` 세 인자로 낸 문제 |
+| `floor.below` | error | 설정 | code·config·engine | 노드 수가 `floors` 바닥값 미만("바닥값 미달 …") |
+| `journey.duplicate-id` | error | 여정 | source | 여정 id 중복 |
+| `journey.no-steps` | error | 여정 | source | 여정에 장면 없음 |
+| `journey.actor-unknown` | warn | 여정 | source | 여정·장면 배우가 배우 사전에 없음 |
+| `step.duplicate-id` | error | 여정 | source | 한 여정 안에서 장면 id 중복 |
+| `step.intent-empty` | warn | 단계 | source | 장면 intent 비어 있음 |
+| `step.route-missing` | error | 단계 | source·code | 장면이 가리키는 라우트 없음 |
+| `step.ref-unresolved` | error | 단계 | source | 장면 refs 번호를 정의한 작업 없음(참조 미해결) |
+| `step.screen-not-live` | error | 단계 | source·code | 장면은 동작인데 화면이 실데이터가 아님 |
+| `step.screen-live-early` | warn | 단계 | source | 장면은 planned·next인데 화면은 동작 |
+| `step.no-evidence` | error | 단계 | source·code | 동작 주장에 관측 근거 없음 |
+| `step.review-stale` | warn | 단계 | source | 장면 확인일 뒤 화면 변경(확인 필요) |
+| `step.warning` | 문구에 따름 | 단계 | source | 위 규칙에 맞지 않는 장면 경고 문구(대체 코드) |
+| `step.unknown-status` | error | 단계 | source | 장면 상태 어휘가 아님 |
+| `step.planned-has-screen` | warn | 단계 | source | planned 장면에 화면이 있음 |
+| `step.capture-missing` | warn | 단계 | source | 장면 캡처 파일 없음 |
+| `roadmap.duplicate-id` | error | 로드맵 항목 | source | 로드맵 id 중복 |
+| `roadmap.scene-missing` | error | 로드맵 항목 | source | 항목이 가리키는 장면 없음 |
+| `roadmap.task-missing` | error | 로드맵 항목 | source | 항목이 가리키는 작업 폴더 없음 |
+| `roadmap.dep-missing` | error | 로드맵 항목 | source | 선행 항목 없음 |
+| `roadmap.unknown-status` | error | 로드맵 항목 | source | 항목 상태 어휘가 아님 |
+| `roadmap.milestone-missing` | error | 로드맵 항목 | source | 항목이 가리키는 마일스톤 없음 |
+| `roadmap.problem` | error | 로드맵 항목 | source | 위 규칙에 맞지 않는 로드맵 오류 문구(대체 코드) |
+| `roadmap.running-no-task` | warn | 로드맵 항목 | source | 진행인데 작업 폴더가 없음 |
+| `roadmap.running-no-milestone` | warn | 로드맵 항목 | source | 진행인데 마일스톤 없음 |
+| `roadmap.running-open-deps` | warn | 로드맵 항목 | source | 진행인데 선행 미완 |
+| `milestone.no-id` | error | 마일스톤 | source | 마일스톤 id 없음 |
+| `milestone.duplicate-id` | error | 마일스톤 | source | 마일스톤 id 중복 |
+| `milestone.unknown-status` | error | 마일스톤 | source | 마일스톤 상태 어휘가 아님 |
+| `milestone.bad-date` | error | 마일스톤 | source | 완료일·목표일 날짜 형식 |
+| `milestone.problem` | error | 마일스톤 | source | 위 규칙에 맞지 않는 마일스톤 오류 문구(대체 코드) |
+| `milestone.done-open-items` | warn | 마일스톤 | source | 완료인데 미완료 항목 |
+| `milestone.all-items-done` | warn | 마일스톤 | source | 항목이 모두 완료인데 상태가 완료 아님 |
+| `milestone.running-items` | warn | 마일스톤 | source | 다음·대기·이후인데 진행 항목이 있음 |
+| `milestone.no-items` | warn | 마일스톤 | source | 묶인 항목 없음 |
+| `milestone.completed-on-mismatch` | warn | 마일스톤 | source | 완료일과 상태가 맞지 않음 |
+| `milestone.warning` | warn | 마일스톤 | source | 위 규칙에 맞지 않는 마일스톤 경고 문구(대체 코드) |
+| `milestone.multiple-running` | warn | 마일스톤 | source | 진행 마일스톤이 둘 이상 |
+| `orphan.screens` | warn | 화면 | source | 여정에 없는 화면 |
+| `orphan.apis` | warn | API | code·source | 어느 화면도 부르지 않는 API |
+| `orphan.tests` | warn | 검사 | code | 라우트·API에 붙지 않는 검사 |
+| `deploy.behind-unknown` | warn | 배포 | config | 배포 sha가 main 이력에 없어 뒤처짐을 계산하지 못함 |

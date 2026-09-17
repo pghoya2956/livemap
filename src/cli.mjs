@@ -1,6 +1,7 @@
 // 프로젝트 상황판 CLI. 의존성 없음(Node 22). 명령 진입은 bin/livemap.mjs가 main(argv)를 부른다.
 //   livemap build   [--root .] [--out map/.out]       저장소 스캔 → graph.json·data.json·overview.json
-//   livemap check   [--root .]                         검증(바닥값·라우트 존재·상태 모순·참조 미해결·어댑터 실패) → exit 1이면 실패
+//   livemap check   [--root .] [--json] [--strict]     검증(바닥값·라우트 존재·상태 모순·참조 미해결·어댑터 실패) → exit 1이면 실패
+//                                                      --json은 stdout에 이슈 계약 JSON만, --strict는 tasks.*·judgment.* 경고도 오류로 센다
 //   livemap serve   [--port 4180] [--static <dir>]     loopback 서빙. 기본은 요청마다 재빌드(5초 캐시), --static은 export 폴더를 그대로 준다
 //   livemap export  <dir> [--out map/.out]             화면·서체·캡처·생성물을 /map/ 주소 배치 그대로 한 폴더에 모은다
 //   livemap init                                       없는 파일만 템플릿으로 만들고 .gitignore·npm 스크립트를 넣는다
@@ -12,7 +13,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Graph, runAdapter } from './lib/graph.mjs';
 import { makeFs } from './lib/util.mjs';
 import { derive, overviewSlice } from './derive.mjs';
-import { check } from './check.mjs';
+import { checkProblems } from './check.mjs';
+import { applyStrict, problemsJson, textLines } from './lib/issues.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const PKG_ROOT = resolve(here, '..');
@@ -76,7 +78,7 @@ export function engineMismatch(cfg) {
 
 const USAGE = `usage: livemap <command>
   build        [--root .] [--out map/.out]    저장소 스캔 → graph.json · data.json · overview.json
-  check        [--root .]                     정합 검사, 오류가 있으면 exit 1
+  check        [--root .] [--json] [--strict] 정합 검사, 오류가 있으면 exit 1(--json: 이슈 JSON만)
   serve        [--port 4180] [--static <dir>] 로컬 뷰 http://127.0.0.1:<port>/map/
   export <dir> [--out map/.out]               화면·서체·캡처·생성물을 한 폴더에(먼저 build)
   init                                        map/ 초안 파일·.gitignore·npm 스크립트
@@ -122,11 +124,22 @@ export async function main(argv = []) {
     return 0;
   }
   if (cmd === 'check') {
-    const { data, cfg: c, shadowed } = await buildGraph(root);
-    notifyShadow(shadowed);
-    const problems = check(data, c);
-    for (const p of problems) console.log(`${p.level === 'error' ? '✗' : '△'} ${p.msg}`);
+    const json = argv.includes('--json');
+    // --json: stdout에는 JSON만. 빌드 중 어댑터가 찍는 줄과 가림 알림은 stderr로 보낸다
+    const log = console.log;
+    if (json) console.log = (...a) => console.error(...a);
+    let built;
+    try { built = await buildGraph(root); } finally { console.log = log; }
+    const { data, cfg: c, shadowed } = built;
+    if (json) for (const n of shadowed) console.error(`프로젝트 어댑터가 참조 어댑터를 가림: ${n}`);
+    else notifyShadow(shadowed);
+    const problems = applyStrict(checkProblems(data, c), argv.includes('--strict'));
     const errors = problems.filter((p) => p.level === 'error').length;
+    if (json) {
+      process.stdout.write(JSON.stringify(problemsJson(problems, VERSION), null, 2) + '\n');
+      return errors ? 1 : 0;
+    }
+    for (const line of textLines(problems)) console.log(line);
     console.log(errors ? `map check: 오류 ${errors}` : `map check: 통과 (경고 ${problems.length})`);
     return errors ? 1 : 0;
   }
