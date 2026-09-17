@@ -286,6 +286,47 @@ a.row:hover .tt,button.row:hover .tt{color:#fff}
 .log-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 
 /* routes: roadmap */
+[data-screen="roadmap"] .rm-filter{margin:0 0 12px}
+[data-screen="roadmap"] .rm{display:flex;flex-direction:column;gap:10px;max-width:980px}
+[data-screen="roadmap"] .rm-item{display:grid;grid-template-columns:36px 1fr;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;scroll-margin-top:12px}
+[data-screen="roadmap"] .rm-item.on{border-color:var(--cyan);box-shadow:0 0 0 2px var(--cyan-soft)}
+[data-screen="roadmap"] .rm-num{font:600 19px var(--mono);color:var(--muted);text-align:center;padding-top:1px;font-variant-numeric:tabular-nums}
+[data-screen="roadmap"] .rm-body{min-width:0}
+[data-screen="roadmap"] .rm-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+[data-screen="roadmap"] .rm-h h3{margin:0;font-size:15px;font-weight:600;text-wrap:balance}
+[data-screen="roadmap"] .rm-dim{font-size:12px;color:var(--muted)}
+[data-screen="roadmap"] .rm-date{font:11.5px var(--mono);color:var(--green)}
+[data-screen="roadmap"] .rm-block{display:inline-flex;align-items:center;height:20px;padding:0 7px;border:1px solid rgba(245,165,36,.5);border-radius:6px;font-size:11.5px;color:var(--amber);background:var(--amber-soft);white-space:nowrap}
+[data-screen="roadmap"] .rm-goal{margin:6px 0 8px;max-width:70ch;font-size:13px;color:var(--ink)}
+[data-screen="roadmap"] .rm-goal code,[data-screen="roadmap"] .rm-kv code{font:12px var(--mono);color:var(--ink)}
+[data-screen="roadmap"] .rm-warn{margin:0 0 8px;font-size:12.5px;color:var(--red)}
+[data-screen="roadmap"] .rm-kv{display:grid;grid-template-columns:76px 1fr;gap:6px 12px;margin:0;font-size:12.5px}
+[data-screen="roadmap"] .rm-kv dt{color:var(--muted)}
+[data-screen="roadmap"] .rm-kv dd{margin:0;min-width:0}
+[data-screen="roadmap"] .rm-wait{color:var(--amber);font-weight:500}
+[data-screen="roadmap"] .rm-who{display:inline-flex;align-items:center;height:18px;padding:0 6px;margin-right:6px;border-radius:4px;font-size:10.5px;font-weight:600;color:var(--violet);background:var(--violet-soft)}
+[data-screen="roadmap"] .rm-days{margin-left:6px;font:11.5px var(--mono);color:var(--muted);font-weight:400}
+[data-screen="roadmap"] .rm-deps{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+[data-screen="roadmap"] .rm-steps{display:flex;flex-wrap:wrap;gap:4px}
+[data-screen="roadmap"] .rm-step{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border:1px solid var(--line2);border-radius:999px;font-size:11px;color:var(--ink);text-decoration:none;max-width:260px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+[data-screen="roadmap"] .rm-step:hover{border-color:var(--cyan)}
+[data-screen="roadmap"] .rm-fixed{padding:0 5px;border-radius:4px;font-size:10.5px;color:var(--amber);background:var(--amber-soft)}
+[data-screen="roadmap"] .rm-miss{font-size:11.5px;color:var(--red)}
+[data-screen="roadmap"] .rm-ms{margin:0 0 12px;max-width:980px;scroll-margin-top:12px}
+[data-screen="roadmap"] .rm-ms>summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:pointer;list-style:none;font-size:13px}
+[data-screen="roadmap"] .rm-ms>summary::-webkit-details-marker{display:none}
+[data-screen="roadmap"] .rm-ms>summary::before{content:'▸';color:var(--muted);font-size:11px}
+[data-screen="roadmap"] .rm-ms[open]>summary::before{content:'▾'}
+[data-screen="roadmap"] .rm-ms>summary:hover{background:var(--panel2)}
+[data-screen="roadmap"] .rm-ms[open]>summary{margin-bottom:10px}
+[data-screen="roadmap"] .rm-ms-t{font-weight:600}
+[data-screen="roadmap"] .rm-ms.is-done .rm-ms-t{font-weight:400;color:var(--muted)}
+[data-screen="roadmap"] .rm-ms-hd{margin:-2px 0 10px 12px}
+[data-screen="roadmap"] .rm-ms-hd .rm-goal{margin:0 0 4px}
+[data-screen="roadmap"] .rm-ms-hd .rm-wait{margin:0;font-size:12.5px}
+[data-screen="roadmap"] .rm-ms .rm{margin-left:12px}
+[data-screen="roadmap"] .rm-src{margin-top:14px}
+@media (max-width:640px){[data-screen="roadmap"] .rm-item{grid-template-columns:1fr}[data-screen="roadmap"] .rm-num{text-align:left}[data-screen="roadmap"] .rm-kv{grid-template-columns:1fr}[data-screen="roadmap"] .rm-ms .rm{margin-left:0}}
 
 /* routes: tasks */
 
