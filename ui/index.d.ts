@@ -1,5 +1,5 @@
 // livemap 모니터 화면 컴포넌트 타입. 자료 모양은 livemap 1.1.0 overview.json(OverviewData)이다.
-// 1.0.1 필드는 그대로 두고 1.1.0 필드를 더한 모양이다(스펙 「데이터 모델」). 컴포넌트 props를 바꾸면 같이 고친다.
+// 1.0.1 필드는 그대로 두고 1.1.0 필드와 1.2.0 counts.openQuestions·counts.reading을 더한 모양이다(스펙 「데이터 모델」). 컴포넌트 props를 바꾸면 같이 고친다.
 import type { ReactNode, ReactElement } from 'react';
 
 /** 단계 상태: live 실제 데이터로 동작, mock 화면만 있음, planned 스펙만 있음, next 스펙 전 구상. */
@@ -45,8 +45,22 @@ export interface Signals {
   tests: 'ok' | 'stale' | 'fail' | 'none'; lastRun: { failures: number; total: number; at: string; fresh: boolean } | null;
   adapters: 'ok' | 'partial' | 'fail'; adapterNotes: string[]; orphans: number; gated: number;
 }
+/**
+ * 읽기 상태(1.2.0): observed 구조화된 출력에서 읽음, rule 규칙으로 다 읽음, judged 판정 파일이 채움,
+ * partial 안 읽힌 줄이나 확인이 필요한 행이 있음, stale 판정 근거나 검사 결과가 낡음, unknown 소스 없음·형식 밖, none 대상 없음.
+ * partial·stale·unknown이면 화면은 값 뒤 "?"와 이유 분류를 보인다.
+ */
+export type ReadingState = 'observed' | 'rule' | 'judged' | 'partial' | 'stale' | 'unknown' | 'none';
+/** 개요 수치의 읽기 상태(경로·파일명 없음): 계획 항목 합계, 열린 질문, 검사 개수, 확인 등급 */
+export interface CountsReading { plans: ReadingState; openQuestions: ReadingState; tests: ReadingState; grades: ReadingState }
 export interface Counts extends Record<string, unknown> {
-  screensLive: number; screens: number; apis: number; functions: number; tests: number; decisions: number; oq: number;
+  screensLive: number; screens: number; apis: number; functions: number; tests: number; decisions: number;
+  /** 1.1.1 작업 표 행 수 합(2.0.0 삭제 후보). 화면은 openQuestions가 있으면 그것을 쓴다. */
+  oq: number;
+  /** 1.2.0 답이 없는 잔여 질문 수(DEC-12) */
+  openQuestions?: number;
+  /** 1.2.0 읽기 상태. 없으면 1.1.1 생성물이라 "?"를 붙이지 않는다. */
+  reading?: CountsReading;
   steps: StatusCounts; journeys: number; journeysLive: number; tasksRunning: number;
 }
 export interface OverviewData {
@@ -57,6 +71,7 @@ export interface OverviewData {
   headDate?: string; line?: string; running?: unknown[]; roadmap?: unknown[]; roadmapDone?: number; roadmapTotal?: number;
   waiting?: unknown[]; tasks?: unknown; areas?: unknown[]; recent?: unknown[]; openQuestions?: unknown;
 }
+/** value는 읽기 상태가 부분이면 "48/61?", 낡음·모름이면 "?"이고 extra에 이유 분류(예: "판정 필요")가 온다. */
 export interface TickerItem { label: string; value: string | number; extra?: string; /** 이름이 프로젝트 문구(기능 제목)인지 */ project?: boolean }
 
 export interface PanelProps {
@@ -171,4 +186,5 @@ export declare function Overview(props: OverviewProps): ReactElement;
 export declare const Icons: { list: ReactElement; gauge: ReactElement; clock: ReactElement; map: ReactElement; trend: ReactElement; alert: ReactElement; screen: ReactElement; table: ReactElement };
 export declare const STATUS: Record<JourneyStatus, { word: string; color: string }>;
 export declare const STATUS_ORDER: StepStatus[];
+/** 전광판 항목. 열린 질문·자동 검사는 counts.reading에 따라 "?"와 이유 분류를 붙인다. */
 export declare function tickerItems(data: OverviewData): TickerItem[];

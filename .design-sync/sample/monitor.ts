@@ -1,5 +1,6 @@
 // 미리보기 카드용 가상 제품 자료(캠핑장 예약 서비스 "캠프노트"). 실제 프로젝트 자료가 아니다.
-// 모양은 livemap 1.1.0 overview.json(1.0.1 필드 + 「데이터 모델」 추가 필드)이다. 캡처는 같은 출처 파일 대신 data: 그림(src)을 쓴다.
+// 모양은 livemap 1.1.0 overview.json(1.0.1 필드 + 「데이터 모델」 추가 필드)에 1.2.0 counts.openQuestions·counts.reading을 더했다.
+// 캡처는 같은 출처 파일 대신 data: 그림(src)을 쓴다. 열린 질문은 완료 작업에 닫히지 않은 질문이 있어 부분(partial)이다.
 import type { OverviewData, Journey, StepStatus, RoadmapItem, Milestone } from '@pghoya2956/livemap-ui';
 
 export const generatedAt = '2026-09-17T08:30:00.000Z';
@@ -92,7 +93,8 @@ const stepsTotal = steps.live + steps.mock + steps.planned + steps.next;
 /** 마일스톤이 있는 프로젝트 */
 export const data: OverviewData = {
   generatedAt, project, signals, headDate: '2026-09-17', line: '', running: [], roadmap: [], roadmapDone: 3, roadmapTotal: roadmapItems.length, waiting: [], tasks: [], areas: [], recent: [], openQuestions: [],
-  counts: { stepsLive: steps.live, stepsTotal, screensLive: 17, screensFixed: 0, screens: 24, apis: 31, functions: 22, tests: 96, pnDone: 40, pnTotal: 61, oq: 4, decisions: 6, proposed: 1,
+  counts: { stepsLive: steps.live, stepsTotal, screensLive: 17, screensFixed: 0, screens: 24, apis: 31, functions: 22, tests: 96, pnDone: 40, pnTotal: 61, oq: 4, openQuestions: 2, decisions: 6, proposed: 1,
+    reading: { plans: 'rule', openQuestions: 'partial', tests: 'observed', grades: 'rule' },
     steps, journeys: journeys.length, journeysLive: journeys.filter((j) => j.status === 'live').length, tasksRunning: 1 },
   journeys, roadmapItems, milestones, currentMilestone: 'ops-2', activity, changes, links, captures,
 };

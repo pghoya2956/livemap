@@ -1,4 +1,4 @@
-// 첫 화면 조립. data는 overview.json 1.1.0 필드(스펙 「데이터 모델」).
+// 첫 화면 조립. data는 overview.json 1.1.0 필드(스펙 「데이터 모델」)와 1.2.0 counts.openQuestions·counts.reading.
 import React from 'react';
 import { Panel, Icons } from './components/primitives.jsx';
 import { FeatureMap } from './components/FeatureMap.jsx';
@@ -6,8 +6,16 @@ import { TopBar, Ticker, MilestonePanel, ProgressPanel, ChangesPanel, FeatureTre
 import { hm, sum } from './lib/format.js';
 import { mapJourneys } from './lib/fit.js';
 import { readLastVisit } from './lib/visit.js';
+import { readingText, whyText, unsure } from './lib/reading.js';
 
-/** 전광판 항목. 규모 숫자는 1.0.1 counts, 로드맵이 없으면 "로드맵 완료"를 뺀다. */
+/** 개요 수치 하나: 읽기 상태가 부분·낡음·모름이면 값 뒤 "?"와 이유 분류(파일·줄 없음). 상태가 없으면 값 그대로. */
+const readItem = (label, value, field, reading) => {
+  const st = reading?.[field];
+  return unsure(st) ? { label, value: readingText(value, st), extra: whyText(field, st) } : { label, value };
+};
+
+/** 전광판 항목. 규모 숫자는 1.0.1 counts, 로드맵이 없으면 "로드맵 완료"를 뺀다.
+ * 열린 질문은 1.2.0 counts.openQuestions(답이 없는 질문, DEC-12)이고 없으면 1.1.1 oq다. */
 export function tickerItems(d) {
   const c = d.counts, steps = c.steps, total = sum(Object.values(steps));
   const days = d.activity.days;
@@ -20,8 +28,8 @@ export function tickerItems(d) {
     { label: '자동 커밋', value: d.activity.bots },
     { label: '제품 코드 변경', value: d.activity.runtime },
     { label: '실데이터 화면', value: `${c.screensLive}/${c.screens}` },
-    { label: 'API', value: c.apis }, { label: 'DB 함수', value: c.functions }, { label: '자동 검사', value: c.tests },
-    { label: '확정 결정', value: c.decisions }, { label: '열린 질문', value: c.oq },
+    { label: 'API', value: c.apis }, { label: 'DB 함수', value: c.functions }, readItem('자동 검사', c.tests, 'tests', c.reading),
+    { label: '확정 결정', value: c.decisions }, readItem('열린 질문', c.openQuestions ?? c.oq, 'openQuestions', c.reading),
     ...d.journeys.map((j) => ({ label: j.title, project: true, value: `${j.counts.live}/${j.steps.length}`, extra: `변경 ${j.commits}` })),
   ];
 }

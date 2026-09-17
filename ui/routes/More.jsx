@@ -2,11 +2,13 @@
 // 1.0.1 site/map.js의 changes()·more()·decisionsView()·screensView()·backendView()·testsView()·aboutView()를 이식한다.
 // 어휘는 "여정"→"기능", "장면"→"단계"로 바꾸고, 첫 화면에서 옮겨온 신호·규모(about)는 SC-5 내부 용어(스캔·미분류·게이트·등급·어댑터)를
 // 피해 "자료 출처"·"분류 안 됨"·"승인 대기"·"신뢰도"로 쓴다. 파일 경로는 항상 data.sources에서 읽는다.
+// 1.2.0: 이 상황판 탭에 읽기 상태 요약(data.readings), "?"인 작업의 이유 문장, 판정 파일(data.judgments), 이슈 코드 묶음을 더한다(DEC-4·7).
 import React from 'react';
 import { Screen, Card, Table, Empty, StatusChip, kst } from './common.jsx';
 import { Proj, Chip, Tag } from '../components/primitives.jsx';
 import { MORE_TABS } from '../lib/route.js';
 import { isNewer, readLastVisit } from '../lib/visit.js';
+import { readingText, whyText, unsure, issuesByTask, READING_WORD, READING_ORDER, FIELD_WORD, RESOLUTION_WORD } from '../lib/reading.js';
 
 const TAB_LABEL = { changes: '변화', decisions: '결정', screens: '화면', backend: 'API·DB', tests: '검사', about: '이 상황판' };
 const DECISION_STATUS = { current: 'live', adopted: 'live', accepted: 'live', proposed: 'mock', draft: 'mock' };
@@ -269,20 +271,20 @@ function TestsTab({ data }) {
   return (
     <Card
       title="검사"
-      sub={<>{T.length}건{tr ? ` · 마지막 실행 ${kst(tr.at)} · ${tr.fresh ? '최신 커밋' : '이전 커밋'} · 실패 ${tr.failures}` : ' · 검사 리포트 없음(npm run test:report 실행)'}</>}
+      sub={<>{T.length}건{tr ? ` · 마지막 실행 ${kst(tr.at)} · ${tr.fresh ? '최신 코드 결과' : '최신 코드 결과 아님(결과 뒤 코드 변경 등)'} · 실패 ${tr.failures}` : ' · 검사 리포트 없음(npm run test:report 실행)'}</>}
     >
       <Table head={['파일', '종류', '건수', '승인', '마지막 실행']}>
         {T.map((t) => (
           <tr key={t.file}>
             <td className="mm-mono">{t.label}</td>
             <td>{t.kind}</td>
-            <td className="mm-mono">{t.count}</td>
+            <td className="mm-mono">{readingText(t.count, t.reading?.count)}{unsure(t.reading?.count) && <span className="rd-why">{whyText('count', t.reading.count)}</span>}</td>
             <td>{t.gated ? <Tag kind="planned">승인 필요</Tag> : null}</td>
             <td>
               {t.lastRun ? (
                 <>
                   <Tag kind={t.lastRun.passed ? 'live' : 'fail'}>{t.lastRun.passed ? '통과' : '실패'}</Tag>
-                  {!t.lastRun.fresh && <span className="jmuted"> 이전 커밋</span>}
+                  {!t.lastRun.fresh && <><span className="rd-q"> ?</span><span className="rd-why">{whyText('lastRun', t.reading?.lastRun || 'stale')}</span></>}
                 </>
               ) : <span className="jmuted">—</span>}
             </td>
@@ -296,29 +298,140 @@ function TestsTab({ data }) {
   );
 }
 
+/** 읽기 상태 요약(값별·필드별 건수), "?"·판정인 작업과 이유 문장, 판정 파일. 1.1.1 생성물(readings 없음)은 그리지 않는다. */
+function ReadingCards({ data }) {
+  const rd = data.readings;
+  if (!rd) return null;
+  const tasks = data.tasks || [];
+  const byTask = issuesByTask(data.issues);
+  const J = data.judgments || [];
+  const unsureN = ['partial', 'stale', 'unknown'].reduce((n, k) => n + (rd.values?.[k] || 0), 0);
+  const fields = Object.entries(rd.fields || {});
+  const rows = tasks.flatMap((t) => {
+    const r = t.reading || {};
+    const codes = (byTask.get(t.name) || []).map((x) => x.code);
+    return ['plan', 'openQuestions', 'stage'].filter((f) => unsure(r[f]) || r[f] === 'judged')
+      .map((f) => ({ t, f, state: r[f], why: r[f] === 'judged' ? '' : whyText(f, r[f], { codes, task: t }), note: t.readingNotes?.[f] || '' }));
+  });
+  return (
+    <>
+      <Card title="읽기 상태" sub={`? ${unsureN}건 · 판정 ${J.length}건`}>
+        <p className="jmuted mm-fs12">수치마다 어떻게 읽었는지 적는다. 부분·낡음·모름은 화면에서 값 뒤 ?로 보이고, 판정은 에이전트나 사람이 판정 파일로 채운 값이다.</p>
+        <p className="mm-rd-values">
+          {READING_ORDER.map((k) => (
+            <span key={k} className={`mm-rd-v${unsure(k) && rd.values?.[k] ? ' warn' : ''}`}>{READING_WORD[k]} <b className="num">{rd.values?.[k] ?? 0}</b></span>
+          ))}
+        </p>
+        {fields.length > 0 && (
+          <Table head={['수치', ...READING_ORDER.map((k) => READING_WORD[k])]}>
+            {fields.map(([f, counts]) => (
+              <tr key={f}>
+                <td>{FIELD_WORD[f] || f} <span className="src">{f}</span></td>
+                {READING_ORDER.map((k) => <td key={k} className={`mm-mono${unsure(k) && counts[k] ? ' mm-warn' : ''}`}>{counts[k] || ''}</td>)}
+              </tr>
+            ))}
+          </Table>
+        )}
+      </Card>
+      {rows.length > 0 && (
+        <Card title="?·판정인 작업 수치" sub={`${rows.length}건`}>
+          <Table head={['작업', '수치', '상태', '이유']}>
+            {rows.map(({ t, f, state, why, note }) => (
+              <tr key={`${t.name}/${f}`}>
+                <td><a href={`#/tasks/${encodeURIComponent(t.name)}`}><Proj>{t.title}</Proj></a><br /><span className="src">{t.name}</span></td>
+                <td>{FIELD_WORD[f]}</td>
+                <td>{state === 'judged' ? <Tag kind="judged">판정</Tag> : <><span className="rd-q">?</span> {READING_WORD[state]}</>}</td>
+                <td className="mm-wrap">
+                  {why && <b>{why}</b>}
+                  {note && !(why && note.startsWith(why)) && <div className="jmuted">{note}</div>}
+                  {(byTask.get(t.name) || []).filter((x) => x.anchors?.length).map((x, i) => (
+                    <div key={i} className="jmuted">{x.message}: <span className="src">{x.anchors.map((a) => `${a.file}${a.line != null ? `:${a.line}` : ''}`).join(', ')}</span></div>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      )}
+      <Card title="판정" sub={J.length ? `판정 파일 ${J.length}건` : '판정 파일 없음'}>
+        {J.length ? (
+          <Table head={['작업', '판정한 쪽', '적용', '낡음', '무효', '메모', '파일']}>
+            {J.map((j) => (
+              <tr key={j.task}>
+                <td><a href={`#/tasks/${encodeURIComponent(j.task)}`}>{j.task}</a></td>
+                <td><Tag kind="judged">판정</Tag> {j.by === 'human' ? '사람' : j.by === 'agent' ? '에이전트' : j.by}</td>
+                <td className="mm-mono">{j.applied ?? 0}</td>
+                <td className={`mm-mono${j.stale ? ' mm-warn' : ''}`}>{j.stale ?? 0}</td>
+                <td className={`mm-mono${j.invalid ? ' mm-warn' : ''}`}>{j.invalid ?? 0}</td>
+                <td className="mm-wrap">{j.note || ''}</td>
+                <td className="src">{j.file}</td>
+              </tr>
+            ))}
+          </Table>
+        ) : <Empty>map/judgments/에 판정 파일이 없습니다. 규칙으로 못 읽은 과거 작업은 에이전트가 판정 파일로 채운다.</Empty>}
+      </Card>
+    </>
+  );
+}
+
+/** 자료 이상을 이슈 코드별로 묶는다(코드가 없는 1.1.1 이슈는 라벨로). 묶음 머리에 건수와 처리 방법. */
+function IssueGroups({ issues }) {
+  const groups = [];
+  const at = new Map();
+  for (const x of issues) {
+    const key = x.code || x.label;
+    if (!at.has(key)) { at.set(key, groups.length); groups.push({ key, code: x.code, level: x.level, resolutions: x.resolutions || [], items: [] }); }
+    groups[at.get(key)].items.push(x);
+  }
+  return (
+    <Card title="자료 이상" sub={`${issues.length}건 · ${groups.some((g) => g.code) ? '코드' : '종류'} ${groups.length}종`}>
+      <ul className="mm-issues">
+        {groups.map((g) => (
+          <li key={g.key} className="mm-issue-group">
+            <div className={`mm-issue-hd ${g.level}`}>
+              <b className="mm-mono">{g.key}</b> <span className="num">{g.items.length}건</span>
+              {g.resolutions.length > 0 && <span className="jmuted"> · 처리 {g.resolutions.map((r) => RESOLUTION_WORD[r] || r).join('·')}</span>}
+            </div>
+            <ul className="mm-issues">
+              {g.items.map((x, i) => (
+                <li key={i} className={`mm-issue ${x.level}`}>
+                  <b>{x.label}</b> {x.message} <span className="jmuted">({x.adapter}{x.subject ? ` · ${x.subject.id}` : ''})</span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 /** 이 상황판 탭(#/more/about). 1.0.1 첫 화면의 신호 6종·규모 8종을 옮기고 SC-5 내부 용어를 피한다. */
 function AboutTab({ ov, data }) {
   const S = ov.signals || {}, C = ov.counts || {};
   const O = data.orphans || {};
   const src = data.sources || {};
-  const testText = S.tests === 'ok' ? `통과 ${S.lastRun?.total ?? 0}` : S.tests === 'fail' ? `실패 ${S.lastRun?.failures ?? 0}` : S.tests === 'stale' ? '이전 커밋 결과' : '리포트 없음';
+  const R = C.reading;
+  const oqN = C.openQuestions ?? C.oq ?? 0;
+  const oqText = unsure(R?.openQuestions) ? `${readingText(oqN, R.openQuestions)} · ${whyText('openQuestions', R.openQuestions)}` : `${oqN}건`;
+  const testText = S.tests === 'ok' ? `통과 ${S.lastRun?.total ?? 0}` : S.tests === 'fail' ? `실패 ${S.lastRun?.failures ?? 0}` : S.tests === 'stale' ? '최신 코드 결과 아님(결과 뒤 코드 변경)' : '리포트 없음';
   const signals = [
     { ok: S.deploy === 'ok', label: '배포', text: S.deploy === 'ok' ? '최신' : S.deploy === 'behind' ? `${S.deployBehind}커밋 미배포` : '알 수 없음' },
     { ok: S.tests === 'ok', label: '검사', text: testText },
     { ok: S.adapters === 'ok', label: '자료 출처', text: S.adapters === 'ok' ? '모두 정상' : (S.adapterNotes?.[0] || '문제 있음') },
     { ok: !S.orphans, label: '분류 안 됨', text: `화면 ${O.screens?.length || 0} · API ${O.apis?.length || 0} · DB 함수 ${O.functions?.length || 0} · 검사 ${O.tests?.length || 0}` },
     { ok: !S.gated, label: '승인 대기 검사', text: S.gated ? `${S.gated}건` : '없음' },
-    { ok: !C.oq, label: '열린 질문', text: `${C.oq ?? 0}건` },
+    { ok: !oqN && !unsure(R?.openQuestions), label: '열린 질문', text: oqText },
   ];
   const tiles = [
     [`${C.screensLive ?? 0}/${C.screens ?? 0}`, '실데이터 화면'],
     [C.apis ?? 0, 'API'],
     [C.functions ?? 0, 'DB 함수'],
-    [C.tests ?? 0, '검사'],
-    [`${C.pnDone ?? 0}/${C.pnTotal ?? 0}`, '계획 항목'],
+    [readingText(C.tests ?? 0, R?.tests), '검사'],
+    [readingText(`${C.pnDone ?? 0}/${C.pnTotal ?? 0}`, R?.plans), '계획 항목'],
     [C.decisions ?? 0, '확정 결정'],
     [C.proposed ?? 0, '제안 결정'],
-    [C.oq ?? 0, '열린 질문'],
+    [readingText(oqN, R?.openQuestions), '열린 질문'],
   ];
 
   return (
@@ -335,6 +448,7 @@ function AboutTab({ ov, data }) {
           <li>단계 확인 신뢰도: 주장(D) → 관측(C) → 검사 있음(B) → 최신 커밋에서 검사 통과(A).</li>
           <li>어긋남(라우트 없음, 상태가 코드와 다름, 참조 미해결)은 check가 막고, 빠짐(기능에 없는 화면, 안 불리는 API, 안 붙는 검사)은 분류 안 된 항목으로 셉니다.</li>
           <li>자료 출처마다 단위 검사와 바닥값이 있어 수집이 깨지면 빈 표 대신 실패가 뜹니다.</li>
+          <li>규칙으로 다 읽지 못한 수치는 값 뒤 ?와 이유로 보입니다. 에이전트나 사람이 판정 파일로 채운 값은 "판정"으로 표시하고, 판정 근거 줄이 원문에서 사라지면 다시 ?가 됩니다.</li>
         </ul>
         <h3>단순함</h3>
         <ul>
@@ -366,17 +480,9 @@ function AboutTab({ ov, data }) {
         </div>
       </Card>
 
-      {data.issues?.length > 0 && (
-        <Card title="자료 이상" sub={`${data.issues.length}건`}>
-          <ul className="mm-issues">
-            {data.issues.map((x, i) => (
-              <li key={i} className={`mm-issue ${x.level}`}>
-                <b>{x.label}</b> {x.message} <span className="jmuted">({x.adapter})</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <ReadingCards data={data} />
+
+      {data.issues?.length > 0 && <IssueGroups issues={data.issues} />}
 
       <Card title="자료 출처 상태">
         <p className="src mm-wrap">{(data.adapters || []).map((a) => `${a.name}: ${a.status === 'ok' ? '정상' : '실패'}`).join(' · ')}</p>

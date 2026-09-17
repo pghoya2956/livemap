@@ -9,8 +9,8 @@
     { "pattern": "#/roadmap", "screen": "roadmap", "check": "항목 카드 수 = data.roadmap 수" },
     { "pattern": "#/roadmap/<item>", "screen": "roadmap", "params": { "item": "roadmap[].id" }, "check": "#rm-<id> 강조·뷰포트 안" },
     { "pattern": "#/roadmap/<milestone>", "optional": true, "when": "milestones >= 1", "screen": "roadmap", "params": { "milestone": "milestones[].id" }, "check": "그 마일스톤 details[open]" },
-    { "pattern": "#/tasks", "screen": "tasks", "check": "표 행 1개 이상(작업이 있을 때)" },
-    { "pattern": "#/tasks/<task>", "screen": "tasks", "params": { "task": "tasks[].name" }, "check": ".detail 보임, 강조 행" },
+    { "pattern": "#/tasks", "screen": "tasks", "check": "표 행 1개 이상(작업이 있을 때), 결정 열 없음, 읽기 상태가 부분·낡음·모름인 칸은 ?와 이유 분류" },
+    { "pattern": "#/tasks/<task>", "screen": "tasks", "params": { "task": "tasks[].name" }, "check": ".detail 보임, 강조 행, 읽기 상태 이유 문장·근거 줄·판정 글자" },
     { "pattern": "#/changes", "screen": "more", "check": "#/more/changes와 같은 탭 선택" },
     { "pattern": "#/more", "screen": "more", "check": "기본 탭 decisions 선택" },
     { "pattern": "#/more/changes", "screen": "more", "check": "탭 선택, 커밋 목록" },
@@ -19,7 +19,7 @@
     { "pattern": "#/more/screens/<screen>", "screen": "more", "params": { "screen": "screens[].path (encodeURIComponent)" }, "check": ".detail 보임, 강조 행" },
     { "pattern": "#/more/backend", "screen": "more", "check": "탭 선택" },
     { "pattern": "#/more/tests", "screen": "more", "check": "탭 선택" },
-    { "pattern": "#/more/about", "screen": "more", "check": "탭 선택" },
+    { "pattern": "#/more/about", "screen": "more", "check": "탭 선택, 읽기 상태 요약·?인 작업 이유(#/tasks/<task> 링크)·판정 수·이슈 코드 묶음" },
     { "pattern": "#/no-such-route", "screen": "overview", "check": "개요로 렌더, 내비 선택 없음, 콘솔 오류 0" }
   ],
   "overview": [
