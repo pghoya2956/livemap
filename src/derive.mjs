@@ -87,11 +87,22 @@ export function derive(g, sem, cfg, { captureExists }) {
     return task ? { ...defOf(d, task), definers, reading: 'rule' } : { id: d.id };
   };
   const seenIssue = new Set(g.issues.map((i) => `${i.code}|${i.subject?.id}|${i.message}`));
+  // 관측한 화면 호출(calls 엣지). 고아 API와 journey.api-not-observed는 이것만 센다
+  const observedApis = new Set(screenView.flatMap((s) => s.apis));
   const journeys = (sem.journeys || []).map((j) => {
     const steps = j.steps.map((st) => {
       const actor = st.actor || j.actor;
       const screenNodes = (st.screens || []).map((p) => byPath[p] ? { path: p, source: byPath[p].source, file: byPath[p].file, tests: byPath[p].tests, last: byPath[p].last, mockVia: byPath[p].mockVia, fixedVia: byPath[p].fixedVia } : { path: p, source: 'missing' });
       const apiSet = new Set(st.apis || []);
+      for (const a of st.apis || []) {
+        if (observedApis.has(a)) continue;
+        const message = `${j.title} › ${st.label}: 여정 apis ${a}를 부르는 화면이 관측되지 않음`;
+        const subject = { kind: 'step', id: `${j.id}/${st.id}` };
+        const key = `journey.api-not-observed|${subject.id}|${message}`;
+        if (seenIssue.has(key)) continue;
+        seenIssue.add(key);
+        g.issue('warn', '여정 API', message, { code: 'journey.api-not-observed', subject, anchors: cfg.semantic ? [{ file: cfg.semantic }] : [] });
+      }
       for (const p of st.screens || []) for (const a of byPath[p]?.apis || []) apiSet.add(a);
       const apiNodes = [...apiSet].map((p) => apiByPath[p] ? { path: p, method: apiByPath[p].method, calls: apiByPath[p].calls, tests: apiByPath[p].tests } : { path: p, method: '?', calls: [], tests: [], missing: true });
       const fnNames = [...new Set(apiNodes.flatMap((a) => a.calls.filter((c) => !c.startsWith('auth:'))))];
@@ -143,10 +154,9 @@ export function derive(g, sem, cfg, { captureExists }) {
 
   // ---- 고아·커버리지 ----
   const inJourney = new Set(journeys.flatMap((j) => j.steps.flatMap((s) => s.screens || [])));
-  const calledApis = new Set(screenView.flatMap((s) => s.apis).concat(journeys.flatMap((j) => j.steps.flatMap((s) => s.apis || []))));
   const orphans = {
     screens: screenView.filter((s) => !inJourney.has(s.path)).map((s) => s.path),
-    apis: apiView.filter((a) => !calledApis.has(a.path)).map((a) => a.path),
+    apis: apiView.filter((a) => !observedApis.has(a.path)).map((a) => a.path),
     functions: fnView.filter((f) => !f.usedByApi).map((f) => f.name),
     tests: testView.filter((t) => !g.out('test', t.file, 'covers').length).map((t) => t.label),
   };

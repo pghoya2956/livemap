@@ -139,8 +139,13 @@ test('SC-7 코드 표: 새 코드 13개의 수준·처리가 스펙과 같고 do
   assert.equal(docCodes.length, new Set(docCodes).size, '문서 표에 같은 코드가 두 번');
 });
 
-// 1.2.0 작업 문서 읽기 계약이 mini에 더하는 새 경고(스펙 final에 잔여 질문 절이 없음). 기존 줄 뒤, 요약 줄 앞에 온다
-const MINI_NEW_1_2_0 = ['△ 작업 문서: 스펙 final에 잔여 질문 절 없음'];
+// 1.2.0이 mini에 더하는 새 경고. 기존 줄 뒤, 요약 줄 앞에 온다
+//   작업 문서 읽기 계약: 스펙 final에 잔여 질문 절이 없음
+//   연결 단계: hookApi 키 7개 중 6개는 쓰는 화면이 없어 지워도 됨(6건 이상이라 묶음 줄), Resorts는 리터럴 없이 대응표로만 연결
+const MINI_HOOKAPI_REDUNDANT = ['Session(/api/session)', 'Catalog(/api/catalog)', 'Teams(/api/teams)', 'Quote(/api/quotes/:id)', 'Login(/api/login)', 'Logout(/api/logout)'].map((k) => `hookApi: ${k} 쓰는 화면 없음, 설정에서 지워도 됨`);
+const MINI_HOOKAPI_ONLY = 'hookApi: Resorts(/api/resorts) 리터럴 없이 대응표로만 연결되는 화면 1: /live';
+const MINI_NEW_1_2_0 = ['△ 작업 문서: 스펙 final에 잔여 질문 절 없음', '△ router.hookapi-redundant 6건(설정 6): livemap check --json', `△ ${MINI_HOOKAPI_ONLY}`];
+const MINI_NEW_MSGS_1_2_0 = ['작업 문서: 스펙 final에 잔여 질문 절 없음', ...MINI_HOOKAPI_REDUNDANT, MINI_HOOKAPI_ONLY];
 test('SC-7 check 텍스트: mini 픽스처의 1.1.1 줄·순서·종료 코드가 그대로다(1.2.0 새 경고는 기존 줄 뒤에 더해짐)', () => {
   const r = run(MINI, ['check']);
   assert.equal(r.code, 1, r.err);
@@ -155,15 +160,15 @@ test('SC-7 check --json: stdout은 JSON 하나, schema·engine·errors·warnings
   assert.equal(j.schema, 1);
   assert.equal(j.engine, VERSION);
   assert.equal(j.errors, 5);
-  assert.equal(j.warnings, 6 + MINI_NEW_1_2_0.length);
-  assert.equal(j.problems.length, MINI_CHECK_1_1_1.length - 1 + MINI_NEW_1_2_0.length);
+  assert.equal(j.warnings, 6 + MINI_NEW_MSGS_1_2_0.length);
+  assert.equal(j.problems.length, MINI_CHECK_1_1_1.length - 1 + MINI_NEW_MSGS_1_2_0.length);
   for (const p of j.problems) {
     assert.deepEqual(Object.keys(p), ['level', 'code', 'msg', 'subject', 'anchors', 'resolutions'], p.msg);
     assert.match(p.code, /^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/, p.msg);
     assert.ok(Array.isArray(p.anchors) && Array.isArray(p.resolutions), p.msg);
   }
   // 텍스트 줄과 JSON msg가 같은 집합
-  const text = [...MINI_CHECK_1_1_1.slice(0, -1), ...MINI_NEW_1_2_0].map((l) => l.slice(2)).sort();
+  const text = [...MINI_CHECK_1_1_1.slice(0, -1).map((l) => l.slice(2)), ...MINI_NEW_MSGS_1_2_0].sort();
   assert.deepEqual(j.problems.map((p) => p.msg).sort(), text);
   const byMsg = Object.fromEntries(j.problems.map((p) => [p.msg, p]));
   assert.equal(byMsg['여정 하나 › 없는 라우트: 라우트 없음: /nope'].code, 'step.route-missing');

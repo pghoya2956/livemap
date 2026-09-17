@@ -185,8 +185,8 @@ test('SC-10 check: 픽스처 mini의 check 출력은 1.0.1과 같다(마일스�
   const { cpSync } = await import('node:fs');
   cpSync(MINI, dir, { recursive: true });
   const { data, cfg } = await buildGraph(dir);
-  // 1.2.0 작업 문서 읽기 계약의 새 경고(작업 문서: …)는 1.0.1 줄 비교에서 뺀다
-  assert.deepEqual(check(data, cfg).filter((p) => !p.msg.startsWith('작업 문서: ')).map((p) => `${p.level === 'error' ? '✗' : '△'} ${p.msg}`), [
+  // 1.2.0 작업 문서 읽기 계약의 새 경고(작업 문서: …)와 연결 단계의 hookApi 정리 경고(hookApi: …)는 1.0.1 줄 비교에서 뺀다
+  assert.deepEqual(check(data, cfg).filter((p) => !p.msg.startsWith('작업 문서: ') && !p.msg.startsWith('hookApi: ')).map((p) => `${p.level === 'error' ? '✗' : '△'} ${p.msg}`), [
     '△ 여정 하나 › 동작 장면: intent 비어 있음',
     '△ 여정 하나 › 목업 장면: intent 비어 있음',
     '△ 여정 하나 › 없는 라우트: intent 비어 있음',

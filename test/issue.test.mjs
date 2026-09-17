@@ -73,8 +73,9 @@ test('SC-12 graph: release 노드 종류를 받는다', () => {
 
 test('SC-12 derive·check: data.json issues와 check 줄, error만 오류 수에 든다', async () => {
   const base = await buildGraph(MINI);
-  // mini에서 나오는 이슈는 1.2.0 작업 문서 읽기 계약 경고뿐이다
-  assert.deepEqual(base.data.issues.map((i) => [i.adapter, i.level, i.code]), [['tasks', 'warn', 'tasks.questions-unknown']]);
+  // mini에서 나오는 이슈는 1.2.0 작업 문서 읽기 계약 경고와 연결 단계의 hookApi 정리 경고(설정 키 7개, 어댑터 없음)뿐이다
+  const hook = (code) => [null, 'warn', `router.hookapi-${code}`];
+  assert.deepEqual(base.data.issues.map((i) => [i.adapter, i.level, i.code]), [['tasks', 'warn', 'tasks.questions-unknown'], hook('redundant'), hook('only'), hook('redundant'), hook('redundant'), hook('redundant'), hook('redundant'), hook('redundant')]);
   const dir = projectWithProbe();
   const { data, cfg } = await buildGraph(dir);
   assert.deepEqual(data.issues.filter((i) => i.adapter === 'probe'), [
@@ -83,7 +84,8 @@ test('SC-12 derive·check: data.json issues와 check 줄, error만 오류 수에
   ]);
   const before = check(base.data, base.cfg);
   const after = check(data, cfg);
-  assert.deepEqual(after.slice(-2), [{ level: 'warn', msg: '표본 경고: 결정 대기가 오래됨' }, { level: 'error', msg: '표본 오류: 필수 항목 없음' }]);
+  // 연결 단계 경고(hookApi: …)는 모든 어댑터 뒤에 나오므로 어댑터 이슈 순서 비교에서 뺀다
+  assert.deepEqual(after.filter((p) => !p.msg.startsWith('hookApi: ')).slice(-2), [{ level: 'warn', msg: '표본 경고: 결정 대기가 오래됨' }, { level: 'error', msg: '표본 오류: 필수 항목 없음' }]);
   const errors = (ps) => ps.filter((p) => p.level === 'error').length;
   assert.equal(errors(after), errors(before) + 1);
 });
@@ -97,7 +99,7 @@ test('SC-12 livemap check·build: △·✗ 줄, exit 1, 생성물 issues 2건', 
   const b = run(dir, ['build']);
   assert.equal(b.code, 0, b.out + b.err);
   for (const f of ['data.json', 'graph.json']) {
-    const issues = readJson(join(dir, 'map/.out', f)).issues.filter((i) => !String(i.code).startsWith('tasks.'));
+    const issues = readJson(join(dir, 'map/.out', f)).issues.filter((i) => !/^(tasks|router)\./.test(String(i.code)));
     assert.equal(issues.length, 2, f);
     assert.ok(issues.every((i) => i.adapter === 'probe'), f);
   }

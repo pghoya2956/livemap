@@ -15,6 +15,7 @@ import { Graph, runAdapter } from './lib/graph.mjs';
 import { makeFs } from './lib/util.mjs';
 import { derive, overviewSlice } from './derive.mjs';
 import { checkProblems } from './check.mjs';
+import { linkScreenApis } from './link.mjs';
 import { applyStrict, problemsJson, textLines } from './lib/issues.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,8 @@ export async function buildGraph(root = process.cwd()) {
     if (loaded.shadowed) shadowed.push(name);
     runAdapter(g, name, (g) => loaded.fn(g, fs, cfg));
   }
+  // 연결 단계: 모든 어댑터 뒤에 화면 리터럴을 API 노드에 잇는다. adapters[]에 들지 않고, 실패하면 오류 이슈로 남긴다
+  try { linkScreenApis(g, fs, cfg); } catch (e) { g.issue('error', '연결 단계', String(e?.message || e)); }
   // 설정에 semantic 키가 없으면 여정 입력이 없는 것으로 본다(없는 키는 뺀다)
   const sem = cfg.semantic && fs.has(cfg.semantic) ? JSON.parse(fs.read(cfg.semantic)) : { journeys: [] };
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);
