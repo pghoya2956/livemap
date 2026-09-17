@@ -1,4 +1,5 @@
 // 파생: 그래프(코드 사실) + 여정 파일(뜻)을 합쳐 화면이 읽는 뷰 모델을 만든다. 화면은 여기서 만든 것만 그린다.
+import { combineReading, countReadings, readingOf } from './lib/reading.mjs';
 const ROADMAP_STATUS = ['완료', '진행', '다음', '대기', '이후'];
 const RANK = { live: 0, partial: 1, mixed: 1, mock: 2, planned: 3, next: 4, static: 5 };
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -52,12 +53,12 @@ export function derive(g, sem, cfg, { captureExists }) {
   const screenView = screens.map((s) => ({
     path: s.id, component: s.props.component, file: s.props.file, guarded: s.props.guarded, source: s.props.source, mockVia: s.props.mockVia, fixedVia: s.props.fixedVia || [], files: s.props.files,
     apis: g.out('screen', s.id, 'calls').map((a) => a.id), tests: testsOf('screen', s.id), last: s.props.last, src: s.src,
-    steps: [],
+    steps: [], reading: s.props.reading || {},
   }));
   const apiView = apis.map((a) => ({ path: a.id, method: a.props.method || '?', calls: a.props.calls || [], tests: testsOf('api', a.id), src: a.src, declared: !!a.src }));
   const fnView = fns.map((f) => ({ name: f.id, usedByApi: g.in('function', f.id, 'invokes').length > 0, tables: g.out('function', f.id, 'touches').map((t) => t.label), tests: testsOf('function', f.id), migration: f.props.migration || null, src: f.src }));
   const migView = g.of('migration').map((m) => ({ file: m.id, tables: m.props.tables.map(short), functions: m.props.functions.map(short), grants: m.props.grants, rls: m.props.rls, last: m.props.last }));
-  const testView = tests.map((t) => ({ file: t.id, label: t.label, kind: t.props.kind, count: t.props.count, gated: t.props.gated, lastRun: t.props.lastRun || null }));
+  const testView = tests.map((t) => ({ file: t.id, label: t.label, kind: t.props.kind, count: t.props.count, gated: t.props.gated, lastRun: t.props.lastRun || null, reading: t.props.reading || {} }));
 
   // ---- 여정 해석 ----
   const byPath = Object.fromEntries(screenView.map((s) => [s.path, s]));
@@ -125,7 +126,7 @@ export function derive(g, sem, cfg, { captureExists }) {
   for (const c of commitView) for (const a of c.areas) areaCounts[a] = (areaCounts[a] || 0) + 1;
 
   // ---- 작업·장부·결정 ----
-  const taskView = tasks.map((t) => ({ name: t.id, title: t.label, ...t.props, journeys: journeys.filter((j) => j.taskNames.includes(t.id)).map((j) => ({ id: j.id, title: j.title, status: j.status, steps: j.steps.filter((s) => s.taskNames.includes(t.id)).map((s) => s.label) })) })).sort((a, b) => b.name.localeCompare(a.name));
+  const taskView = tasks.map((t) => ({ name: t.id, title: t.label, ...t.props, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {}, journeys: journeys.filter((j) => j.taskNames.includes(t.id)).map((j) => ({ id: j.id, title: j.title, status: j.status, steps: j.steps.filter((s) => s.taskNames.includes(t.id)).map((s) => s.label) })) })).sort((a, b) => b.name.localeCompare(a.name));
   const ledger = { running: g.of('ledger').filter((l) => l.props.state === 'running').map((l) => ({ work: l.label, owner: l.props.owner, done: l.props.done })), waiting: g.of('ledger').filter((l) => l.props.state !== 'running').map((l) => ({ work: l.label, state: l.props.status, resume: l.props.resume, done: l.props.state === 'done' })) };
   const decisionView = decisions.map((d) => ({ slug: d.id, title: d.label, file: d.props.file, status: d.props.status, summary: d.props.summary, refs: journeys.reduce((n, j) => n + j.steps.filter((s) => s.refNodes.some((r) => r.wiki && r.wiki.file === d.props.file)).length, 0) }));
   // ---- 로드맵: 항목 순서대로 장면 상태·작업 단계를 붙인다. 해석 실패는 check가 오류로 막는다 ----
@@ -200,6 +201,8 @@ export function derive(g, sem, cfg, { captureExists }) {
     summary, orphans, coverage, tasks: taskView, roadmap, ledger, decisions: decisionView, plans, commits: commitView, areaCounts,
     screens: screenView, apis: apiView, functions: fnView, migrations: migView, tests: testView,
     milestones: milestoneView, issues: g.issues.map((i) => ({ ...i })), sources: { semantic: cfg.semantic, roadmap: cfg.roadmap?.file ?? null },
+    // 읽기 상태 건수: 노드에 적힌 상태만 값별·필드별로 센다(적지 않은 필드는 rule로 보지만 세지 않는다)
+    readings: countReadings([...g.nodes.values()]),
   };
 }
 
@@ -291,7 +294,7 @@ export function overviewSlice(d, opts = {}) {
     roadmap: d.roadmap.filter((m) => m.status !== '완료').slice(0, 4).map((m) => ({ id: m.id, title: m.title, status: m.status, mode: m.mode, live: m.progress.live, total: m.progress.total, waiting: !!m.waitingOn })),
     roadmapDone: d.roadmap.filter((m) => m.status === '완료').length, roadmapTotal: d.roadmap.length,
     waiting: d.ledger.waiting.filter((w) => !w.done).map((w) => ({ work: w.work, state: (w.state || '').split('(')[0] })),
-    tasks: d.tasks.filter((t) => t.status !== '폐기' && t.status !== '기록').slice().sort((a, b) => (a.status === '진행' ? -1 : 1) - (b.status === '진행' ? -1 : 1) || b.recentCommits - a.recentCommits).slice(0, 6).map((t) => ({ id: t.name, title: t.title, stage: t.stage, status: t.status, pnDone: t.pnDone, pnOpen: t.pnOpen, oq: t.oq })),
+    tasks: d.tasks.filter((t) => t.status !== '폐기' && t.status !== '기록').slice().sort((a, b) => (a.status === '진행' ? -1 : 1) - (b.status === '진행' ? -1 : 1) || b.recentCommits - a.recentCommits).slice(0, 6).map((t) => ({ id: t.name, title: t.title, stage: t.stage, status: t.status, pnDone: t.pnDone, pnOpen: t.pnOpen, oq: t.oq, reading: t.reading || {} })),
     signals: {
       deploy: d.deploy ? (d.deploy.behindRuntime === 0 ? 'ok' : d.deploy.behindRuntime === null ? 'unknown' : 'behind') : 'unknown', deployBehind: d.deploy?.behindRuntime ?? null,
       tests: lastRun ? (lastRun.failures ? 'fail' : lastRun.fresh ? 'ok' : 'stale') : 'none', lastRun,
@@ -300,7 +303,14 @@ export function overviewSlice(d, opts = {}) {
       deployBehindAll: d.deploy?.behind ?? null,
     },
     counts: { stepsLive: d.summary.stepsLive, stepsTotal: d.summary.stepsTotal, screensLive: d.summary.liveRoutes, screensFixed: d.summary.fixedRoutes, screens: d.summary.routes, apis: d.summary.apis, functions: d.summary.dbFunctions, tests: d.summary.tests, pnDone: d.summary.pnDone, pnTotal: d.summary.pnDone + d.summary.pnOpen, oq: d.summary.oq, decisions: d.decisions.filter((x) => x.status === 'current').length, proposed: d.decisions.filter((x) => x.status === 'proposed').length, grades: d.summary.grades,
-      steps: stepCounts, journeys: nJourneys, journeysLive: d.semantic.journeys.filter((j) => j.status === 'live').length, tasksRunning: d.tasks.filter((t) => t.status === '진행').length },
+      steps: stepCounts, journeys: nJourneys, journeysLive: d.semantic.journeys.filter((j) => j.status === 'live').length, tasksRunning: d.tasks.filter((t) => t.status === '진행').length,
+      // 개요 수치의 읽기 상태(값만, 경로·파일명 없음). 등급은 검사 결과 최신 여부와 화면→API 연결에 기댄다
+      reading: {
+        plans: combineReading(d.tasks.map((t) => readingOf(t, 'plan'))),
+        openQuestions: combineReading(d.tasks.map((t) => readingOf(t, 'openQuestions'))),
+        tests: combineReading(d.tests.map((t) => readingOf(t, 'count'))),
+        grades: combineReading([...d.tests.map((t) => readingOf(t, 'lastRun')), ...d.screens.map((x) => readingOf(x, 'apis'))]),
+      } },
     areas: Object.entries(d.areaCounts).sort((a, b) => b[1] - a[1]).slice(0, 6),
     recent: d.commits.filter((c) => c.journeys.length).slice(0, 6).map((c) => ({ date: c.date, subject: c.subject, scenes: c.journeys.map((x) => x.label) })),
     openQuestions: d.plans.filter((p) => p.oq).map((p) => ({ title: p.title, oq: p.oq })),
