@@ -22,16 +22,16 @@
 | 규칙 | 값(`config.budget`) | 이유 |
 |---|---|---|
 | 스크롤 0 | `viewport` 1440×900 | 한 눈에 전체 상태. 한국 상황판 문법 |
-| 숨은 스크롤 0 | 모든 `.panel`, 그 안의 `.pb`·`.rows`, `overflow-y`가 `auto`·`scroll`인 자손에서 `scrollHeight − clientHeight ≤ 1` | 패널 안 스크롤은 행 수 검사가 볼 수 없는 곳에서 행을 자르고 공유 스크린샷에 잘린 행이 실린다. 목록은 들어가는 행만 그리고 나머지는 머리줄 "외 n →" 링크로 보낸다 |
+| 숨은 스크롤 0 | 모든 `.panel`, 그 안의 `.pb`·`.rows`, `overflow-y`가 `auto`·`scroll`인 자손에서 `scrollHeight − clientHeight ≤ 1`. 줄 수 제한(`-webkit-line-clamp`) 글자와 기능 지도(`.mapwrap`)·캡처(`.live`) 상자는 뺀다 | 패널 안 스크롤은 행 수 검사가 볼 수 없는 곳에서 행을 자르고 공유 스크린샷에 잘린 행이 실린다. 목록은 들어가는 행만 그리고 나머지는 머리줄 "외 n →" 링크로 보낸다 |
 | 패널 수 | ≤ 8 (`maxPanels`) | 지금 8. 더하려면 하나를 뺀다 |
 | 목록 패널 행 수 | ≤ 6 (`maxRowsPerPanel`, 목록 묶음 `.rows`마다) | 훑어 읽을 수 있는 한계 |
 | 기능 지도 행 | ≤ 12 (`.jrow`) | 기능이 13개부터는 완성 기능이 지도에서 접히고 바닥 칩 "완성 기능 n 접힘"이 기능 화면으로 이어진다. 기능 화면에는 전부 보인다 |
 | 시스템 식별자 | 0 (`#root` 글자 전체) | 첫 화면은 사용자 어휘만. 경로·파일명·sha는 상세 층 |
 | 내비 | ≤ 5 (`navItems`), 모두 보임 | 개요·기능·로드맵·작업·더보기 |
 | 깊이 | 3 | 기능 지도 기능 선택 → 기능 현황의 "기능 화면 →" → 단계 카드 → 단계 상세. 화면·API·DB 표는 단계 상세에서만 도달 |
-| CSP 아래 렌더 | 콘솔 오류 0, `body` 배경이 `--bg`(`rgb(5, 7, 10)`) | 인라인 의존 회귀 방지(`hosting-and-csp.md`) |
+| CSP 아래 렌더 | 콘솔 오류·CSP 위반 0, `body` 배경이 `--bg`(`rgb(5, 7, 10)`) | 인라인 의존 회귀 방지(`hosting-and-csp.md`) |
 | 모션 줄임 | `reducedMotion: 'reduce'`에서 `document.getAnimations()` 0 | 전광판·캡처 회전·연결선 흐름이 멈추는지 |
-| 상태 모양 | 기능 지도 범례 표식 4종의 채움·테두리·점선이 서로 다름 | 다크 상태 색끼리는 휘도 차가 작아 색을 못 보는 독자에게 모양이 구분을 맡는다 |
+| 상태 모양 | 기능 지도 범례(레이어 버튼) 표식 4종이 각각 동작 = 채운 원, 목업 = 반원 채움 + 실선, 계획 = 채움 없음 + 실선, 구상 = 채움 없음 + 점선. 기능이 없어 범례가 없으면 건너뛴다 | 다크 상태 색끼리는 휘도 차가 작아 색을 못 보는 독자에게 모양이 구분을 맡는다 |
 
 스크린샷은 모션 줄임 컨텍스트에서 `document.fonts.ready` 뒤에 찍는다. 새로 더한 숨은 스크롤·모션 줄임·상태 모양 검사는 엔진 화면 요소만 보므로, 프로젝트 자료가 달라서 새로 실패하지 않는다. 내부 용어·글자 대비·글자 크기 집합은 프로젝트 문구와 브라우저에 따라 달라져 예산 검사에 넣지 않는다.
 
@@ -58,4 +58,5 @@
 3. `ui/components/panels.jsx`에 컴포넌트를 만들고 `ui/Overview.jsx` 격자에 놓는다. 틀은 `ui/components/primitives.jsx`의 `Panel`이고, 목록 패널은 `budget="list"`와 `.rows > .row`, 행 수는 `ui/lib/fit.js`의 `useFitRows`로 정한다. 마크업의 `style` 속성·`<style>` 주입은 쓰지 않고 크기·위치만 React `style` prop으로 준다. 프로젝트가 적은 문구를 담는 요소에는 `data-text="project"`, 커밋 제목에는 `data-text="commit"`을 단다.
 4. 자료가 더 필요하면 `overviewSlice`에 필드를 더한다(추가만 한다. 1.0.1 필드의 이름·형·값은 바꾸지 않는다).
 5. `node scripts/build-ui.mjs`로 `site/`를 다시 만들어 함께 커밋한다. CI는 다시 빌드한 결과가 커밋과 같은지 본다.
-6. 엔진 CI의 스모크(픽스처)와, 쓰는 프로젝트에 `npm install --no-save --install-links <엔진 저장소>`로 끼운 `npm run map:budget`으로 스크롤·숨은 스크롤·행·식별자를 잰다. 스크린샷 `map/.out/overview-1440.png`을 사용자에게 보인다.
+6. 누르거나 이동하는 요소를 더하거나 바꿨으면 `scripts/click-targets.json`에 행을 맞춘다. 표에 없는 대화형 요소가 있으면 클릭 경로 크롤이 실패한다. 엔진 저장소에서 `node scripts/route-crawl.mjs --url http://127.0.0.1:<포트>/map/ --targets scripts/click-targets.json`(한 화면만 `--only <overview|journeys|roadmap|tasks|more>`, 이동 없이 개요만 `--overview-only`)로 확인한다. 크롤러는 팩에 없어 엔진 저장소에서만 돈다.
+7. 엔진 CI의 스모크(픽스처: 예산, 하위 화면 콘솔 0, 설정 경로를 바꾼 복사본의 화면 문구, 클릭 경로)와, 쓰는 프로젝트에 `npm install --no-save --install-links <엔진 저장소>`로 끼운 `npm run map:budget`으로 스크롤·숨은 스크롤·행·식별자를 잰다. 스크린샷 `map/.out/overview-1440.png`을 사용자에게 보인다.

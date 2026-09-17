@@ -16,11 +16,14 @@
 | api | 생성(BFF) | method+path | 서버 진입점. 호출하는 DB 함수·Auth |
 | function | 생성(migration) | name | DB 함수. 읽고 쓰는 테이블, BFF 사용 여부 |
 | table | 생성(migration) | schema.name | 저장 구조 |
+| migration | 생성(migration) | file | migration 파일 하나. 만드는 테이블·함수, grant·RLS 수, 마지막 변경 |
 | test | 생성(tests/) | file | 검사 파일. 다루는 라우트·API |
+| testreport | 생성(JUnit 리포트) | last | 마지막 검사 실행의 건수·실패·건너뜀과 그 커밋이 최신인지 |
 | commit | 생성(git) | sha | 최근 변경. 건드린 파일 → 영향받는 화면·여정 |
-| decision | 생성(위키 index) | file | 결정 페이지와 상태(current/proposed/superseded) |
-| plan | 생성(task 문서) | file | PN 체크 진척과 열린 질문 수 |
+| decision | 생성(위키 index, 작업 문서) | file 또는 번호 | 위키 결정 페이지와 상태(current/proposed/superseded). 작업 문서의 `- DEC-nn`(스펙 결정)과 `- [ ] PN-nn`(계획 항목, 완료 여부)도 이 종류로 둔다 |
+| task | 생성(작업 폴더 `tasks.dir`) | 폴더 이름 | 작업 하나. 제목·단계(스펙 초안~검증)·상태·결정 수·계획 항목 완료/미완·열린 질문 수 |
 | ledger | 생성(tasks/index.md) | 행 | 지금 실행 중·대기 중인 작업 |
+| deploy | 생성(git·배포 매니페스트) | head, 배포 대상 | 브랜치 머리 커밋, 매니페스트 이미지 태그의 sha와 뒤처진 커밋 수 |
 | milestone | 손(로드맵 `## 제목` 절) | id | 로드맵 항목. 순서·상태·진행 방식·장면·작업·선행·결정 대기·완료 기준·마일스톤, git 이력에서 계산한 완료일(`completedAt`)·결정 대기 시작일(`waitingSince`) |
 | release | 손(로드맵 `## 마일스톤: 제목` 절, 1.1.0부터) | id | 마일스톤. 순서·상태·목표·완료일·목표일·결정 대기와 그 시작일. 1.x 동안의 임시 이름이고 2.0.0에서 로드맵 항목은 `roadmapItem`, 마일스톤은 `milestone`으로 바꾼다 |
 
@@ -36,7 +39,8 @@
 - commit → screen | api | function (touches): 파일 경로 → 노드(페이지 파일·닫힘·server.mjs·migration)
 - milestone → task (tracks): 로드맵 항목의 `작업`. 장면·선행은 derive에서 해석하고 없으면 check 오류
 - release → milestone (contains): 로드맵 항목의 `마일스톤` 키. 없는 마일스톤 id면 엣지 없이 check 오류
-- step → decision | plan (refs): `refs: ["DEC-57", "PN-15", "trust-boundary"]` 문자열 매칭
+- task → decision (defines): 작업 문서의 `- DEC-nn`·`- [ ] PN-nn` 줄
+- step → decision (refs): `refs: ["DEC-57", "PN-15", "trust-boundary"]`. derive가 문자열로 해석한다: `DEC-nn`·`PN-nn`은 그 번호를 정의한 작업(defines)으로, 나머지는 위키 결정 slug로 찾는다
 
 ## 상태 규칙
 
