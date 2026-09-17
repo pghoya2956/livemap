@@ -31,16 +31,23 @@ export default function tasks(g, fs, cfg) {
       : mention('실행 대기·중단') ? '대기'
       : mention('현재 작업') ? '진행' : '기록';
     const title = heading(plan) || heading(`${base}/spec/final.md`) || heading(`${base}/spec/initial.md`) || heading(`${base}/README.md`) || heading(`${base}/${mdIn(base)[0] || ''}`) || name.slice(9);
+    // 수는 파일 하나에서만 센다: 계획 항목은 체크하는 계획 문서, 결정·열린 질문은 spec/final.md.
+    // 스펙에 적은 계획 초안 체크박스는 실행 중 체크되지 않아 더하면 분모만 부푼다. 노드는 두 문서 모두에서 만들되 세는 문서를 먼저 읽는다.
+    const finalSpec = `${base}/spec/final.md`;
     let dec = 0, pnDone = 0, pnOpen = 0, oq = 0;
-    for (const f of [`${base}/spec/final.md`, plan].filter((f) => f && fs.has(f))) {
+    for (const f of [finalSpec, plan].filter((f) => f && fs.has(f))) {
       const t = fs.read(f);
-      for (const m of t.matchAll(/^- (DEC-\d+)/gm)) { dec += 1; if (!g.get('decision', m[1])) { g.add('decision', m[1], m[1], { kind: 'spec-dec', file: f }, { file: f, line: fs.lineOf(t, m[0]), rule: 'tasks:- DEC-nn' }); g.link('task', name, 'defines', 'decision', m[1]); } }
+      for (const m of t.matchAll(/^- (DEC-\d+)/gm)) { if (f === finalSpec) dec += 1; if (!g.get('decision', m[1])) { g.add('decision', m[1], m[1], { kind: 'spec-dec', file: f }, { file: f, line: fs.lineOf(t, m[0]), rule: 'tasks:- DEC-nn' }); g.link('task', name, 'defines', 'decision', m[1]); } }
+      if (f === finalSpec) oq += (t.match(/^\| OQ-\d+ \|/gm) || []).length;
+    }
+    for (const f of [plan, finalSpec].filter((f) => f && fs.has(f))) {
+      const t = fs.read(f);
       for (const m of t.matchAll(/^- \[(x| )\] ((?:PN|P\d)-\d+)/gim)) {
-        const done = m[1].toLowerCase() === 'x'; if (done) pnDone += 1; else pnOpen += 1;
+        const done = m[1].toLowerCase() === 'x';
+        if (f === plan) { if (done) pnDone += 1; else pnOpen += 1; }
         const pid = m[2].toUpperCase();
         if (!g.get('decision', pid)) { g.add('decision', pid, pid, { kind: 'plan-item', done, file: f }, { file: f, line: fs.lineOf(t, m[0]), rule: 'tasks:- [ ] PN-nn' }); g.link('task', name, 'defines', 'decision', pid); }
       }
-      oq += (t.match(/^\| OQ-\d+ \|/gm) || []).length;
     }
     const ref = fs.hasGit() ? fs.resolveRef(cfg.git?.branch || 'main') : null;
     const recent = ref ? Number(fs.git('rev-list', '--count', ref, `--since=${cfg.git?.sinceDays || 14} days ago`, '--', base) || 0) : 0;

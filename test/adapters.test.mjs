@@ -38,7 +38,10 @@ test('tasks: 단계·상태·DEC·PN·OQ, 장부 행', () => {
   const t = g.get('task', '20260101-sample').props;
   assert.equal(t.stage, '계획');
   assert.equal(t.status, '진행');
+  // 계획 항목은 계획 문서에서만, 결정·열린 질문은 spec/final.md에서만 센다. 스펙에 적은 계획 초안 체크박스와 계획 문서에 옮겨 적은 결정·질문은 세지 않는다.
   assert.deepEqual([t.dec, t.pnDone, t.pnOpen, t.oq], [1, 1, 1, 1]);
+  assert.equal(g.get('decision', 'PN-01').props.file, 'tasks/20260101-sample/plan.md');
+  assert.equal(g.get('decision', 'DEC-01').props.file, 'tasks/20260101-sample/spec/final.md');
   assert.equal(g.of('ledger').filter((l) => l.props.state === 'running').length, 1);
   assert.equal(g.in('decision', 'DEC-01', 'defines')[0].id, '20260101-sample');
 });
