@@ -83,3 +83,42 @@ export function checkProblems(d, cfg) {
 export function check(d, cfg) {
   return checkProblems(d, cfg).map(({ level, msg }) => ({ level, msg }));
 }
+
+// check --staged: 커밋 전 훅이 쓰는 고르기. 대상은 스테이징된 tasks.dir 안 작업 폴더 파일·장부(tasks.index)와 map/judgments/*.json이다.
+// 대상 파일에 걸린 tasks.*·judgment.* 문제만 오류로 센다. 걸림은 문제 대상(작업·장부·판정 파일)이 스테이징된 작업 폴더·판정 파일이거나
+// 근거 줄이 스테이징된 대상 파일에 있는 것이다. 대상이 단계(여정 refs)인 문제는 고칠 곳이 여정 파일이라 세지 않는다.
+const STAGED_PREFIXES = ['tasks.', 'judgment.'];
+const STAGED_SUBJECTS = ['task', 'ledger', 'judgment'];
+const JUDGMENT_FILE = /^map\/judgments\/([^/]+)\.json$/;
+const taskFolderOf = (path, dir) => { if (!dir || !path.startsWith(`${dir}/`)) return null; const m = path.slice(dir.length + 1).match(/^(\d{8}-[^/]+)\//); return m ? m[1] : null; };
+
+export function stagedTargets(paths, cfg) {
+  const dir = cfg?.tasks?.dir ? cfg.tasks.dir.replace(/^\.\//, '').replace(/\/+$/, '') : null;
+  const index = cfg?.tasks?.index ? cfg.tasks.index.replace(/^\.\//, '') : null;
+  return paths.filter((p) => taskFolderOf(p, dir) || (index && p === index) || JUDGMENT_FILE.test(p));
+}
+
+export function stagedProblems(problems, paths, cfg) {
+  const targets = stagedTargets(paths, cfg);
+  const dir = cfg?.tasks?.dir ? cfg.tasks.dir.replace(/^\.\//, '').replace(/\/+$/, '') : null;
+  const files = new Set(targets);
+  const folders = new Set(targets.map((p) => taskFolderOf(p, dir)).filter(Boolean));
+  const judged = new Set(targets.map((p) => p.match(JUDGMENT_FILE)?.[1]).filter(Boolean));
+  return problems.filter((p) => STAGED_PREFIXES.some((x) => p.code.startsWith(x)) && STAGED_SUBJECTS.includes(p.subject?.kind) && (
+    p.anchors.some((a) => files.has(a.file))
+    || (p.subject.kind === 'task' && folders.has(p.subject.id))
+    || (p.subject.kind === 'judgment' && (judged.has(p.subject.id) || folders.has(p.subject.id)))
+  )).map((p) => ({ ...p, level: 'error' }));
+}
+
+// 훅 출력: 문제마다 코드·문구, 처리, 근거 줄, 판정 초안. 받은 에이전트 세션이 판정 파일을 쓰거나 원문을 고친다
+export function stagedText(problems) {
+  const lines = [];
+  for (const p of problems) {
+    lines.push(`✗ ${p.code} ${p.msg}`);
+    if (p.resolutions.length) lines.push(`  처리: ${p.resolutions.join('·')}`);
+    for (const a of p.anchors) lines.push(`  근거: ${a.file}${a.line ? `:${a.line}` : ''}${a.excerpt ? ` ${a.excerpt}` : ''}`);
+    if (p.judgmentDraft) lines.push(`  판정 초안(judgmentDraft): ${JSON.stringify(p.judgmentDraft)}`);
+  }
+  return lines;
+}

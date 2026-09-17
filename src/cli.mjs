@@ -2,9 +2,10 @@
 //   livemap build   [--root .] [--out map/.out]       저장소 스캔 → graph.json·data.json·overview.json
 //   livemap check   [--root .] [--json] [--strict]     검증(바닥값·라우트 존재·상태 모순·참조 미해결·어댑터 실패) → exit 1이면 실패
 //                                                      --json은 stdout에 이슈 계약 JSON만, --strict는 tasks.*·judgment.* 경고도 오류로 센다
+//                  [--staged]                          커밋 전 훅: 스테이징된 작업 문서·판정 파일에 걸린 tasks.*·judgment.*만 오류로 센다(git 없음·대상 없음 0)
 //   livemap serve   [--port 4180] [--static <dir>]     loopback 서빙. 기본은 요청마다 재빌드(5초 캐시), --static은 export 폴더를 그대로 준다
 //   livemap export  <dir> [--out map/.out]             화면·서체·캡처·생성물을 /map/ 주소 배치 그대로 한 폴더에 모은다
-//   livemap init                                       없는 파일만 템플릿으로 만들고 .gitignore·npm 스크립트를 넣는다
+//   livemap init                                       없는 파일만 템플릿으로 만들고 .gitignore·npm 스크립트·커밋 전 훅(.githooks/pre-commit)을 넣는다
 //   livemap test-report [--import <파일> [--sha <커밋>]]  단위 검사를 JUnit과 결과 JSON(config.tests.report 폴더의 test-results.json)으로 남긴다.
 //                                                      --import는 러너를 돌리지 않고 livemap 리포터·Playwright JSON·JUnit 출력을 결과 JSON에 넣는다
 //   livemap --version
@@ -14,9 +15,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Graph, runAdapter } from './lib/graph.mjs';
 import { makeFs } from './lib/util.mjs';
 import { derive, overviewSlice } from './derive.mjs';
-import { checkProblems } from './check.mjs';
+import { execFileSync } from 'node:child_process';
+import { checkProblems, stagedTargets, stagedProblems, stagedText } from './check.mjs';
 import { linkScreenApis } from './link.mjs';
-import { applyStrict, problemsJson, textLines } from './lib/issues.mjs';
+import { applyStrict, problemsJson, sortProblems, textLines } from './lib/issues.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const PKG_ROOT = resolve(here, '..');
@@ -84,9 +86,10 @@ export function engineMismatch(cfg) {
 const USAGE = `usage: livemap <command>
   build        [--root .] [--out map/.out]    저장소 스캔 → graph.json · data.json · overview.json
   check        [--root .] [--json] [--strict] 정합 검사, 오류가 있으면 exit 1(--json: 이슈 JSON만)
+  check --staged                              커밋 전 훅: 스테이징된 작업 문서·판정 파일의 문제만 오류로
   serve        [--port 4180] [--static <dir>] 로컬 뷰 http://127.0.0.1:<port>/map/
   export <dir> [--out map/.out]               화면·서체·캡처·생성물을 한 폴더에(먼저 build)
-  init                                        map/ 초안 파일·.gitignore·npm 스크립트
+  init                                        map/ 초안 파일·.gitignore·npm 스크립트·커밋 전 훅
   test-report                                 단위 검사를 JUnit 리포트와 결과 JSON으로
   test-report --import <파일> [--sha <커밋>]  Playwright JSON·JUnit·livemap 리포터 출력을 결과 JSON에
   --version                                   엔진 버전`;
@@ -99,6 +102,37 @@ function readConfig(root) {
 }
 
 // 명령을 실행하고 종료 코드를 돌려준다. serve는 서버를 띄우고 undefined를 돌려준다(프로세스가 계속 산다).
+// check --staged: 스테이징 목록(git diff --cached, 내용은 작업트리 기준)에 작업 문서·판정 파일이 없으면 빌드하지 않고 0
+const STAGED_FAIL = '원문을 식별자 줄 규칙대로 고치거나 map/judgments/<작업 폴더>.json에 판정을 적어 스테이징하고 다시 커밋한다. --no-verify로 넘기지 않는다';
+async function checkStaged(root, cfg, json) {
+  let paths;
+  try {
+    const out = execFileSync('git', ['-C', root, 'diff', '--cached', '--name-only', '--relative', '--no-renames', '-z'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    paths = out.split('\0').filter(Boolean);
+  } catch {
+    if (json) process.stdout.write(JSON.stringify(problemsJson([], VERSION), null, 2) + '\n');
+    else console.log('map check --staged: git 저장소 아님, 건너뜀');
+    return 0;
+  }
+  const targets = stagedTargets(paths, cfg);
+  if (!targets.length) {
+    if (json) process.stdout.write(JSON.stringify(problemsJson([], VERSION), null, 2) + '\n');
+    else console.log('map check --staged: 대상 없음');
+    return 0;
+  }
+  // 빌드 중 어댑터가 찍는 줄은 훅 출력에 섞지 않는다
+  const log = console.log;
+  console.log = (...a) => console.error(...a);
+  let built;
+  try { built = await buildGraph(root); } finally { console.log = log; }
+  const problems = sortProblems(stagedProblems(checkProblems(built.data, built.cfg), paths, built.cfg));
+  if (json) { process.stdout.write(JSON.stringify(problemsJson(problems, VERSION), null, 2) + '\n'); return problems.length ? 1 : 0; }
+  if (!problems.length) { console.log(`map check --staged: 통과 (대상 파일 ${targets.length})`); return 0; }
+  for (const line of stagedText(problems)) console.log(line);
+  console.log(`map check --staged: 오류 ${problems.length} (스테이징된 작업 문서·판정 파일의 tasks.*·judgment.* 문제). ${STAGED_FAIL}`);
+  return 1;
+}
+
 export async function main(argv = []) {
   const cmd = argv[0] || 'build';
   const opt = (k, d) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : d; };
@@ -129,6 +163,7 @@ export async function main(argv = []) {
     for (const a of bad) console.log(`  ${a.status === 'failed' ? '✗' : '△'} ${a.name}: ${a.error}`);
     return 0;
   }
+  if (cmd === 'check' && argv.includes('--staged')) return checkStaged(root, cfg, argv.includes('--json'));
   if (cmd === 'check') {
     const json = argv.includes('--json');
     // --json: stdout에는 JSON만. 빌드 중 어댑터가 찍는 줄과 가림 알림은 stderr로 보낸다
