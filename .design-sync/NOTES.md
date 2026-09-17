@@ -8,6 +8,10 @@
 - 카드 바탕이 흰색이라 작은 컴포넌트 미리보기는 `var(--panel)` 바탕 상자로 감쌌다.
 - 플레이라이트는 `.ds-sync`에 `playwright@1.63.0`(chromium_headless_shell-1243 캐시와 일치).
 
+## 하위 화면은 올리지 않음(2026-09-17 결정)
+
+- Phase 3에서 이식한 하위 화면(`ui/routes/` 기능·로드맵·작업·더보기와 공통 조각)과 해시 라우터(`ui/main.jsx`)는 `ui/index.js` export에 넣지 않아 Claude Design에 올리지 않는다. 컴포넌트 공유 대상은 개요(DEC-13)이고, 하위 화면은 1.0.1 정보·배치를 옮긴 것이라 디자인 대상이 아니다. 올리게 되면 `data.json` 모양의 가상 자료와 하위 화면 타입부터 더한다.
+
 ## Known render warns
 
 - `[RENDER_THIN] Sparkline`: 글자가 없는 선 그림이라 뜬다. 스크린샷으로 선이 그려진 것을 확인했다.
@@ -16,7 +20,8 @@
 
 - 컴포넌트와 스타일은 2026-09-17 원형 보정판(스펙 1.1.0 개요, Phase 1 P1-03)이다. 로드맵 패널 컴포넌트는 `MilestonePanel`로 이름이 바뀌었고 `StepMark` 미리보기가 새로 생겼다. Claude Design 프로젝트에 남은 옛 로드맵 패널 카드는 다음 동기화에서 지운다.
 - 자료 모양은 1.1.0 `overview.json`이다. 엔진 Phase 2(`overviewSlice`)나 Phase 3(하위 화면 라우터) 뒤 필드·props가 바뀌면 `ui/index.d.ts`, `sample/monitor.ts`, 미리보기를 함께 고친다. 로컬 확인은 ts-morph(`.ds-sync/node_modules`)로 미리보기·자료를 `index.d.ts`에 대조하는 방법을 썼다.
-- 이동 요소는 `a[href^="#/"]`다. Claude Design 카드 안에서 누르면 해시만 바뀌고 화면은 그대로다.
+- 이동 요소는 `a[href^="#/"]`다. 엔진 화면에서는 `ui/main.jsx` 라우터가 하위 화면을 그리지만, Claude Design 카드에는 라우터가 없어 누르면 해시만 바뀐다.
+- `Overview`의 `current`(내비 선택)와 특보 행 순서(이상 신호 먼저)는 이식판 기준이다. 개요 컴포넌트 props가 바뀌면 `index.d.ts`·미리보기를 함께 고친다.
 - 기능 지도 라벨은 SVG 글자가 아니라 절대 위치 HTML(`.jl`·`.zl`)이다. 카드 크기가 작으면 라벨이 말줄임된다.
 - `ui/styles.css`는 엔진 화면과 공유한다. 엔진 쪽 CSS 변경이 카드 모양을 바꾼다.
 - 서체는 `site/fonts`에서 복사한다. 서체 교체 시 `ui/fonts` 재생성이 필요하다.

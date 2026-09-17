@@ -124,7 +124,7 @@ export interface FeatureMapProps {
 /** 기능 지도. 레인별 구역에 기능 허브와 단계 표식 경로, 말줄임 HTML 라벨, 함께 바뀐 기능 연결선, 레이어 토글. 부모 높이를 채운다. */
 export declare function FeatureMap(props: FeatureMapProps): ReactElement;
 
-export interface TopBarProps { project: Project; signals: Pick<Signals, 'deploy' | 'deployBehind' | 'warnings'>; generatedAt: string; /** 선택 내비 순번(0 개요) */ current?: number }
+export interface TopBarProps { project: Project; signals: Pick<Signals, 'deploy' | 'deployBehind' | 'warnings'>; generatedAt: string; /** 선택 내비 순번(0 개요, -1이면 선택 없음) */ current?: number }
 /** 상단 바: 브랜드, 내비 5, 배포·경고·신선도·제품 주소 알약, 시계. 1279px 이하 두 줄. */
 export declare function TopBar(props: TopBarProps): ReactElement;
 
@@ -153,7 +153,7 @@ export interface FeatureTrendPanelProps { journeys: Journey[]; selected?: string
 export declare function FeatureTrendPanel(props: FeatureTrendPanelProps): ReactElement;
 
 export interface SignalsPanelProps { roadmapItems: RoadmapItem[]; milestones: Milestone[]; signals: Signals; generatedAt: string; at?: string }
-/** 특보 패널: 결정 대기(로드맵 링크)와 이상 신호(더보기 링크)만. 없으면 "특보 없음". */
+/** 특보 패널: 이상 신호(더보기 링크) 다음 결정 대기(로드맵 링크). 넘치면 결정 대기가 "외 n →" 뒤로 가고, 없으면 "특보 없음". */
 export declare function SignalsPanel(props: SignalsPanelProps): ReactElement;
 
 export interface CapturePanelProps { captures: Capture[]; /** 캡처 id로 기능 제목·단계 이름을 찾는다 */ journeys?: Journey[]; base?: string; interval?: number }
@@ -164,7 +164,7 @@ export interface FeatureTablePanelProps { journeys: Journey[]; activity: Activit
 /** 기능 현황: 미완성 기능 행과 완성 기능 접은 행, 선택 기능 상세(영역 차트·상태·로드맵·마일스톤·기능 화면 링크). */
 export declare function FeatureTablePanel(props: FeatureTablePanelProps): ReactElement;
 
-export interface OverviewProps { data: OverviewData; captureBase?: string }
+export interface OverviewProps { data: OverviewData; captureBase?: string; /** 선택 내비 순번(알 수 없는 해시 경로는 -1) */ current?: number }
 /** 첫 화면 전체 조립: 상단 바, 전광판, 3열 격자(마일스톤·진척·최근 변경 / 기능 지도·기능별 변경·특보 / 화면·기능 현황). */
 export declare function Overview(props: OverviewProps): ReactElement;
 
