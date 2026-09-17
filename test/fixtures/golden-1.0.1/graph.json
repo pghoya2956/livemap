@@ -1,0 +1,496 @@
+{
+  "schemaVersion": 1,
+  "adapters": [
+    {
+      "name": "router",
+      "status": "ok",
+      "count": 3,
+      "error": null
+    },
+    {
+      "name": "bff",
+      "status": "ok",
+      "count": 4,
+      "error": null
+    },
+    {
+      "name": "migrations",
+      "status": "ok",
+      "count": 2,
+      "error": null
+    },
+    {
+      "name": "tests",
+      "status": "ok",
+      "count": 1,
+      "error": null
+    },
+    {
+      "name": "wiki",
+      "status": "ok",
+      "count": 1,
+      "error": null
+    },
+    {
+      "name": "tasks",
+      "status": "ok",
+      "count": 6,
+      "error": null
+    },
+    {
+      "name": "roadmap",
+      "status": "ok",
+      "count": 2,
+      "error": null
+    },
+    {
+      "name": "git",
+      "status": "partial",
+      "count": 0,
+      "error": "git 없음"
+    },
+    {
+      "name": "deploy",
+      "status": "partial",
+      "count": 1,
+      "error": "배포 sha가 main 이력에 없음(뒤처짐 계산 불가)"
+    },
+    {
+      "name": "testreport",
+      "status": "partial",
+      "count": 0,
+      "error": "검사 리포트 없음(npm run test:report 미실행)"
+    }
+  ],
+  "nodes": [
+    {
+      "kind": "screen",
+      "id": "/live",
+      "label": "/live",
+      "props": {
+        "component": "Live",
+        "file": "web/src/pages/Live.tsx",
+        "guarded": false,
+        "source": "live",
+        "mockVia": [],
+        "fixedVia": [
+          "pages/Live.tsx"
+        ],
+        "files": [
+          "web/src/pages/Live.tsx"
+        ],
+        "last": null
+      },
+      "src": {
+        "file": "web/src/App.tsx",
+        "line": 6,
+        "rule": "router:<Route path>"
+      }
+    },
+    {
+      "kind": "api",
+      "id": "/api/resorts",
+      "label": "/api/resorts",
+      "props": {
+        "method": "GET",
+        "calls": [
+          "list_resorts"
+        ]
+      },
+      "src": {
+        "file": "app/server.mjs",
+        "line": 2,
+        "rule": "bff:url.pathname ==="
+      }
+    },
+    {
+      "kind": "screen",
+      "id": "/mocked",
+      "label": "/mocked",
+      "props": {
+        "component": "Mocked",
+        "file": "web/src/pages/Mocked.tsx",
+        "guarded": true,
+        "source": "mock",
+        "mockVia": [
+          "pages/Mocked.tsx"
+        ],
+        "fixedVia": [],
+        "files": [
+          "web/src/pages/Mocked.tsx"
+        ],
+        "last": null
+      },
+      "src": {
+        "file": "web/src/App.tsx",
+        "line": 7,
+        "rule": "router:<Route path>"
+      }
+    },
+    {
+      "kind": "function",
+      "id": "list_resorts",
+      "label": "list_resorts",
+      "props": {
+        "qualified": "app.list_resorts",
+        "migration": "20260101000000_init.sql"
+      },
+      "src": {
+        "file": "supabase/migrations/20260101000000_init.sql",
+        "line": 3,
+        "rule": "migrations:create function"
+      }
+    },
+    {
+      "kind": "api",
+      "id": "/api/login",
+      "label": "POST /api/login",
+      "props": {
+        "method": "POST",
+        "calls": [
+          "auth:token"
+        ]
+      },
+      "src": {
+        "file": "app/server.mjs",
+        "line": 6,
+        "rule": "bff:url.pathname ==="
+      }
+    },
+    {
+      "kind": "api",
+      "id": "/api/items/:id",
+      "label": "GET /api/items/:id",
+      "props": {
+        "method": "GET",
+        "calls": [
+          "get_item"
+        ]
+      },
+      "src": {
+        "file": "app/server.mjs",
+        "line": 12,
+        "rule": "bff:route()"
+      }
+    },
+    {
+      "kind": "function",
+      "id": "get_item",
+      "label": "get_item",
+      "props": {},
+      "src": null
+    },
+    {
+      "kind": "migration",
+      "id": "20260101000000_init.sql",
+      "label": "init.sql",
+      "props": {
+        "file": "supabase/migrations/20260101000000_init.sql",
+        "tables": [
+          "app.resorts"
+        ],
+        "functions": [
+          "app.list_resorts"
+        ],
+        "grants": 1,
+        "rls": 1,
+        "last": null
+      },
+      "src": {
+        "file": "supabase/migrations/20260101000000_init.sql",
+        "line": 1,
+        "rule": "migrations:create table|function"
+      }
+    },
+    {
+      "kind": "table",
+      "id": "app.resorts",
+      "label": "resorts",
+      "props": {
+        "schema": "app"
+      },
+      "src": {
+        "file": "supabase/migrations/20260101000000_init.sql",
+        "line": 1,
+        "rule": "migrations:create table"
+      }
+    },
+    {
+      "kind": "test",
+      "id": "tests/api.test.mjs",
+      "label": "api",
+      "props": {
+        "kind": "unit",
+        "count": 1,
+        "gated": false
+      },
+      "src": {
+        "file": "tests/api.test.mjs",
+        "line": 1,
+        "rule": "tests:test(|it("
+      }
+    },
+    {
+      "kind": "decision",
+      "id": "sample",
+      "label": "샘플 결정",
+      "props": {
+        "kind": "wiki",
+        "file": ".agent/wiki/decisions/sample.md",
+        "status": "current",
+        "summary": "적용 설명"
+      },
+      "src": {
+        "file": ".agent/wiki/index.md",
+        "line": 3,
+        "rule": "wiki:index decisions"
+      }
+    },
+    {
+      "kind": "ledger",
+      "id": "running-0",
+      "label": "샘플 작업",
+      "props": {
+        "state": "running",
+        "owner": "세션",
+        "scope": "`x/`",
+        "done": "[계획](20260101-sample/plan.md)"
+      },
+      "src": {
+        "file": "tasks/index.md",
+        "line": null,
+        "rule": "tasks:index 현재 실행 장부"
+      }
+    },
+    {
+      "kind": "ledger",
+      "id": "waiting-0",
+      "label": "기다리는 일",
+      "props": {
+        "state": "waiting",
+        "status": "대기(사용자)",
+        "resume": "결정되면"
+      },
+      "src": {
+        "file": "tasks/index.md",
+        "line": null,
+        "rule": "tasks:index 실행 대기·중단"
+      }
+    },
+    {
+      "kind": "decision",
+      "id": "DEC-01",
+      "label": "DEC-01",
+      "props": {
+        "kind": "spec-dec",
+        "file": "tasks/20260101-sample/spec/final.md"
+      },
+      "src": {
+        "file": "tasks/20260101-sample/spec/final.md",
+        "line": 3,
+        "rule": "tasks:- DEC-nn"
+      }
+    },
+    {
+      "kind": "decision",
+      "id": "PN-01",
+      "label": "PN-01",
+      "props": {
+        "kind": "plan-item",
+        "done": true,
+        "file": "tasks/20260101-sample/plan.md"
+      },
+      "src": {
+        "file": "tasks/20260101-sample/plan.md",
+        "line": 3,
+        "rule": "tasks:- [ ] PN-nn"
+      }
+    },
+    {
+      "kind": "decision",
+      "id": "PN-02",
+      "label": "PN-02",
+      "props": {
+        "kind": "plan-item",
+        "done": false,
+        "file": "tasks/20260101-sample/plan.md"
+      },
+      "src": {
+        "file": "tasks/20260101-sample/plan.md",
+        "line": 4,
+        "rule": "tasks:- [ ] PN-nn"
+      }
+    },
+    {
+      "kind": "task",
+      "id": "20260101-sample",
+      "label": "샘플 작업 계획",
+      "props": {
+        "date": "2026-01-01",
+        "slug": "sample",
+        "stage": "계획",
+        "status": "진행",
+        "spec": {
+          "initial": false,
+          "review": false,
+          "final": true
+        },
+        "plan": "tasks/20260101-sample/plan.md",
+        "phases": 0,
+        "execution": 0,
+        "verification": [],
+        "dec": 1,
+        "pnDone": 1,
+        "pnOpen": 1,
+        "oq": 1,
+        "recentCommits": 0,
+        "wikiSources": 0,
+        "files": 2,
+        "last": null
+      },
+      "src": {
+        "file": "tasks/20260101-sample/plan.md",
+        "line": 1,
+        "rule": "tasks:folder"
+      }
+    },
+    {
+      "kind": "milestone",
+      "id": "first",
+      "label": "첫 항목",
+      "props": {
+        "order": 1,
+        "goal": "첫 목표 문장.",
+        "status": "진행",
+        "mode": "계획",
+        "tasks": [
+          "20260101-sample"
+        ],
+        "scenes": [
+          "j1/s1",
+          "j1/s2"
+        ],
+        "deps": [],
+        "waitingOn": "고를 것",
+        "done": ""
+      },
+      "src": {
+        "file": "tasks/roadmap.md",
+        "line": 3,
+        "rule": "roadmap:## 제목 + - 키: 값"
+      }
+    },
+    {
+      "kind": "milestone",
+      "id": "second",
+      "label": "둘째 항목",
+      "props": {
+        "order": 2,
+        "goal": "",
+        "status": "모름",
+        "mode": "",
+        "tasks": [
+          "20269999-none"
+        ],
+        "scenes": [
+          "j1/zz"
+        ],
+        "deps": [
+          "first",
+          "ghost"
+        ],
+        "waitingOn": "",
+        "done": ""
+      },
+      "src": {
+        "file": "tasks/roadmap.md",
+        "line": 14,
+        "rule": "roadmap:## 제목 + - 키: 값"
+      }
+    },
+    {
+      "kind": "deploy",
+      "id": "homelab",
+      "label": "https://mini.local",
+      "props": {
+        "host": "https://mini.local",
+        "sha": "0000000",
+        "full": "0000000000000000000000000000000000000000",
+        "behind": null,
+        "behindRuntime": null
+      },
+      "src": {
+        "file": "deploy/k8s/bff.yaml",
+        "line": 1,
+        "rule": "deploy:image tag"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "screen:/live",
+      "to": "api:/api/resorts",
+      "kind": "calls"
+    },
+    {
+      "from": "api:/api/resorts",
+      "to": "function:list_resorts",
+      "kind": "invokes"
+    },
+    {
+      "from": "api:/api/items/:id",
+      "to": "function:get_item",
+      "kind": "invokes"
+    },
+    {
+      "from": "migration:20260101000000_init.sql",
+      "to": "table:app.resorts",
+      "kind": "contains"
+    },
+    {
+      "from": "migration:20260101000000_init.sql",
+      "to": "function:list_resorts",
+      "kind": "contains"
+    },
+    {
+      "from": "function:list_resorts",
+      "to": "table:app.resorts",
+      "kind": "touches"
+    },
+    {
+      "from": "test:tests/api.test.mjs",
+      "to": "api:/api/resorts",
+      "kind": "covers"
+    },
+    {
+      "from": "test:tests/api.test.mjs",
+      "to": "function:list_resorts",
+      "kind": "covers"
+    },
+    {
+      "from": "task:20260101-sample",
+      "to": "decision:DEC-01",
+      "kind": "defines"
+    },
+    {
+      "from": "task:20260101-sample",
+      "to": "decision:PN-01",
+      "kind": "defines"
+    },
+    {
+      "from": "task:20260101-sample",
+      "to": "decision:PN-02",
+      "kind": "defines"
+    },
+    {
+      "from": "milestone:first",
+      "to": "task:20260101-sample",
+      "kind": "tracks"
+    },
+    {
+      "from": "milestone:second",
+      "to": "task:20269999-none",
+      "kind": "tracks"
+    }
+  ]
+}

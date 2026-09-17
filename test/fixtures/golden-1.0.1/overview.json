@@ -1,0 +1,130 @@
+{
+  "project": {
+    "name": "Mini",
+    "host": "https://mini.local"
+  },
+  "headDate": null,
+  "line": "장면 1/3 동작 · 화면 1/2 실데이터 · 하드코딩 표시 1 · 14일 커밋 0 · 경고 1 · 다음: 첫 항목",
+  "journeys": [
+    {
+      "id": "j1",
+      "title": "여정 하나",
+      "actor": "사용자",
+      "lane": "L",
+      "status": "partial",
+      "warnings": 1,
+      "steps": [
+        {
+          "id": "s1",
+          "label": "동작 장면",
+          "status": "live",
+          "grade": "B",
+          "warn": false
+        },
+        {
+          "id": "s2",
+          "label": "목업 장면",
+          "status": "mock",
+          "grade": null,
+          "warn": false
+        },
+        {
+          "id": "s3",
+          "label": "없는 라우트",
+          "status": "planned",
+          "grade": null,
+          "warn": true
+        }
+      ]
+    }
+  ],
+  "running": [
+    {
+      "work": "샘플 작업",
+      "owner": "세션"
+    }
+  ],
+  "roadmap": [
+    {
+      "id": "first",
+      "title": "첫 항목",
+      "status": "진행",
+      "mode": "계획",
+      "live": 1,
+      "total": 2,
+      "waiting": true
+    },
+    {
+      "id": "second",
+      "title": "둘째 항목",
+      "status": "모름",
+      "mode": "",
+      "live": 0,
+      "total": 1,
+      "waiting": false
+    }
+  ],
+  "roadmapDone": 0,
+  "roadmapTotal": 2,
+  "waiting": [
+    {
+      "work": "기다리는 일",
+      "state": "대기"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "20260101-sample",
+      "title": "샘플 작업 계획",
+      "stage": "계획",
+      "status": "진행",
+      "pnDone": 1,
+      "pnOpen": 1,
+      "oq": 1
+    }
+  ],
+  "signals": {
+    "deploy": "unknown",
+    "deployBehind": null,
+    "tests": "none",
+    "lastRun": null,
+    "adapters": "partial",
+    "adapterNotes": [
+      "git: git 없음",
+      "deploy: 배포 sha가 main 이력에 없음(뒤처짐 계산 불가)",
+      "testreport: 검사 리포트 없음(npm run test:report 미실행)"
+    ],
+    "warnings": 1,
+    "orphans": 2,
+    "gated": 0
+  },
+  "counts": {
+    "stepsLive": 1,
+    "stepsTotal": 3,
+    "screensLive": 1,
+    "screensFixed": 1,
+    "screens": 2,
+    "apis": 3,
+    "functions": 2,
+    "tests": 1,
+    "pnDone": 1,
+    "pnTotal": 2,
+    "oq": 1,
+    "decisions": 1,
+    "proposed": 0,
+    "grades": {
+      "A": 0,
+      "B": 1,
+      "C": 0,
+      "D": 0
+    }
+  },
+  "areas": [],
+  "recent": [],
+  "openQuestions": [
+    {
+      "title": "샘플 작업 계획",
+      "oq": 1
+    }
+  ]
+}

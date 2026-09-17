@@ -1,0 +1,623 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "name": "Mini",
+    "host": "https://mini.local"
+  },
+  "head": null,
+  "deploy": {
+    "host": "https://mini.local",
+    "sha": "0000000",
+    "full": "0000000000000000000000000000000000000000",
+    "behind": null,
+    "behindRuntime": null
+  },
+  "testreport": null,
+  "adapters": [
+    {
+      "name": "router",
+      "status": "ok",
+      "count": 3,
+      "error": null
+    },
+    {
+      "name": "bff",
+      "status": "ok",
+      "count": 4,
+      "error": null
+    },
+    {
+      "name": "migrations",
+      "status": "ok",
+      "count": 2,
+      "error": null
+    },
+    {
+      "name": "tests",
+      "status": "ok",
+      "count": 1,
+      "error": null
+    },
+    {
+      "name": "wiki",
+      "status": "ok",
+      "count": 1,
+      "error": null
+    },
+    {
+      "name": "tasks",
+      "status": "ok",
+      "count": 6,
+      "error": null
+    },
+    {
+      "name": "roadmap",
+      "status": "ok",
+      "count": 2,
+      "error": null
+    },
+    {
+      "name": "git",
+      "status": "partial",
+      "count": 0,
+      "error": "git 없음"
+    },
+    {
+      "name": "deploy",
+      "status": "partial",
+      "count": 1,
+      "error": "배포 sha가 main 이력에 없음(뒤처짐 계산 불가)"
+    },
+    {
+      "name": "testreport",
+      "status": "partial",
+      "count": 0,
+      "error": "검사 리포트 없음(npm run test:report 미실행)"
+    }
+  ],
+  "semantic": {
+    "actors": {
+      "u": "사용자"
+    },
+    "statusLegend": {},
+    "journeys": [
+      {
+        "id": "j1",
+        "title": "여정 하나",
+        "actor": "u",
+        "lane": "L",
+        "goal": "g",
+        "steps": [
+          {
+            "id": "s1",
+            "label": "동작 장면",
+            "status": "live",
+            "screens": [
+              "/live"
+            ],
+            "refs": [
+              "DEC-01",
+              "PN-02",
+              "sample"
+            ],
+            "actor": "u",
+            "screenNodes": [
+              {
+                "path": "/live",
+                "source": "live",
+                "file": "web/src/pages/Live.tsx",
+                "tests": [],
+                "last": null,
+                "mockVia": [],
+                "fixedVia": [
+                  "pages/Live.tsx"
+                ]
+              }
+            ],
+            "apiNodes": [
+              {
+                "path": "/api/resorts",
+                "method": "GET",
+                "calls": [
+                  "list_resorts"
+                ],
+                "tests": [
+                  "api"
+                ]
+              }
+            ],
+            "functionNodes": [
+              {
+                "name": "list_resorts",
+                "tables": [
+                  "resorts"
+                ],
+                "tests": [
+                  "api"
+                ]
+              }
+            ],
+            "testFiles": [
+              "api"
+            ],
+            "refNodes": [
+              {
+                "ref": "DEC-01",
+                "task": "20260101-sample",
+                "file": "tasks/20260101-sample/spec/final.md",
+                "wiki": null
+              },
+              {
+                "ref": "PN-02",
+                "task": "20260101-sample",
+                "file": "tasks/20260101-sample/plan.md",
+                "done": false,
+                "wiki": null
+              },
+              {
+                "ref": "sample",
+                "wiki": {
+                  "title": "샘플 결정",
+                  "file": ".agent/wiki/decisions/sample.md",
+                  "status": "current"
+                }
+              }
+            ],
+            "taskNames": [
+              "20260101-sample"
+            ],
+            "warnings": [],
+            "grade": "B",
+            "captureFile": null,
+            "recentCommits": []
+          },
+          {
+            "id": "s2",
+            "label": "목업 장면",
+            "status": "mock",
+            "screens": [
+              "/mocked"
+            ],
+            "actor": "u",
+            "screenNodes": [
+              {
+                "path": "/mocked",
+                "source": "mock",
+                "file": "web/src/pages/Mocked.tsx",
+                "tests": [],
+                "last": null,
+                "mockVia": [
+                  "pages/Mocked.tsx"
+                ],
+                "fixedVia": []
+              }
+            ],
+            "apiNodes": [],
+            "functionNodes": [],
+            "testFiles": [],
+            "refNodes": [],
+            "taskNames": [],
+            "warnings": [],
+            "grade": null,
+            "captureFile": null,
+            "recentCommits": []
+          },
+          {
+            "id": "s3",
+            "label": "없는 라우트",
+            "status": "planned",
+            "screens": [
+              "/nope"
+            ],
+            "actor": "u",
+            "screenNodes": [
+              {
+                "path": "/nope",
+                "source": "missing"
+              }
+            ],
+            "apiNodes": [],
+            "functionNodes": [],
+            "testFiles": [],
+            "refNodes": [],
+            "taskNames": [],
+            "warnings": [
+              "라우트 없음: /nope"
+            ],
+            "grade": null,
+            "captureFile": null,
+            "recentCommits": []
+          }
+        ],
+        "status": "partial",
+        "counts": {
+          "live": 1,
+          "mock": 1,
+          "planned": 1,
+          "next": 0
+        },
+        "taskNames": [
+          "20260101-sample"
+        ],
+        "warnings": 1
+      }
+    ]
+  },
+  "summary": {
+    "routes": 2,
+    "liveRoutes": 1,
+    "mockRoutes": 1,
+    "fixedRoutes": 1,
+    "apis": 3,
+    "dbFunctions": 2,
+    "dbTables": 1,
+    "tests": 1,
+    "e2e": 0,
+    "pnDone": 1,
+    "pnOpen": 1,
+    "oq": 1,
+    "commits": 0,
+    "warnings": 1,
+    "orphans": 2,
+    "stepsLive": 1,
+    "stepsTotal": 3,
+    "grades": {
+      "A": 0,
+      "B": 1,
+      "C": 0,
+      "D": 0
+    }
+  },
+  "orphans": {
+    "screens": [],
+    "apis": [
+      "/api/login",
+      "/api/items/:id"
+    ],
+    "functions": [],
+    "tests": []
+  },
+  "coverage": {
+    "screens": {
+      "inJourney": 2,
+      "total": 2
+    }
+  },
+  "tasks": [
+    {
+      "name": "20260101-sample",
+      "title": "샘플 작업 계획",
+      "date": "2026-01-01",
+      "slug": "sample",
+      "stage": "계획",
+      "status": "진행",
+      "spec": {
+        "initial": false,
+        "review": false,
+        "final": true
+      },
+      "plan": "tasks/20260101-sample/plan.md",
+      "phases": 0,
+      "execution": 0,
+      "verification": [],
+      "dec": 1,
+      "pnDone": 1,
+      "pnOpen": 1,
+      "oq": 1,
+      "recentCommits": 0,
+      "wikiSources": 0,
+      "files": 2,
+      "last": null,
+      "journeys": [
+        {
+          "id": "j1",
+          "title": "여정 하나",
+          "status": "partial",
+          "steps": [
+            "동작 장면"
+          ]
+        }
+      ]
+    }
+  ],
+  "roadmap": [
+    {
+      "id": "first",
+      "order": 1,
+      "title": "첫 항목",
+      "status": "진행",
+      "mode": "계획",
+      "goal": "첫 목표 문장.",
+      "waitingOn": "고를 것",
+      "done": "",
+      "deps": [],
+      "scenes": [
+        {
+          "ref": "j1/s1",
+          "journey": "j1",
+          "step": "s1",
+          "label": "여정 하나 › 동작 장면",
+          "status": "live",
+          "grade": "B",
+          "fixed": true
+        },
+        {
+          "ref": "j1/s2",
+          "journey": "j1",
+          "step": "s2",
+          "label": "여정 하나 › 목업 장면",
+          "status": "mock",
+          "grade": null,
+          "fixed": false
+        }
+      ],
+      "tasks": [
+        {
+          "name": "20260101-sample",
+          "title": "샘플 작업 계획",
+          "stage": "계획",
+          "status": "진행",
+          "pnDone": 1,
+          "pnOpen": 1
+        }
+      ],
+      "progress": {
+        "live": 1,
+        "total": 2,
+        "fixed": 1
+      },
+      "problems": [],
+      "src": {
+        "file": "tasks/roadmap.md",
+        "line": 3,
+        "rule": "roadmap:## 제목 + - 키: 값"
+      }
+    },
+    {
+      "id": "second",
+      "order": 2,
+      "title": "둘째 항목",
+      "status": "모름",
+      "mode": "",
+      "goal": "",
+      "waitingOn": "",
+      "done": "",
+      "deps": [
+        {
+          "id": "first",
+          "title": "첫 항목",
+          "status": "진행"
+        },
+        {
+          "id": "ghost",
+          "title": "ghost",
+          "status": null
+        }
+      ],
+      "scenes": [
+        {
+          "ref": "j1/zz",
+          "missing": true
+        }
+      ],
+      "tasks": [
+        {
+          "name": "20269999-none",
+          "missing": true
+        }
+      ],
+      "progress": {
+        "live": 0,
+        "total": 1,
+        "fixed": 0
+      },
+      "problems": [
+        "장면 없음: j1/zz",
+        "작업 폴더 없음: 20269999-none",
+        "선행 항목 없음: ghost",
+        "알 수 없는 상태: 모름"
+      ],
+      "src": {
+        "file": "tasks/roadmap.md",
+        "line": 14,
+        "rule": "roadmap:## 제목 + - 키: 값"
+      }
+    }
+  ],
+  "ledger": {
+    "running": [
+      {
+        "work": "샘플 작업",
+        "owner": "세션",
+        "done": "[계획](20260101-sample/plan.md)"
+      }
+    ],
+    "waiting": [
+      {
+        "work": "기다리는 일",
+        "state": "대기(사용자)",
+        "resume": "결정되면",
+        "done": false
+      }
+    ]
+  },
+  "decisions": [
+    {
+      "slug": "sample",
+      "title": "샘플 결정",
+      "file": ".agent/wiki/decisions/sample.md",
+      "status": "current",
+      "summary": "적용 설명",
+      "refs": 1
+    }
+  ],
+  "plans": [
+    {
+      "task": "20260101-sample",
+      "title": "샘플 작업 계획",
+      "done": 1,
+      "open": 1,
+      "oq": 1
+    }
+  ],
+  "commits": [],
+  "areaCounts": {},
+  "screens": [
+    {
+      "path": "/live",
+      "component": "Live",
+      "file": "web/src/pages/Live.tsx",
+      "guarded": false,
+      "source": "live",
+      "mockVia": [],
+      "fixedVia": [
+        "pages/Live.tsx"
+      ],
+      "files": [
+        "web/src/pages/Live.tsx"
+      ],
+      "apis": [
+        "/api/resorts"
+      ],
+      "tests": [],
+      "last": null,
+      "src": {
+        "file": "web/src/App.tsx",
+        "line": 6,
+        "rule": "router:<Route path>"
+      },
+      "steps": [
+        {
+          "journey": "j1",
+          "step": "s1",
+          "label": "여정 하나 › 동작 장면"
+        }
+      ]
+    },
+    {
+      "path": "/mocked",
+      "component": "Mocked",
+      "file": "web/src/pages/Mocked.tsx",
+      "guarded": true,
+      "source": "mock",
+      "mockVia": [
+        "pages/Mocked.tsx"
+      ],
+      "fixedVia": [],
+      "files": [
+        "web/src/pages/Mocked.tsx"
+      ],
+      "apis": [],
+      "tests": [],
+      "last": null,
+      "src": {
+        "file": "web/src/App.tsx",
+        "line": 7,
+        "rule": "router:<Route path>"
+      },
+      "steps": [
+        {
+          "journey": "j1",
+          "step": "s2",
+          "label": "여정 하나 › 목업 장면"
+        }
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "path": "/api/resorts",
+      "method": "GET",
+      "calls": [
+        "list_resorts"
+      ],
+      "tests": [
+        "api"
+      ],
+      "src": {
+        "file": "app/server.mjs",
+        "line": 2,
+        "rule": "bff:url.pathname ==="
+      },
+      "declared": true
+    },
+    {
+      "path": "/api/login",
+      "method": "POST",
+      "calls": [
+        "auth:token"
+      ],
+      "tests": [],
+      "src": {
+        "file": "app/server.mjs",
+        "line": 6,
+        "rule": "bff:url.pathname ==="
+      },
+      "declared": true
+    },
+    {
+      "path": "/api/items/:id",
+      "method": "GET",
+      "calls": [
+        "get_item"
+      ],
+      "tests": [],
+      "src": {
+        "file": "app/server.mjs",
+        "line": 12,
+        "rule": "bff:route()"
+      },
+      "declared": true
+    }
+  ],
+  "functions": [
+    {
+      "name": "list_resorts",
+      "usedByApi": true,
+      "tables": [
+        "resorts"
+      ],
+      "tests": [
+        "api"
+      ],
+      "migration": "20260101000000_init.sql",
+      "src": {
+        "file": "supabase/migrations/20260101000000_init.sql",
+        "line": 3,
+        "rule": "migrations:create function"
+      }
+    },
+    {
+      "name": "get_item",
+      "usedByApi": true,
+      "tables": [],
+      "tests": [],
+      "migration": null,
+      "src": null
+    }
+  ],
+  "migrations": [
+    {
+      "file": "20260101000000_init.sql",
+      "tables": [
+        "resorts"
+      ],
+      "functions": [
+        "list_resorts"
+      ],
+      "grants": 1,
+      "rls": 1,
+      "last": null
+    }
+  ],
+  "tests": [
+    {
+      "file": "tests/api.test.mjs",
+      "label": "api",
+      "kind": "unit",
+      "count": 1,
+      "gated": false,
+      "lastRun": null
+    }
+  ]
+}
