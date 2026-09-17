@@ -1,0 +1,7 @@
+{
+  "engine": 1,
+  "adapters": ["tasks"],
+  "project": { "name": "spec-kit examples" },
+  "tasks": { "dir": "tasks", "index": "tasks/index.md" },
+  "semantic": "map/semantic/journeys.json"
+}

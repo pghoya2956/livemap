@@ -139,10 +139,12 @@ test('SC-7 코드 표: 새 코드 13개의 수준·처리가 스펙과 같고 do
   assert.equal(docCodes.length, new Set(docCodes).size, '문서 표에 같은 코드가 두 번');
 });
 
-test('SC-7 check 텍스트: mini 픽스처의 1.1.1 줄·순서·종료 코드가 그대로다', () => {
+// 1.2.0 작업 문서 읽기 계약이 mini에 더하는 새 경고(스펙 final에 잔여 질문 절이 없음). 기존 줄 뒤, 요약 줄 앞에 온다
+const MINI_NEW_1_2_0 = ['△ 작업 문서: 스펙 final에 잔여 질문 절 없음'];
+test('SC-7 check 텍스트: mini 픽스처의 1.1.1 줄·순서·종료 코드가 그대로다(1.2.0 새 경고는 기존 줄 뒤에 더해짐)', () => {
   const r = run(MINI, ['check']);
   assert.equal(r.code, 1, r.err);
-  assert.deepEqual(r.out.trimEnd().split('\n'), MINI_CHECK_1_1_1);
+  assert.deepEqual(r.out.trimEnd().split('\n'), [...MINI_CHECK_1_1_1.slice(0, -1), ...MINI_NEW_1_2_0, MINI_CHECK_1_1_1.at(-1)]);
 });
 
 test('SC-7 check --json: stdout은 JSON 하나, schema·engine·errors·warnings와 기존 줄마다 코드, 종료 코드는 텍스트와 같다', () => {
@@ -153,15 +155,15 @@ test('SC-7 check --json: stdout은 JSON 하나, schema·engine·errors·warnings
   assert.equal(j.schema, 1);
   assert.equal(j.engine, VERSION);
   assert.equal(j.errors, 5);
-  assert.equal(j.warnings, 6);
-  assert.equal(j.problems.length, MINI_CHECK_1_1_1.length - 1);
+  assert.equal(j.warnings, 6 + MINI_NEW_1_2_0.length);
+  assert.equal(j.problems.length, MINI_CHECK_1_1_1.length - 1 + MINI_NEW_1_2_0.length);
   for (const p of j.problems) {
     assert.deepEqual(Object.keys(p), ['level', 'code', 'msg', 'subject', 'anchors', 'resolutions'], p.msg);
     assert.match(p.code, /^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/, p.msg);
     assert.ok(Array.isArray(p.anchors) && Array.isArray(p.resolutions), p.msg);
   }
   // 텍스트 줄과 JSON msg가 같은 집합
-  const text = MINI_CHECK_1_1_1.slice(0, -1).map((l) => l.slice(2)).sort();
+  const text = [...MINI_CHECK_1_1_1.slice(0, -1), ...MINI_NEW_1_2_0].map((l) => l.slice(2)).sort();
   assert.deepEqual(j.problems.map((p) => p.msg).sort(), text);
   const byMsg = Object.fromEntries(j.problems.map((p) => [p.msg, p]));
   assert.equal(byMsg['여정 하나 › 없는 라우트: 라우트 없음: /nope'].code, 'step.route-missing');

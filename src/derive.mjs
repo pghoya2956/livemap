@@ -64,8 +64,28 @@ export function derive(g, sem, cfg, { captureExists }) {
   const byPath = Object.fromEntries(screenView.map((s) => [s.path, s]));
   const apiByPath = Object.fromEntries(apiView.map((a) => [a.path, a]));
   const decisionBySlug = Object.fromEntries(decisions.map((d) => [d.id, d]));
-  const defBy = Object.fromEntries(specDefs.map((d) => [d.id, { task: g.in('decision', d.id, 'defines')[0]?.id || null, file: d.props.file, done: d.props.done }]));
-  const resolveRef = (ref) => { const m = ref.match(/^((?:DEC|PN|P\d)-\d+)/i); return m ? defBy[m[1].toUpperCase()] || null : null; };
+  // 번호 참조: 정의 작업(definers)이 하나면 그 작업(rule), 여럿이면 폴더 이름 순 첫 작업(partial, tasks.ambiguous-ref).
+  // 정의 작업이 없는 노드(1.1.1 호환 줄에서만 만든 노드)는 1.1.1처럼 노드를 만든 작업으로 잇는다. <폴더>#<번호>는 그 작업의 정의만 본다
+  const defNode = Object.fromEntries(specDefs.map((d) => [d.id, d]));
+  const defOf = (d, task) => ({ task, file: d.props.file, done: d.props.done });
+  const resolveRef = (ref) => {
+    const q = ref.match(/^(\d{8}-[^\s#]+)#([A-Za-z]{1,4}[0-9]?-\d+)/);
+    if (q) {
+      const d = defNode[q[2].toUpperCase()];
+      const at = d && ((d.props.definedAt || []).find((x) => x.task === q[1]) || (g.in('decision', d.id, 'defines').some((t) => t.id === q[1]) ? { task: q[1], file: d.props.file } : null));
+      return at ? { task: at.task, file: at.file, done: d.props.done, definers: d.props.definers || [], reading: 'rule' } : { qualified: true };
+    }
+    const m = ref.match(/^((?:DEC|PN|P\d)-\d+)/i) || ref.match(/^([A-Z]{1,4}[0-9]?-\d+)/);
+    if (!m) return null;
+    const d = defNode[m[1].toUpperCase()];
+    if (!d) return { id: m[1].toUpperCase() };
+    const definers = d.props.definers || [];
+    if (definers.length > 1) return { ...defOf(d, definers[0]), definers, reading: 'partial', ambiguous: m[1].toUpperCase() };
+    if (definers.length === 1) return { ...defOf(d, definers[0]), definers, reading: 'rule' };
+    const task = g.in('decision', d.id, 'defines')[0]?.id || null;
+    return task ? { ...defOf(d, task), definers, reading: 'rule' } : { id: d.id };
+  };
+  const seenIssue = new Set(g.issues.map((i) => `${i.code}|${i.subject?.id}|${i.message}`));
   const journeys = (sem.journeys || []).map((j) => {
     const steps = j.steps.map((st) => {
       const actor = st.actor || j.actor;
@@ -76,7 +96,7 @@ export function derive(g, sem, cfg, { captureExists }) {
       const fnNames = [...new Set(apiNodes.flatMap((a) => a.calls.filter((c) => !c.startsWith('auth:'))))];
       const functionNodes = fnNames.map((n) => ({ name: n, tables: fnView.find((f) => f.name === n)?.tables || [], tests: testsOf('function', n) }));
       const testFiles = [...new Set([...screenNodes.flatMap((x) => x.tests || []), ...apiNodes.flatMap((x) => x.tests || []), ...functionNodes.flatMap((x) => x.tests || [])])];
-      const refNodes = (st.refs || []).map((r) => ({ ref: r, ...(resolveRef(r) || {}), wiki: decisionBySlug[r] ? { title: decisionBySlug[r].label, file: decisionBySlug[r].props.file, status: decisionBySlug[r].props.status } : null }));
+      const refNodes = (st.refs || []).map((r) => { const { qualified, id, ambiguous, ...hit } = resolveRef(r) || {}; return { ref: r, ...hit, wiki: decisionBySlug[r] ? { title: decisionBySlug[r].label, file: decisionBySlug[r].props.file, status: decisionBySlug[r].props.status } : null, _q: qualified, _id: id, _amb: ambiguous }; });
       const taskNames = [...new Set(refNodes.map((r) => r.task).filter(Boolean))];
       const warnings = [];
       for (const n of screenNodes) {
@@ -84,7 +104,22 @@ export function derive(g, sem, cfg, { captureExists }) {
         else if (st.status === 'live' && n.source !== 'live') warnings.push(`장면은 동작인데 화면은 ${n.source}: ${n.path}`);
         else if ((st.status === 'planned' || st.status === 'next') && n.source === 'live') warnings.push(`장면은 ${st.status}인데 화면은 동작: ${n.path}`);
       }
-      for (const r of refNodes) if (/^(DEC|PN|P\d)-/i.test(r.ref) && !r.task) warnings.push(`참조 미해결: ${r.ref}`);
+      for (const r of refNodes) {
+        if ((/^(DEC|PN|P\d)-/i.test(r.ref) || r._q) && !r.task) warnings.push(`참조 미해결: ${r.ref}`);
+        // 1.1.1이 인식하지 않던 접두어는 풀리지 않아도 경고(1.x 종료 코드 보호)
+        else if (r._id && !r.task) warnings.push(`번호 참조 대상 없음: ${r.ref}`);
+        if (r._amb) {
+          const d = defNode[r._amb];
+          const message = `${j.title} › ${st.label}: ${r._amb}을 정의한 작업 ${r.definers.length}개, 폴더 이름 순 첫 작업 ${r.task}로 이음`;
+          const subject = { kind: 'step', id: `${j.id}/${st.id}` };
+          const key = `tasks.ambiguous-ref|${subject.id}|${message}`;
+          if (!seenIssue.has(key)) {
+            seenIssue.add(key);
+            g.issue('warn', '여정 참조', message, { code: 'tasks.ambiguous-ref', subject, anchors: (d.props.definedAt || []).map((x) => ({ file: x.file, line: x.line })) });
+          }
+        }
+        delete r._q; delete r._id; delete r._amb;
+      }
       // 등급: D 주장 / C 관측 / B 검사 존재 / A 최신 커밋에서 통과
       const observed = screenNodes.length > 0 && screenNodes.every((n) => n.source === 'live');
       const covered = observed && testFiles.length > 0;
@@ -126,7 +161,7 @@ export function derive(g, sem, cfg, { captureExists }) {
   for (const c of commitView) for (const a of c.areas) areaCounts[a] = (areaCounts[a] || 0) + 1;
 
   // ---- 작업·장부·결정 ----
-  const taskView = tasks.map((t) => ({ name: t.id, title: t.label, ...t.props, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {}, journeys: journeys.filter((j) => j.taskNames.includes(t.id)).map((j) => ({ id: j.id, title: j.title, status: j.status, steps: j.steps.filter((s) => s.taskNames.includes(t.id)).map((s) => s.label) })) })).sort((a, b) => b.name.localeCompare(a.name));
+  const taskView = tasks.map((t) => ({ name: t.id, title: t.label, ...t.props, readLines: undefined, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {}, journeys: journeys.filter((j) => j.taskNames.includes(t.id)).map((j) => ({ id: j.id, title: j.title, status: j.status, steps: j.steps.filter((s) => s.taskNames.includes(t.id)).map((s) => s.label) })) })).sort((a, b) => b.name.localeCompare(a.name));
   const ledger = { running: g.of('ledger').filter((l) => l.props.state === 'running').map((l) => ({ work: l.label, owner: l.props.owner, done: l.props.done })), waiting: g.of('ledger').filter((l) => l.props.state !== 'running').map((l) => ({ work: l.label, state: l.props.status, resume: l.props.resume, done: l.props.state === 'done' })) };
   const decisionView = decisions.map((d) => ({ slug: d.id, title: d.label, file: d.props.file, status: d.props.status, summary: d.props.summary, refs: journeys.reduce((n, j) => n + j.steps.filter((s) => s.refNodes.some((r) => r.wiki && r.wiki.file === d.props.file)).length, 0) }));
   // ---- 로드맵: 항목 순서대로 장면 상태·작업 단계를 붙인다. 해석 실패는 check가 오류로 막는다 ----
@@ -190,6 +225,8 @@ export function derive(g, sem, cfg, { captureExists }) {
     routes: screenView.length, liveRoutes: screenView.filter((s) => s.source === 'live').length, mockRoutes: screenView.filter((s) => s.source === 'mock' || s.source === 'mixed').length, fixedRoutes: screenView.filter((s) => s.fixedVia.length).length,
     apis: apiView.length, dbFunctions: fnView.length, dbTables: g.of('table').length, tests: testView.reduce((n, t) => n + t.count, 0), e2e: testView.filter((t) => t.kind === 'e2e').reduce((n, t) => n + t.count, 0),
     pnDone: plans.reduce((n, p) => n + p.done, 0), pnOpen: plans.reduce((n, p) => n + p.open, 0), oq: plans.reduce((n, p) => n + p.oq, 0),
+    // 답이 없는 잔여 질문 합계(폐기 제외, 못 읽은 작업은 0으로 더하고 읽기 상태가 partial을 알린다)
+    openQuestions: taskView.filter((t) => t.status !== '폐기').reduce((n, t) => n + (t.openQuestions || 0), 0),
     commits: commitView.length, warnings: journeys.reduce((n, j) => n + j.warnings, 0), orphans: Object.values(orphans).reduce((n, a) => n + a.length, 0),
     stepsLive: journeys.reduce((n, j) => n + j.counts.live, 0), stepsTotal: journeys.reduce((n, j) => n + j.steps.length, 0),
     grades: Object.fromEntries(['A', 'B', 'C', 'D'].map((k) => [k, journeys.reduce((n, j) => n + j.steps.filter((s) => s.grade === k).length, 0)])),
@@ -294,7 +331,7 @@ export function overviewSlice(d, opts = {}) {
     roadmap: d.roadmap.filter((m) => m.status !== '완료').slice(0, 4).map((m) => ({ id: m.id, title: m.title, status: m.status, mode: m.mode, live: m.progress.live, total: m.progress.total, waiting: !!m.waitingOn })),
     roadmapDone: d.roadmap.filter((m) => m.status === '완료').length, roadmapTotal: d.roadmap.length,
     waiting: d.ledger.waiting.filter((w) => !w.done).map((w) => ({ work: w.work, state: (w.state || '').split('(')[0] })),
-    tasks: d.tasks.filter((t) => t.status !== '폐기' && t.status !== '기록').slice().sort((a, b) => (a.status === '진행' ? -1 : 1) - (b.status === '진행' ? -1 : 1) || b.recentCommits - a.recentCommits).slice(0, 6).map((t) => ({ id: t.name, title: t.title, stage: t.stage, status: t.status, pnDone: t.pnDone, pnOpen: t.pnOpen, oq: t.oq, reading: t.reading || {} })),
+    tasks: d.tasks.filter((t) => t.status !== '폐기' && t.status !== '기록').slice().sort((a, b) => (a.status === '진행' ? -1 : 1) - (b.status === '진행' ? -1 : 1) || b.recentCommits - a.recentCommits).slice(0, 6).map((t) => ({ id: t.name, title: t.title, stage: t.stage, status: t.status, pnDone: t.pnDone, pnOpen: t.pnOpen, oq: t.oq, openQuestions: t.openQuestions ?? null, reading: t.reading || {} })),
     signals: {
       deploy: d.deploy ? (d.deploy.behindRuntime === 0 ? 'ok' : d.deploy.behindRuntime === null ? 'unknown' : 'behind') : 'unknown', deployBehind: d.deploy?.behindRuntime ?? null,
       tests: lastRun ? (lastRun.failures ? 'fail' : lastRun.fresh ? 'ok' : 'stale') : 'none', lastRun,
@@ -302,7 +339,7 @@ export function overviewSlice(d, opts = {}) {
       warnings: d.summary.warnings, orphans: d.summary.orphans, gated: d.tests.filter((t) => t.gated).reduce((n, t) => n + t.count, 0),
       deployBehindAll: d.deploy?.behind ?? null,
     },
-    counts: { stepsLive: d.summary.stepsLive, stepsTotal: d.summary.stepsTotal, screensLive: d.summary.liveRoutes, screensFixed: d.summary.fixedRoutes, screens: d.summary.routes, apis: d.summary.apis, functions: d.summary.dbFunctions, tests: d.summary.tests, pnDone: d.summary.pnDone, pnTotal: d.summary.pnDone + d.summary.pnOpen, oq: d.summary.oq, decisions: d.decisions.filter((x) => x.status === 'current').length, proposed: d.decisions.filter((x) => x.status === 'proposed').length, grades: d.summary.grades,
+    counts: { stepsLive: d.summary.stepsLive, stepsTotal: d.summary.stepsTotal, screensLive: d.summary.liveRoutes, screensFixed: d.summary.fixedRoutes, screens: d.summary.routes, apis: d.summary.apis, functions: d.summary.dbFunctions, tests: d.summary.tests, pnDone: d.summary.pnDone, pnTotal: d.summary.pnDone + d.summary.pnOpen, oq: d.summary.oq, openQuestions: d.summary.openQuestions, decisions: d.decisions.filter((x) => x.status === 'current').length, proposed: d.decisions.filter((x) => x.status === 'proposed').length, grades: d.summary.grades,
       steps: stepCounts, journeys: nJourneys, journeysLive: d.semantic.journeys.filter((j) => j.status === 'live').length, tasksRunning: d.tasks.filter((t) => t.status === '진행').length,
       // 개요 수치의 읽기 상태(값만, 경로·파일명 없음). 등급은 검사 결과 최신 여부와 화면→API 연결에 기댄다
       reading: {

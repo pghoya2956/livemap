@@ -73,10 +73,11 @@ test('SC-12 graph: release 노드 종류를 받는다', () => {
 
 test('SC-12 derive·check: data.json issues와 check 줄, error만 오류 수에 든다', async () => {
   const base = await buildGraph(MINI);
-  assert.deepEqual(base.data.issues, []);
+  // mini에서 나오는 이슈는 1.2.0 작업 문서 읽기 계약 경고뿐이다
+  assert.deepEqual(base.data.issues.map((i) => [i.adapter, i.level, i.code]), [['tasks', 'warn', 'tasks.questions-unknown']]);
   const dir = projectWithProbe();
   const { data, cfg } = await buildGraph(dir);
-  assert.deepEqual(data.issues, [
+  assert.deepEqual(data.issues.filter((i) => i.adapter === 'probe'), [
     { level: 'warn', label: '표본 경고', message: '결정 대기가 오래됨', adapter: 'probe' },
     { level: 'error', label: '표본 오류', message: '필수 항목 없음', adapter: 'probe' },
   ]);
@@ -96,7 +97,7 @@ test('SC-12 livemap check·build: △·✗ 줄, exit 1, 생성물 issues 2건', 
   const b = run(dir, ['build']);
   assert.equal(b.code, 0, b.out + b.err);
   for (const f of ['data.json', 'graph.json']) {
-    const issues = readJson(join(dir, 'map/.out', f)).issues;
+    const issues = readJson(join(dir, 'map/.out', f)).issues.filter((i) => !String(i.code).startsWith('tasks.'));
     assert.equal(issues.length, 2, f);
     assert.ok(issues.every((i) => i.adapter === 'probe'), f);
   }
