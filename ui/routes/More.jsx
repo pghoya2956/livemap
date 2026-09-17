@@ -285,6 +285,7 @@ function TestsTab({ data }) {
                 <>
                   <Tag kind={t.lastRun.passed ? 'live' : 'fail'}>{t.lastRun.passed ? '통과' : '실패'}</Tag>
                   {!t.lastRun.fresh && <><span className="rd-q"> ?</span><span className="rd-why">{whyText('lastRun', t.reading?.lastRun || 'stale')}</span></>}
+                  {!t.lastRun.fresh && t.readingNotes?.lastRun && <div className="rd-note">{t.readingNotes.lastRun}</div>}
                 </>
               ) : <span className="jmuted">—</span>}
             </td>

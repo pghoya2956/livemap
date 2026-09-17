@@ -59,7 +59,7 @@ export function derive(g, sem, cfg, { captureExists }) {
   const apiView = apis.map((a) => ({ path: a.id, method: a.props.method || '?', calls: a.props.calls || [], tests: testsOf('api', a.id), src: a.src, declared: !!a.src }));
   const fnView = fns.map((f) => ({ name: f.id, usedByApi: g.in('function', f.id, 'invokes').length > 0, tables: g.out('function', f.id, 'touches').map((t) => t.label), tests: testsOf('function', f.id), migration: f.props.migration || null, src: f.src }));
   const migView = g.of('migration').map((m) => ({ file: m.id, tables: m.props.tables.map(short), functions: m.props.functions.map(short), grants: m.props.grants, rls: m.props.rls, last: m.props.last }));
-  const testView = tests.map((t) => ({ file: t.id, label: t.label, kind: t.props.kind, count: t.props.count, gated: t.props.gated, lastRun: t.props.lastRun || null, reading: t.props.reading || {} }));
+  const testView = tests.map((t) => ({ file: t.id, label: t.label, kind: t.props.kind, count: t.props.count, gated: t.props.gated, lastRun: t.props.lastRun || null, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {} }));
 
   // ---- 여정 해석 ----
   const byPath = Object.fromEntries(screenView.map((s) => [s.path, s]));

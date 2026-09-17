@@ -224,3 +224,15 @@ test('SC-2 결과가 없으면 1.1.1 partial 문구 그대로이고 검사 lastR
   assert.match(a.error, /결과 JSON/);
   assert.equal(b.overview.signals.tests, 'none');
 });
+
+test('SC-2 data.json 검사 목록: 그래프 검사 노드의 읽기 이유 문장(readingNotes)을 tests[]에도 싣는다', () => {
+  const dir = fixtureRepo();
+  const base = git(dir, 'rev-parse', 'HEAD');
+  writeRun(dir, { sha: base.slice(0, -1) + (base.endsWith('0') ? '1' : '0') });
+  const b = build(dir);
+  const row = b.data.tests.find((t) => t.file === 'tests/api.test.mjs');
+  assert.deepEqual(row.readingNotes, testNode(b.graph, 'tests/api.test.mjs').props.readingNotes);
+  assert.equal(row.readingNotes.lastRun, '결과 커밋이 이력에 없음');
+  writeRun(dir, { sha: base });
+  assert.deepEqual(build(dir).data.tests.find((t) => t.file === 'tests/api.test.mjs').readingNotes, {});
+});
