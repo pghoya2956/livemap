@@ -14,7 +14,8 @@ import { readBlocks } from './md-blocks.mjs';
 const KV = /^([^:：]{1,40})[:：]\s*(.*)$/;
 const DASH = new Set(['—', '–', '-', '']);
 
-const clean = (s) => String(s ?? '').replace(/`/g, '').trim();
+// 유니코드 공백(NBSP·엔 스페이스 등)은 일반 공백으로 맞춘다. 편집기가 넣은 NBSP 때문에 키·값을 놓치는 일이 있었다
+const clean = (s) => String(s ?? '').replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g, ' ').replace(/`/g, '').trim();
 
 const value = (key, raw, listKeys) => {
   const v = clean(raw);

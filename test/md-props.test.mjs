@@ -116,3 +116,10 @@ test('코드 펜스 안의 `- 키: 값`과 표는 읽지 않는다', () => {
   assert.equal(sec.props.id, '진짜값');
   assert.equal(sec.tables.length, 0);
 });
+
+test('유니코드 공백(NBSP 등)은 키·값에서 일반 공백으로 읽는다', () => {
+  const text = '# 다이버\n\n- 사용자 확인: 20260918 18:51\n- 시작 지점: `notify/me`\n';
+  const doc = parseSections(text, { head: true });
+  assert.equal(doc.props['사용자 확인'], '20260918 18:51');
+  assert.equal(doc.props['시작 지점'], 'notify/me');
+});
