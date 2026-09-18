@@ -326,6 +326,58 @@ a.row:hover .tt,button.row:hover .tt{color:#fff}
 [data-screen="roadmap"] .rm-ms-hd .rm-wait{margin:0;font-size:12.5px}
 [data-screen="roadmap"] .rm-ms .rm{margin-left:12px}
 [data-screen="roadmap"] .rm-src{margin-top:14px}
+/* 로드맵 기술 트리(1.3.0). 좌표·크기는 React style prop이 준다. 트리 상자에는 overflow-x만 준다(세로는 페이지가 스크롤, DEC-14) */
+[data-screen="roadmap"] .rt-panel{margin:0 0 12px}
+[data-screen="roadmap"] .rt-faded{font-size:11.5px;color:var(--amber);white-space:nowrap}
+[data-screen="roadmap"] .rt-bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 14px 0}
+[data-screen="roadmap"] .rt-legend{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:11.5px;color:var(--muted)}
+[data-screen="roadmap"] .rt-legend>span{display:inline-flex;align-items:center;gap:6px}
+[data-screen="roadmap"] .rt-sw{flex:none;display:block}
+[data-screen="roadmap"] .rt-key{display:inline-block;width:14px;height:10px;border:1px dashed var(--plan);border-radius:3px}
+[data-screen="roadmap"] .rt-box{overflow-x:auto;padding:8px 0 10px;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+[data-screen="roadmap"] .rt-canvas{position:relative}
+[data-screen="roadmap"] .rt-edges{position:absolute;left:0;overflow:visible}
+[data-screen="roadmap"] .rt-line{fill:none;stroke:var(--plan);stroke-width:1.5}
+[data-screen="roadmap"] .rt-line.is-cyc{stroke-dasharray:5 4}
+[data-screen="roadmap"] .rt-line.is-back{stroke:var(--amber);stroke-dasharray:5 4}
+[data-screen="roadmap"] .rt-line.on{stroke:var(--cyan);stroke-width:2}
+[data-screen="roadmap"] .rt-line.dim{stroke:var(--dim)}
+[data-screen="roadmap"] .rt-col{position:absolute;top:0;border-radius:8px}
+[data-screen="roadmap"] .rt-col.on{background:var(--cyan-soft)}
+[data-screen="roadmap"] .rt-head{position:sticky;top:0;z-index:2;margin:0;display:flex;flex-direction:column;justify-content:center;gap:3px;padding:0 4px;font-size:11.5px;font-weight:500;color:var(--muted);background:var(--panel);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-screen="roadmap"] .rt-head.on{border-bottom-color:var(--cyan)}
+[data-screen="roadmap"] .rt-head-t{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+[data-screen="roadmap"] .rt-head-m{display:flex;gap:6px;align-items:center;overflow:hidden}
+[data-screen="roadmap"] .rt-list{position:absolute;left:0;right:0;margin:0;padding:0;list-style:none}
+[data-screen="roadmap"] .rt-node{position:absolute;display:flex;flex-direction:column;gap:4px;padding:9px 10px 8px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;color:var(--ink);text-decoration:none;overflow:hidden}
+[data-screen="roadmap"] .rt-node.is-done{border-color:var(--green)}
+[data-screen="roadmap"] .rt-node.is-doing{border-color:var(--cyan)}
+[data-screen="roadmap"] .rt-node.is-locked{border-style:dashed;border-color:var(--plan)}
+[data-screen="roadmap"] .rt-node:hover{border-color:var(--ink)}
+[data-screen="roadmap"] .rt-node:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+[data-screen="roadmap"] .rt-node.on{box-shadow:0 0 0 1px var(--cyan)}
+[data-screen="roadmap"] .rt-node.sel{border-color:var(--cyan);box-shadow:0 0 0 2px var(--cyan)}
+[data-screen="roadmap"] .rt-node.dim{opacity:.5}
+[data-screen="roadmap"] .rt-node.faded{opacity:.3}
+[data-screen="roadmap"] .rt-top{display:flex;gap:6px;align-items:flex-start}
+[data-screen="roadmap"] .rt-t{flex:1;min-width:0;font-size:12.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+[data-screen="roadmap"] .rt-date{flex:none;font:10.5px var(--mono);color:var(--green)}
+[data-screen="roadmap"] .rt-block{flex:none;display:inline-flex;align-items:center;height:16px;padding:0 5px;border:1px solid rgba(245,165,36,.5);border-radius:4px;font-size:10.5px;color:var(--amber);background:var(--amber-soft)}
+[data-screen="roadmap"] .rt-m{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-screen="roadmap"] .rt-ticks{display:inline-flex;gap:3px;align-items:center;margin-top:auto}
+[data-screen="roadmap"] .rt-tick{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+[data-screen="roadmap"] .rt-tick.s-live{background:var(--green)}
+[data-screen="roadmap"] .rt-tick.s-mock{background:var(--amber)}
+[data-screen="roadmap"] .rt-tick.s-planned{background:none;border:1.5px solid var(--plan)}
+[data-screen="roadmap"] .rt-tick.s-next{background:none;border:1.5px dashed var(--violet)}
+[data-screen="roadmap"] .rt-tick.is-miss{background:none;border:1.5px solid var(--red)}
+[data-screen="roadmap"] .rt-more{font-size:10px;color:var(--muted)}
+[data-screen="roadmap"] .rt-detail{margin:0 0 12px;max-width:980px}
+[data-screen="roadmap"] .rm-lock{border-style:dashed;border-color:var(--plan)}
+[data-screen="roadmap"] .rm-stepw{display:inline-flex;flex-direction:column;gap:2px;max-width:260px}
+[data-screen="roadmap"] .rm-also{font-size:11px;line-height:1.35;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){[data-screen="roadmap"] .rt-node{transition:opacity .15s,border-color .15s,box-shadow .15s}[data-screen="roadmap"] .rt-line{transition:stroke .15s}}
+@media (max-width:719.98px){[data-screen="roadmap"] .rt-panel{display:none}}
 @media (max-width:640px){[data-screen="roadmap"] .rm-item{grid-template-columns:1fr}[data-screen="roadmap"] .rm-num{text-align:left}[data-screen="roadmap"] .rm-kv{grid-template-columns:1fr}[data-screen="roadmap"] .rm-ms .rm{margin-left:0}}
 
 /* routes: tasks */
