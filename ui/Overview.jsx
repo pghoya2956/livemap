@@ -38,6 +38,9 @@ export function tickerItems(d) {
 export function Overview({ data: d, captureBase, current = 0 }) {
   const firstIncomplete = d.journeys.find((j) => j.status !== 'live') || d.journeys[0];
   const [selected, setSelected] = React.useState(firstIncomplete?.id);
+  // 사용자가 기능 지도·기능 추세·기능 표 어디서든 기능을 눌렀는지. 초기 선택은 고른 것이 아니다(DEC-24·DEC-40)
+  const [userPicked, setUserPicked] = React.useState(false);
+  const pick = (id) => { setSelected(id); setUserPicked(true); };
   const at = `${hm(d.generatedAt)} 기준`;
   const next = d.roadmapItems.find((r) => r.status !== '완료' && r.status !== '진행') || null;
   const cur = d.milestones.find((m) => m.id === d.currentMilestone) || null;
@@ -56,16 +59,16 @@ export function Overview({ data: d, captureBase, current = 0 }) {
         <div className="col c">
           <Panel icon={Icons.map} title="기능 지도" sub={`기능 ${d.counts.journeys} · 단계 ${sum(Object.values(d.counts.steps))}`} at={at} budget="matrix">
             <FeatureMap journeys={onMap.shown} badgeJourneys={d.journeys} folded={onMap.folded} foldedIncomplete={onMap.foldedIncomplete}
-              links={d.links} selected={selected} onSelect={setSelected} stepCounts={d.counts.steps} next={next} />
+              links={d.links} selected={selected} onSelect={pick} stepCounts={d.counts.steps} next={next} />
           </Panel>
           <div className="split">
-            <FeatureTrendPanel journeys={d.journeys} selected={selected} onSelect={setSelected} at={at} />
+            <FeatureTrendPanel journeys={d.journeys} selected={selected} onSelect={pick} at={at} />
             <SignalsPanel roadmapItems={d.roadmapItems} milestones={d.milestones} signals={d.signals} generatedAt={d.generatedAt} at={at} />
           </div>
         </div>
         <div className="col r">
-          <CapturePanel captures={d.captures} journeys={d.journeys} base={captureBase} />
-          <FeatureTablePanel journeys={d.journeys} activity={d.activity} selected={selected} onSelect={setSelected} />
+          <CapturePanel captures={d.captures} journeys={d.journeys} base={captureBase} selected={selected} userPicked={userPicked} />
+          <FeatureTablePanel journeys={d.journeys} activity={d.activity} selected={selected} onSelect={pick} />
         </div>
       </main>
     </div>

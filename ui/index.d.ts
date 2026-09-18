@@ -171,8 +171,17 @@ export interface SignalsPanelProps { roadmapItems: RoadmapItem[]; milestones: Mi
 /** 특보 패널: 이상 신호(더보기 링크) 다음 결정 대기(로드맵 링크). 넘치면 결정 대기가 "외 n →" 뒤로 가고, 없으면 "특보 없음". */
 export declare function SignalsPanel(props: SignalsPanelProps): ReactElement;
 
-export interface CapturePanelProps { captures: Capture[]; /** 캡처 id로 기능 제목·단계 이름을 찾는다 */ journeys?: Journey[]; base?: string; interval?: number }
-/** 화면 캡처 회전 패널과 썸네일. 썸네일을 누르면 멈추고 마우스·초점이 있으면 잠시 멈춘다. */
+export interface CapturePanelProps {
+  captures: Capture[]; /** 캡처 id로 기능 제목·단계 이름을 찾는다 */ journeys?: Journey[]; base?: string; interval?: number;
+  /** 1.3.0: 사용자가 고른 기능 id. 고르기 전에는 undefined */
+  selected?: string;
+  /** 1.3.0: 선택이 사용자 클릭에서 왔는지. false면 미리보기 previewCount장을 돌린다 */
+  userPicked?: boolean;
+  /** 1.3.0: 고르기 전에 돌릴 장 수. 기본 5 */
+  previewCount?: number;
+}
+/** 화면 캡처 회전 패널과 썸네일. 썸네일을 누르면 멈추고 마우스·초점이 있으면 잠시 멈춘다.
+ *  1.3.0: 사용자가 기능을 고르면 그 기능 캡처만 돌고, 없으면 "캡처 없음"을 보인다. 보이는 목록이 바뀌면 1장째·회전 재개로 되돌린다. */
 export declare function CapturePanel(props: CapturePanelProps): ReactElement;
 
 export interface FeatureTablePanelProps { journeys: Journey[]; activity: Activity; selected?: string; onSelect: (id: string) => void }

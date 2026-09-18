@@ -7,6 +7,7 @@ import { Gauge, Sparkline, AreaChart } from './charts.jsx';
 import { STATUS, STATUS_ORDER, clock, longDate, hostOf, ago, sum, mdKo, freshness, waitDays, ROADMAP_TAG, roadmapWord, journeyWord, journeyColor, journeyMark } from '../lib/format.js';
 import { useFitRows } from '../lib/fit.js';
 import { isNewer } from '../lib/visit.js';
+import { visibleCaptures } from '../lib/capture.js';
 
 const roadmapHref = (id) => `#/roadmap/${encodeURIComponent(id)}`;
 
@@ -257,40 +258,50 @@ export function SignalsPanel({ roadmapItems, milestones, signals, generatedAt, a
 }
 
 /** 화면 캡처 순환. 썸네일을 누르면 회전을 멈추고, 마우스·초점이 있으면 잠시 멈추며, 모션 줄임이면 돌지 않는다. */
-export function CapturePanel({ captures, journeys = [], base = 'captures/', interval = 6000 }) {
+export function CapturePanel({ captures, journeys = [], base = 'captures/', interval = 6000, selected, userPicked = false, previewCount = 5 }) {
+  // 1.3.0: 고르기 전에는 미리보기 previewCount장, 사용자가 기능을 고르면 그 기능 캡처만 돈다
+  const { list: shown, scoped, key } = visibleCaptures(captures, { selected, userPicked, previewCount });
   const [i, setI] = React.useState(0);
   const [stopped, setStopped] = React.useState(false);
+  // 보이는 목록의 신원이 바뀌면 장 번호 0·멈춤 거짓으로 되돌린다(DEC-39). 렌더 중에 맞춰 옛 장 번호로 한 번 그리는 일이 없게 한다
+  const [shownKey, setShownKey] = React.useState(key);
+  if (shownKey !== key) { setShownKey(key); setI(0); setStopped(false); }
   const [hover, setHover] = React.useState(false);
   const [focused, setFocused] = React.useState(false);
   const hold = stopped || hover || focused;
   React.useEffect(() => {
-    if (hold || captures.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
-    const t = setInterval(() => setI((x) => (x + 1) % captures.length), interval);
+    if (hold || shown.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const t = setInterval(() => setI((x) => (x + 1) % shown.length), interval);
     return () => clearInterval(t);
-  }, [captures.length, interval, hold]);
+  }, [shown.length, interval, hold, key]);
   const src = (c) => c.src || `${base}${c.file}`;
   const names = (c) => {
     const j = journeys.find((x) => x.id === c.journey);
     const s = j?.steps.find((x) => x.id === c.step);
     return { jt: j?.title ?? c.journey, st: s?.label ?? c.step };
   };
-  const c = captures[i];
+  const c = shown[i];
   const cn = c && names(c);
+  const jt = scoped ? journeys.find((x) => x.id === selected)?.title ?? selected : null;
+  // 전체일 때 문구는 1.2.0 그대로다. 장 수는 썸네일과 장 번호가 말한다(DEC-53)
+  const sub = scoped ? '고른 기능의 화면' : '실제 데이터로 동작하는 화면';
   return (
-    <Panel icon={Icons.screen} title="화면" sub="실제 데이터로 동작하는 화면" className="capture">
+    <Panel icon={Icons.screen} title="화면" sub={sub} className="capture">
       <div className="capbox" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
         onFocus={() => setFocused(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false); }}>
         <div className="live">
           {c ? (<>
             <img src={src(c)} alt={`${cn.jt} ${cn.st} 화면`} />
             <span className="rec">화면 캡처</span>
-            <span className="cnt num">{i + 1}/{captures.length}</span>
+            <span className="cnt num">{i + 1}/{shown.length}</span>
             <div className="ov"><a href={`#/journeys/${encodeURIComponent(c.journey)}/${encodeURIComponent(c.step)}`}><b><Proj>{cn.st}</Proj></b></a><small><Proj>{cn.jt}</Proj> · 실제 데이터로 동작</small></div>
-          </>) : <div className="ov"><small>캡처 없음</small></div>}
+          </>) : scoped
+            ? <div className="ov"><b>캡처 없음</b><small>「<Proj>{jt}</Proj>」 화면 캡처가 아직 없다</small></div>
+            : <div className="ov"><small>캡처 없음</small></div>}
         </div>
-        {captures.length > 0 && (
+        {shown.length > 0 && (
           <div className="thumbs">
-            {captures.map((x, k) => <button key={k} className={k === i ? 'on' : ''} aria-pressed={k === i} onClick={() => { setI(k); setStopped(true); }} aria-label={names(x).st}><img src={src(x)} alt="" /></button>)}
+            {shown.map((x, k) => <button key={k} className={k === i ? 'on' : ''} aria-pressed={k === i} onClick={() => { setI(k); setStopped(true); }} aria-label={names(x).st}><img src={src(x)} alt="" /></button>)}
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 // 개요 조각 검사: overviewSlice 새 필드(SC-10 마일스톤·로드맵 항목, 활동·변경·연결·캡처)와 1.0.1 키 유지.
+// 캡처는 1.3.0부터 기능당 최대 5장·전체 상한 없음·기능 안 파일 중복 제거다(SC-9, DEC-23).
 // 픽스처 mini를 git 밖 임시 폴더에서 파생한 data.json에 커밋·여정·로드맵을 바꿔 끼운다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -89,15 +90,43 @@ test('journeys: 1.0.1 키에 목표·집계·커밋 수·계열을 더하고 단
   assert.equal(overviewSlice(d).journeys[1].commits, 0);
 });
 
-test('captures: 동작 단계만, 기능당 하나, 같은 파일은 한 번, 최대 5, journey·step은 id', () => {
+const capturesOf = (js) => overviewSlice({ ...withData({}), semantic: { ...data.semantic, journeys: js } }).captures;
+
+test('captures: 동작 단계만, 캡처 파일이 있는 단계만, 기능·단계 순서, journey·step은 id(1.3.0 규칙)', () => {
   const js = [
     journey('c1', [step('a', 'mock', 'm.jpg'), step('b', 'live', 'one.jpg'), step('c', 'live', 'two.jpg')]),
     journey('c2', [step('a', 'live', 'one.jpg'), step('b', 'live', 'three.jpg')]),
     journey('c3', [step('a', 'live')]),
     ...['c4', 'c5', 'c6', 'c7'].map((id) => journey(id, [step('a', 'live', `${id}.jpg`)])),
   ];
-  const cap = overviewSlice({ ...withData({}), semantic: { ...data.semantic, journeys: js } }).captures;
-  assert.deepEqual(cap, [{ file: 'one.jpg', journey: 'c1', step: 'b' }, { file: 'three.jpg', journey: 'c2', step: 'b' }, { file: 'c4.jpg', journey: 'c4', step: 'a' }, { file: 'c5.jpg', journey: 'c5', step: 'a' }, { file: 'c6.jpg', journey: 'c6', step: 'a' }]);
+  assert.deepEqual(capturesOf(js), [
+    { file: 'one.jpg', journey: 'c1', step: 'b' }, { file: 'two.jpg', journey: 'c1', step: 'c' },
+    { file: 'one.jpg', journey: 'c2', step: 'a' }, { file: 'three.jpg', journey: 'c2', step: 'b' },
+    { file: 'c4.jpg', journey: 'c4', step: 'a' }, { file: 'c5.jpg', journey: 'c5', step: 'a' }, { file: 'c6.jpg', journey: 'c6', step: 'a' }, { file: 'c7.jpg', journey: 'c7', step: 'a' },
+  ]);
+});
+
+test('SC-9 captures: 한 기능에 동작 + 캡처 단계가 둘이면 둘 다 실리고, 기능 안에서 같은 파일은 한 번', () => {
+  const cap = capturesOf([journey('k', [step('a', 'live', 'home.jpg'), step('b', 'live', 'home.jpg'), step('c', 'live', 'list.jpg')])]);
+  assert.deepEqual(cap, [{ file: 'home.jpg', journey: 'k', step: 'a' }, { file: 'list.jpg', journey: 'k', step: 'c' }]);
+});
+
+test('SC-9 captures: 두 기능이 같은 캡처 파일을 가리키면 둘 다 실린다(전역 중복 제거를 하지 않는다)', () => {
+  const cap = capturesOf([journey('p', [step('a', 'live', 'detail.jpg')]), journey('q', [step('a', 'mock', 'x.jpg'), step('b', 'live', 'detail.jpg')])]);
+  assert.deepEqual(cap, [{ file: 'detail.jpg', journey: 'p', step: 'a' }, { file: 'detail.jpg', journey: 'q', step: 'b' }]);
+});
+
+test('SC-9 captures: 한 기능의 캡처가 6장이면 단계 순서로 앞 5장만 실린다', () => {
+  const cap = capturesOf([journey('six', ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => step(id, 'live', `${id}.jpg`))), journey('one', [step('a', 'live', 'o.jpg')])]);
+  assert.deepEqual(cap.filter((c) => c.journey === 'six').map((c) => c.step), ['a', 'b', 'c', 'd', 'e']);
+  assert.deepEqual(cap.filter((c) => c.journey === 'one').map((c) => c.file), ['o.jpg']);
+});
+
+test('SC-9 captures: 기능이 5개를 넘어도 전체가 잘리지 않는다', () => {
+  const ids = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7'];
+  const cap = capturesOf(ids.map((id) => journey(id, [step('a', 'live', `${id}-1.jpg`), step('b', 'live', `${id}-2.jpg`)])));
+  assert.equal(cap.length, 14);
+  assert.deepEqual([...new Set(cap.map((c) => c.journey))], ids);
 });
 
 // 로드맵 항목·마일스톤(data.json 모양)
