@@ -8,7 +8,7 @@ export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'tabl
 export const EDGE_KINDS = ['has_step', 'shows', 'uses', 'calls', 'invokes', 'touches', 'covers', 'changes', 'refs', 'defines', 'contains', 'tracks'];
 
 export class Graph {
-  constructor() { this.nodes = new Map(); this.edges = []; this.adapters = []; this.issues = []; this.adapter = null; }
+  constructor() { this.nodes = new Map(); this.edges = []; this.adapters = []; this.issues = []; this.badges = []; this.adapter = null; }
   key(kind, id) { return `${kind}:${id}`; }
   add(kind, id, label, props = {}, src = null) {
     if (!NODE_KINDS.includes(kind)) throw new Error(`unknown node kind ${kind}`);
@@ -41,9 +41,17 @@ export class Graph {
     const extra = detail == null ? {} : issueDetail(level, detail);
     this.issues.push({ level, label, message, adapter: this.adapter, ...extra });
   }
+  // 개요 요약 줄에 얹는 한 조각. 어댑터가 프로젝트 어휘로 적고 엔진은 글자로만 다룬다(길이 60자, 줄바꿈 금지).
+  // 값이 아니라 조각을 받는 이유는 엔진이 프로젝트의 빚·대장 어휘를 모르기 때문이다.
+  badge(label, text) {
+    if (typeof label !== 'string' || typeof text !== 'string') throw new Error('badge label·text는 문자열');
+    const one = text.replace(/\s+/g, ' ').trim();
+    if (!one) throw new Error('badge text가 비었다');
+    this.badges.push({ label, text: one.slice(0, 60), adapter: this.adapter });
+  }
   report(name, status, count, error = null) { this.adapters.push({ name, status, count, error }); }
   toJSON() {
-    return { schemaVersion: 1, adapters: this.adapters, nodes: [...this.nodes.values()], edges: this.edges, issues: this.issues };
+    return { schemaVersion: 1, adapters: this.adapters, nodes: [...this.nodes.values()], edges: this.edges, issues: this.issues, badges: this.badges };
   }
 }
 

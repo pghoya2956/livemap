@@ -291,7 +291,7 @@ export function derive(g, sem, cfg, { captureExists }) {
     schemaVersion: 1, generatedAt: new Date().toISOString(), project: sem.project || cfg.project, head, deploy: homelab, testreport: report,
     // 결과 실행 목록(러너·출처·sha·시각·exit·최신 여부만, dirtyPaths는 싣지 않는다)
     testRuns: report?.runs || [],
-    adapters: g.toJSON().adapters, semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, roles: sem.roles || [], readEmpty: sem.readEmpty || null, journeys },
+    adapters: g.toJSON().adapters, badges: g.badges.map((b) => ({ ...b })), semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, roles: sem.roles || [], readEmpty: sem.readEmpty || null, journeys },
     summary, orphans, coverage, tasks: taskView, roadmap, ledger, decisions: decisionView, plans, commits: commitView, areaCounts,
     screens: screenView, apis: apiView, functions: fnView, migrations: migView, tests: testView,
     milestones: milestoneView, issues: g.issues.map((i) => ({ ...i })), sources: { semantic: cfg.semantic, roadmap: cfg.roadmap?.file ?? null },
@@ -428,5 +428,7 @@ export function summaryLine(d) {
   const parts = [`장면 ${s.stepsLive}/${s.stepsTotal} 동작`, `화면 ${s.liveRoutes}/${s.routes} 실데이터`, ...(s.fixedRoutes ? [`하드코딩 표시 ${s.fixedRoutes}`] : []), `14일 커밋 ${s.commits}`];
   if (d.deploy && d.deploy.behindRuntime > 0) parts.push(`미배포 ${d.deploy.behindRuntime}`);
   if (s.warnings) parts.push(`경고 ${s.warnings}`);
+  // 어댑터가 얹은 조각(프로젝트 빚·대장 수치 등). 화면 어휘는 어댑터가 정한다
+  for (const b of d.badges || []) parts.push(`${b.label} ${b.text}`);
   return `${parts.join(' · ')}${next ? ` · 다음: ${next.replace(/\*\*/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').slice(0, 40)}` : ''}`;
 }
