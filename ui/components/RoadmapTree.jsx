@@ -200,7 +200,9 @@ export function RoadmapTree({ tree, items, milestones, sel, faded, refIso }) {
 
   const sub = tree.mode === 'layer' ? '왼쪽이 먼저, 오른쪽이 나중. 선은 선행을 잇는다' : '열은 마일스톤(파일 순서). 선은 선행을 잇는다';
   return (
-    <Panel className="rt-panel" title="기술 트리" sub={sub}
+    // 가로 스크롤이 없으면(geometry.scroll 거짓) 패널·상자의 overflow를 풀어 열 머리가 페이지 기준으로 붙는다(DEC-51).
+    // 가로 스크롤이 있으면 상자가 overflow-x를 갖고 머리는 상자 기준이라 붙지 않는다
+    <Panel className={`rt-panel${g.scroll ? '' : ' is-fit'}`} title="기술 트리" sub={sub}
       badge={fadedN * 2 > items.length ? <span className="rt-faded">흐려진 항목 {fadedN}</span> : null}>
       <div className="rt-bar">
         <button type="button" className={`chip rt-lockdim ${dimLocked ? 'on' : ''}`} aria-pressed={dimLocked} onClick={() => setDimLocked(!dimLocked)}>잠긴 항목 흐리게</button>
