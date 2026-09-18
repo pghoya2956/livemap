@@ -152,6 +152,27 @@ test('serve 배치: 화면·서체·캡처·생성물 200, data만 no-store, 경
   }
 });
 
+test('도움말: 하위 명령에 붙인 --help·-h 도 도움말이고 명령을 실행하지 않는다', () => {
+  // init 은 파일을 쓰므로 도움말 요청에 실행되면 사용자가 예상 못 한 변경이 생긴다
+  for (const args of [['init', '--help'], ['init', '-h'], ['build', '--help'], ['check', '--help']]) {
+    const dir = tmp('help');
+    const r = run(dir, args);
+    assert.equal(r.code, 0, `${args.join(' ')} 종료 코드`);
+    assert.match(r.out, /usage: livemap <command>/, `${args.join(' ')} 도움말 출력`);
+    assert.deepEqual(readdirSync(dir), [], `${args.join(' ')} 뒤 폴더가 비어 있어야 한다`);
+  }
+});
+
+test('도움말: 최상위 --help·-h·help 는 그대로 동작한다', () => {
+  for (const args of [['--help'], ['-h'], ['help']]) {
+    const dir = tmp('help-top');
+    const r = run(dir, args);
+    assert.equal(r.code, 0);
+    assert.match(r.out, /usage: livemap <command>/);
+    assert.deepEqual(readdirSync(dir), []);
+  }
+});
+
 test('init: 빈 폴더에 파일 4개·.gitignore·npm 스크립트, 다시 실행하면 무변경', () => {
   const dir = tmp('init');
   writeJson(join(dir, 'package.json'), { name: 'sample', version: '1.0.0', scripts: {} });

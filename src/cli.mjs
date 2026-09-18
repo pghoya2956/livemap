@@ -114,6 +114,9 @@ const USAGE = `usage: livemap <command>
   test-report --import <파일> [--sha <커밋>]  Playwright JSON·JUnit·livemap 리포터 출력을 결과 JSON에
   --version                                   엔진 버전`;
 
+// 값을 뒤에 받는 플래그. 그 값 자리에 온 --help 는 도움말 요청이 아니다
+const VALUE_FLAGS = new Set(['--root', '--out', '--semantic', '--port', '--static', '--base', '--import', '--sha']);
+
 function readConfig(root) {
   const file = resolve(root, CONFIG);
   if (!existsSync(file)) return { error: `${CONFIG} 없음: 프로젝트 루트에서 실행하거나 먼저 livemap init` };
@@ -157,7 +160,9 @@ export async function main(argv = []) {
   const cmd = argv[0] || 'build';
   const opt = (k, d) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : d; };
   if (cmd === '--version' || cmd === '-v' || cmd === 'version') { console.log(VERSION); return 0; }
-  if (cmd === 'help' || cmd === '--help' || cmd === '-h') { console.log(USAGE); return 0; }
+  // 하위 명령 뒤에 붙인 --help·-h 도 도움말이다. 값이 필요한 플래그의 값 자리는 빼서 --out --help 같은 경우를 건드리지 않는다.
+  // 이 줄이 없으면 도움말을 물은 사람이 명령을 실행당한다. init 은 파일을 쓰므로 그 피해가 실제였다.
+  if (cmd === 'help' || argv.some((a, i) => (a === '--help' || a === '-h') && !VALUE_FLAGS.has(argv[i - 1]))) { console.log(USAGE); return 0; }
   if (cmd === 'init') { const { init } = await import('./init.mjs'); return init({ root: process.cwd(), pkgRoot: PKG_ROOT }); }
 
   const root = resolve(opt('root', process.cwd()));
