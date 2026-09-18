@@ -35,6 +35,24 @@
 
 스크린샷은 모션 줄임 컨텍스트에서 `document.fonts.ready` 뒤에 찍는다. 새로 더한 숨은 스크롤·모션 줄임·상태 모양 검사는 엔진 화면 요소만 보므로, 프로젝트 자료가 달라서 새로 실패하지 않는다. 내부 용어·글자 대비·글자 크기 집합은 프로젝트 문구와 브라우저에 따라 달라져 예산 검사에 넣지 않는다.
 
+## 로드맵 화면
+
+로드맵(`#/roadmap`)은 30초 안에 읽는 첫 화면이 아니라 찾아 들어와 따라 읽는 화면이다. 그래서 개요 임계값(스크롤 0, 패널 8, 목록 행 6)을 물려받지 않고 페이지가 세로로 스크롤한다. 항목 수가 프로젝트마다 달라 개수 상한을 두면 남의 자료가 실패하므로 개수 임계값을 두지 않고 성질만 잰다. `budget/view-budget.spec.mjs`의 로드맵 절(`-g 로드맵`)이 재는 것은 다음이다. `data.roadmap`이 비면 건너뛴다.
+
+- CSP 위반·콘솔 오류 0.
+- 모션 줄임에서 `document.getAnimations()` 0.
+- 트리 노드(`.rt-node`) 수 = `data.roadmap` 수, 선(`.rt-edge`) 수 = 있는 선행 수.
+- 같은 열 노드는 왼쪽 좌표가 같고 열이 다르면 다르다.
+- 잠긴 노드의 접근 가능한 이름에 막는 선행 제목이 있다.
+- 노드를 누르면 밝아지는 선(`.rt-edge.on`)이 그 항목의 조상·자손 사이 선과 같다.
+- 노드가 전부 뷰포트 안이거나 트리 상자의 가로 스크롤 안에 있다.
+- 트리 상자에 세로 숨은 스크롤이 없다. 개요 규칙과 같은 식(`overflow-y`가 `auto`·`scroll`이면서 `scrollHeight − clientHeight > 1`)으로 잰다. 트리 상자는 가로 스크롤이 필요할 때만 `overflow-x`를 갖고, 브라우저가 이때 `overflow-y` 계산값을 `auto`로 올리므로 계산값만으로는 판정하지 않는다.
+- Tab으로 첫 노드에 닿고, 화살표 네 방향(← 첫 선행, → 첫 후속, ↑·↓ 같은 열 이웃)으로 초점이 옮겨 간다.
+
+## 캡처 패널
+
+개요 캡처 패널은 사용자가 기능 지도·기능별 변경·기능 현황에서 기능을 누르면 그 기능 캡처만 돌리고, 캡처가 없으면 "캡처 없음"을 보인다. 누르기 전 첫 화면은 1.2.0과 같다. 기능마다 첫 캡처를 한 장씩 최대 5장 보이고 보조 문구도 그대로다. `overview.json`의 `captures`는 기능당 5장까지 실리므로 배열 앞 5장을 그대로 쓰면 썸네일 그림이 바뀌고 같은 그림이 두 번 나올 수 있다. 캡처 절(`-g 캡처`)은 누르기 전 썸네일 5장 이하, 기능을 누른 뒤 썸네일 수 = 그 기능 캡처 수, 캡처 0건 기능의 "캡처 없음", 범위를 바꾼 직후 장 번호 1을 잰다.
+
 ## 개요 조각
 
 개요는 `overview.json`만 읽고 다시 계산하지 않는다. `derive.mjs`의 `overviewSlice(d, opts)`가 경로·파일명·sha를 뺀 조각을 만들고, 검사는 개요 본문에서 `/api/`·`.tsx`·`.mjs`·`.sql`·`web/src`·7자 이상 16진수를 찾아 하나라도 있으면 실패한다. 개요에 무언가를 더할 때 이 조각을 거치지 않으면 식별자가 새어 들어온다.
@@ -58,5 +76,5 @@
 3. `ui/components/panels.jsx`에 컴포넌트를 만들고 `ui/Overview.jsx` 격자에 놓는다. 틀은 `ui/components/primitives.jsx`의 `Panel`이고, 목록 패널은 `budget="list"`와 `.rows > .row`, 행 수는 `ui/lib/fit.js`의 `useFitRows`로 정한다. 마크업의 `style` 속성·`<style>` 주입은 쓰지 않고 크기·위치만 React `style` prop으로 준다. 프로젝트가 적은 문구를 담는 요소에는 `data-text="project"`, 커밋 제목에는 `data-text="commit"`을 단다.
 4. 자료가 더 필요하면 `overviewSlice`에 필드를 더한다(추가만 한다. 1.0.1 필드의 이름·형·값은 바꾸지 않는다).
 5. `node scripts/build-ui.mjs`로 `site/`를 다시 만들어 함께 커밋한다. CI는 다시 빌드한 결과가 커밋과 같은지 본다.
-6. 누르거나 이동하는 요소를 더하거나 바꿨으면 `scripts/click-targets.json`에 행을 맞춘다. 표에 없는 대화형 요소가 있으면 클릭 경로 크롤이 실패한다. 엔진 저장소에서 `node scripts/route-crawl.mjs --url http://127.0.0.1:<포트>/map/ --targets scripts/click-targets.json`(한 화면만 `--only <overview|journeys|roadmap|tasks|more>`, 이동 없이 개요만 `--overview-only`)로 확인한다. 크롤러는 팩에 없어 엔진 저장소에서만 돈다.
+6. 누르거나 이동하는 요소를 더하거나 바꿨으면 `scripts/click-targets.json`에 행을 맞춘다. 표에 없는 대화형 요소가 있으면 클릭 경로 크롤이 실패한다. 엔진 저장소에서 `node scripts/route-crawl.mjs --url http://127.0.0.1:<포트>/map/ --targets scripts/click-targets.json`(한 화면만 `--only <overview|journeys|roadmap|tasks|more>`, 이동 없이 개요만 `--overview-only`)로 확인한다. 통과 판정은 `--only` 없이 전체로 돌린다. `--only roadmap`은 1.2.0에서도 다른 화면을 거쳐 닿는 행 하나가 실패한다(원인 미확정). 크롤러는 팩에 없어 엔진 저장소에서만 돈다.
 7. 엔진 CI의 스모크(픽스처: 예산, 하위 화면 콘솔 0, 설정 경로를 바꾼 복사본의 화면 문구, 클릭 경로)와, 쓰는 프로젝트에 `npm install --no-save --install-links <엔진 저장소>`로 끼운 `npm run map:budget`으로 스크롤·숨은 스크롤·행·식별자를 잰다. 스크린샷 `map/.out/overview-1440.png`을 사용자에게 보인다.

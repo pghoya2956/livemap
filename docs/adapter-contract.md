@@ -101,6 +101,17 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 
 로드맵 항목과 마일스톤의 노드 종류 이름은 1.x 동안 `milestone`·`release`이고, 2.0.0에서 `roadmapItem`·`milestone`으로 바꾼다(어댑터 계약 변경이라 major).
 
+로드맵 화면의 트리(1.3.0)는 이 두 종류의 속성만으로 열을 정한다. 로드맵을 직접 만드는 어댑터는 아래를 지킨다.
+
+| 화면이 읽는 것 | 노드·속성 | 규칙 |
+|---|---|---|
+| 열 모드 | `release` 노드 수 | 한 건이라도 있으면 열 하나가 마일스톤 하나, 없으면 열 하나가 선행 깊이 한 단계(`semantic-authoring.md` 「로드맵 화면의 열」 문안 1) |
+| 열 순서 | `release`의 `props.order` | 마일스톤 절이 나온 차례. 화면은 선행에 맞춰 다시 정렬하지 않는다(문안 2) |
+| 항목의 열 | `milestone`의 `props.milestone` | 마일스톤 id. 비었거나 `release`에 없는 id면 맨 오른쪽 "마일스톤 없음" 열(문안 3) |
+| 선 | `milestone`의 `props.deps` | 로드맵 항목 id 목록. 없는 id는 선을 그리지 않고 엔진이 `선행 항목 없음` 문장을 낸다 |
+
+역행·순환 문장은 어댑터가 아니라 엔진(`src/derive.mjs`)이 `roadmap[].problems`에 싣고 `check`가 경고로 낸다. 역행 문장 틀은 `마일스톤 순서 역행: {선행 id}({마일스톤}) → {항목 id}({마일스톤})`, 순환은 `선행 순환: {id} → {id} → …`다(코드는 `issue-codes.md` 「1.3.0 새 코드」).
+
 엣지: `shows`(step→screen, 파생이 만든다), `calls`(screen→api), `invokes`(api→function), `touches`(function→table), `covers`(test→screen|api|function), `changes`(commit→screen|api|migration), `defines`(task→decision), `contains`(migration→table|function, release→milestone), `tracks`(milestone→task). 새 종류가 필요하면 엔진 저장소의 `src/lib/graph.mjs` 목록에 더한다(minor 릴리스). 화면이 그 종류를 그리려면 `src/derive.mjs`와 화면 원본 `ui/`도 손봐야 하므로, 먼저 기존 종류로 표현할 수 없는지 본다.
 
 ## 순서
