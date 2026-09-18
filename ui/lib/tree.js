@@ -232,5 +232,47 @@ export function crossings(tree) {
   return k;
 }
 
-export function pathOf() { throw new Error('pathOf: P1-03에서 만든다'); }
-export function geometry() { throw new Error('geometry: P1-03에서 만든다'); }
+/**
+ * 고른 항목의 조상·자손과 그 사이 엣지(DEC-8). sel이 null이거나 항목이 아니면(마일스톤 id 등) 빈 집합.
+ * → { nodes, edges(edge id), ancestors, descendants } 모두 Set. 형제 갈래와 조상에서 자손으로 바로 건너는 엣지는 담지 않는다
+ */
+export function pathOf(tree, sel) {
+  const out = { nodes: new Set(), edges: new Set(), ancestors: new Set(), descendants: new Set() };
+  if (sel == null || !tree.nodes[sel]) return out;
+  const walk = (next, into) => {
+    const stack = [...next(sel)];
+    while (stack.length) { const x = stack.pop(); if (into.has(x) || x === sel) continue; into.add(x); stack.push(...next(x)); }
+  };
+  walk((id) => tree.nodes[id].parents, out.ancestors);
+  walk((id) => tree.nodes[id].children, out.descendants);
+  const up = new Set([sel, ...out.ancestors]), down = new Set([sel, ...out.descendants]);
+  for (const id of [...up, ...down]) out.nodes.add(id);
+  for (const e of tree.edges) if ((up.has(e.from) && up.has(e.to)) || (down.has(e.from) && down.has(e.to))) out.edges.add(e.id);
+  return out;
+}
+
+/**
+ * 컨테이너 폭에서 노드 폭과 전체 크기를 정한다(DEC-13·DEC-41).
+ * nodeW = clamp(150, (width − gapX × (열수 − 1) − 32) / 열수, 240). 계산값이 150 아래면 150에 두고 scroll.
+ * 차선이 둘 이상이라 왼쪽 여백(padLeft = 8 × 차선수 + 8)이 16을 넘으면 식의 32에서 넘는 만큼 더 뺀다(scroll이 거짓이면 W ≤ width).
+ * gapX는 layer 40, milestone 40 + 8 × 차선수. 높이는 인원 × 92 + (인원 − 1) × 14 + 위아래 여백 12.
+ * → { nodeW, nodeH, gapX, gapY, padLeft, padTop, colX[], W, H, scroll }
+ */
+export function geometry(tree, width) {
+  const n = Math.max(1, tree.columns.length);
+  const lanes = tree.lanes || 0;
+  const nodeH = 92, gapY = 14, padTop = 6;
+  const gapX = tree.mode === 'milestone' ? 40 + 8 * lanes : 40;
+  const padLeft = 8 * lanes + 8;
+  const x0 = Math.max(16, padLeft);
+  const raw = (width - gapX * (n - 1) - x0 - 16) / n;
+  const nodeW = Math.floor(Math.min(240, Math.max(150, raw)));
+  const rows = Math.max(0, ...tree.columns.map((c) => c.slots.length));
+  return {
+    nodeW, nodeH, gapX, gapY, padLeft, padTop,
+    colX: tree.columns.map((_, i) => x0 + i * (nodeW + gapX)),
+    W: x0 + n * nodeW + (n - 1) * gapX + 16,
+    H: rows * nodeH + Math.max(0, rows - 1) * gapY + padTop * 2,
+    scroll: raw < 150,
+  };
+}
