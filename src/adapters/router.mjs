@@ -12,6 +12,17 @@ export default function router(g, fs, cfg) {
   const owner = new Map();
   for (const f of pageFiles) for (const m of fs.read(f).matchAll(/export\s+(?:function|const)\s+([A-Z]\w+)/g)) owner.set(m[1], f);
 
+  // 레이아웃 셸은 pagesDir 밖(components 등)에 있는 경우가 많다. 화면 소유자 표는 그대로 두고 셸을 찾을 때만 localDirs까지 본다.
+  // 이름이 겹치면 pagesDir 쪽이 이긴다 — 화면 파일 결정은 바꾸지 않는다
+  const shellOwner = new Map();
+  for (const dir of c.localDirs || []) {
+    if (dir === c.pagesDir) continue;
+    for (const f of fs.walk(dir, (p) => /\.tsx?$/.test(p))) {
+      for (const m of fs.read(f).matchAll(/export\s+(?:function|const)\s+([A-Z]\w+)/g)) if (!shellOwner.has(m[1])) shellOwner.set(m[1], f);
+    }
+  }
+  const shellFile = (name) => owner.get(name) || shellOwner.get(name) || null;
+
   const hookApi = c.hookApi || null;
   const appDir = appDirOf(c.app);
   const classify = (file) => {
@@ -46,24 +57,36 @@ export default function router(g, fs, cfg) {
   };
 
   const app = fs.read(c.app);
-  let parent = null, n = 0;
+  let parent = null, shell = null, n = 0;
   app.split('\n').forEach((line, i) => {
     const m = line.match(/<Route\s+(?:path="([^"]+)"|(index))[^>]*element=\{(?:\w*[gG]uard\()?<(\w+)/);
     if (m) {
       const own = m[2] ? '' : m[1];
       const path = parent ? (own ? `${parent}/${own}` : parent) : own;
       const isLayout = !/\/>\s*$/.test(line.trim()) && !/<\/Route>/.test(line);
-      if (isLayout) { parent = m[1]; return; }
+      // 레이아웃 라우트는 사람이 가는 화면이 아니라 자식 화면마다 함께 그려지는 셸이다.
+      // 그래서 화면 노드를 만들지 않되, 셸이 부르는 API는 자식 화면에서 실제로 일어나므로 리터럴과 hook을 자식에 합친다.
+      if (isLayout) {
+        parent = m[1];
+        const sf = shellFile(m[3]);
+        shell = sf ? classify(sf) : null;
+        return;
+      }
       if (path === '*' || path.endsWith('/*')) return;
       const file = owner.get(m[3]) || null;
       const cls = file ? classify(file) : { files: [], mockVia: [], fixedVia: [], source: 'static', hooks: [], apiLiterals: [] };
-      const props = { component: m[3], file, guarded: /[gG]uard\(/.test(line) || parent !== null, source: cls.source, mockVia: cls.mockVia, fixedVia: cls.fixedVia, files: cls.files, last: file ? fs.lastCommit(file) : null, apiLiterals: cls.apiLiterals };
-      if (hookApi) props.hookApiKeys = cls.hooks;
+      // 셸의 리터럴·hook을 자식 화면에 더한다. 같은 파일·줄·경로는 한 번만 넣는다.
+      // source·mockVia·files는 합치지 않는다 — 그건 그 화면이 제 자료를 어디서 받는지를 말하는 값이고 셸은 자료를 주지 않는다
+      const seenLit = new Set(cls.apiLiterals.map((l) => `${l.file}:${l.line}:${l.path}`));
+      const apiLiterals = [...cls.apiLiterals, ...(shell?.apiLiterals ?? []).filter((l) => !seenLit.has(`${l.file}:${l.line}:${l.path}`))];
+      const hooks = [...new Set([...cls.hooks, ...(shell?.hooks ?? [])])];
+      const props = { component: m[3], file, guarded: /[gG]uard\(/.test(line) || parent !== null, source: cls.source, mockVia: cls.mockVia, fixedVia: cls.fixedVia, files: cls.files, last: file ? fs.lastCommit(file) : null, apiLiterals };
+      if (hookApi) props.hookApiKeys = hooks;
       g.add('screen', path, path, props, { file: c.app, line: i + 1, rule: 'router:<Route path>' });
-      for (const h of cls.hooks) { const a = hookApi[h]; g.add('api', a, a); g.link('screen', path, 'calls', 'api', a); }
+      for (const h of hooks) { const a = hookApi[h]; g.add('api', a, a); g.link('screen', path, 'calls', 'api', a); }
       n += 1;
     }
-    if (/<\/Route>/.test(line)) parent = null;
+    if (/<\/Route>/.test(line)) { parent = null; shell = null; }
   });
   return n === 0 ? '라우트 0건' : null;
 }
