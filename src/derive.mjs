@@ -380,7 +380,7 @@ export function overviewSlice(d, opts = {}) {
   const lastRun = d.testreport ? { fresh: d.testreport.fresh, failures: d.testreport.failures, total: d.testreport.total, at: d.testreport.at } : null;
   return {
     generatedAt: d.generatedAt, project: d.project, headDate: d.head?.date || null,
-    line: summaryLine(d),
+    line: summaryLine(d), badges: (d.badges || []).map((b) => ({ label: b.label, text: b.text })),
     journeys: d.semantic.journeys.map((j) => {
       const item = openItems.find((r) => (r.scenes || []).some((s) => !s.missing && s.journey === j.id));
       const ms = item && milestoneById.get(item.milestone);
