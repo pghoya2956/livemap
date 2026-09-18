@@ -3,6 +3,7 @@
 //
 // 절 { level, title, line, props, prose, tables, children }
 //   props  `- 키: 값` — 값의 백틱은 뗀다. listKeys에 든 키는 쉼표(,·，)로 나누고 대시 한 칸(—·-)은 뺀다.
+//   items  `키: 값`이 아닌 목록 줄(글자 그대로)
 //   prose  제목·목록·표가 아닌 줄을 공백으로 이어 붙인 것(절의 목표 문장)
 //   tables { header, rows } — 칸은 원문 그대로(백틱만 뗀다). 구분 행은 들어오지 않는다.
 //   children 한 단계 아래 절. 자식의 속성·문장은 부모에 섞이지 않는다.
@@ -21,13 +22,15 @@ const value = (key, raw, listKeys) => {
   return v.split(/[,，]/).map((x) => x.trim()).filter((x) => x && !DASH.has(x));
 };
 
-const emptySection = (level, title, line) => ({ level, title, line, props: {}, prose: '', tables: [], children: [] });
+const emptySection = (level, title, line) => ({ level, title, line, props: {}, items: [], prose: '', tables: [], children: [] });
 
 // 절 하나에 블록을 담는다. 표는 표 번호로 묶는다.
 function put(section, block, listKeys, tables) {
   if (block.type === 'item') {
-    const m = clean(block.text).match(KV);
+    const text = clean(block.text);
+    const m = text.match(KV);
     if (m) { section.props[m[1].trim()] = value(m[1].trim(), m[2], listKeys); return; }
+    section.items.push(text); // `키: 값`이 아닌 목록 줄은 그대로 둔다(넘겨받는 일 목록 등)
     return;
   }
   if (block.type === 'row') {

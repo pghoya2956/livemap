@@ -14,6 +14,7 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Graph, runAdapter } from './lib/graph.mjs';
 import { makeFs } from './lib/util.mjs';
+import { readJourneysDir } from './lib/journeys-md.mjs';
 import { derive, overviewSlice } from './derive.mjs';
 import { execFileSync } from 'node:child_process';
 import { checkProblems, stagedTargets, stagedProblems, stagedText } from './check.mjs';
@@ -45,9 +46,22 @@ async function loadAdapter(root, name) {
   return adapterCache.get(key);
 }
 
-export async function buildGraph(root = process.cwd()) {
+// 여정 정본을 읽는다. 경로가 .json이면 그 파일, 아니면 디렉터리로 보고 역할 md를 읽는다.
+// 디렉터리를 읽을 때 화면·캡처·참조는 프로젝트 대응표(설정 journeyScreens, 기본 map/journey-screens.json)에서 온다.
+export function readSemantic(fs, cfg) {
+  const path = cfg.semantic;
+  if (!path || !fs.has(path)) return { journeys: [] };
+  if (path.endsWith('.json')) return JSON.parse(fs.read(path));
+  const mapFile = cfg.journeyScreens || 'map/journey-screens.json';
+  let map = {};
+  if (fs.has(mapFile)) { try { map = JSON.parse(fs.read(mapFile)); } catch (e) { throw new Error(`${mapFile} 읽기 실패: ${e.message}`); } }
+  return readJourneysDir(fs, path, { map, project: cfg.project });
+}
+
+export async function buildGraph(root = process.cwd(), { semantic = null } = {}) {
   const fs = makeFs(root);
   const cfg = JSON.parse(fs.read(CONFIG));
+  if (semantic) cfg.semantic = semantic; // --semantic: 다른 판의 여정 정본으로 산출을 재현할 때
   const g = new Graph();
   const shadowed = [];
   for (const name of cfg.adapters || DEFAULT_ADAPTERS) {
@@ -58,15 +72,15 @@ export async function buildGraph(root = process.cwd()) {
   }
   // 연결 단계: 모든 어댑터 뒤에 화면 리터럴을 API 노드에 잇는다. adapters[]에 들지 않고, 실패하면 오류 이슈로 남긴다
   try { linkScreenApis(g, fs, cfg); } catch (e) { g.issue('error', '연결 단계', String(e?.message || e)); }
-  // 설정에 semantic 키가 없으면 여정 입력이 없는 것으로 본다(없는 키는 뺀다)
-  const sem = cfg.semantic && fs.has(cfg.semantic) ? JSON.parse(fs.read(cfg.semantic)) : { journeys: [] };
+  // 여정 정본: 디렉터리면 역할별 md(2.0.0), .json이면 한 파일(1.x 호환). 설정에 semantic 키가 없으면 여정 입력이 없다
+  const sem = readSemantic(fs, cfg);
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);
   const data = derive(g, sem, cfg, { captureExists });
   return { g, cfg, sem, data, fs, shadowed };
 }
 
-export async function build(root = process.cwd(), out = resolve(root, 'map/.out')) {
-  const r = await buildGraph(root);
+export async function build(root = process.cwd(), out = resolve(root, 'map/.out'), opts = {}) {
+  const r = await buildGraph(root, opts);
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'graph.json'), JSON.stringify(r.g.toJSON()));
   writeFileSync(join(out, 'data.json'), JSON.stringify(r.data));
@@ -84,8 +98,9 @@ export function engineMismatch(cfg) {
 }
 
 const USAGE = `usage: livemap <command>
-  build        [--root .] [--out map/.out]    저장소 스캔 → graph.json · data.json · overview.json
-  check        [--root .] [--json] [--strict] 정합 검사, 오류가 있으면 exit 1(--json: 이슈 JSON만)
+  build        [--root .] [--out map/.out] [--semantic <경로>]
+                                              저장소 스캔 → graph.json · data.json · overview.json
+  check        [--root .] [--json] [--strict] [--semantic <경로>] 정합 검사, 오류가 있으면 exit 1(--json: 이슈 JSON만)
   check --staged                              커밋 전 훅: 스테이징된 작업 문서·판정 파일의 문제만 오류로
   serve        [--port 4180] [--static <dir>] 로컬 뷰 http://127.0.0.1:<port>/map/
   export <dir> [--out map/.out]               화면·서체·캡처·생성물을 한 폴더에(먼저 build)
@@ -157,7 +172,7 @@ export async function main(argv = []) {
   const notifyShadow = (names) => { for (const n of names) console.log(`프로젝트 어댑터가 참조 어댑터를 가림: ${n}`); };
 
   if (cmd === 'build') {
-    const { data: d, shadowed } = await build(root, out);
+    const { data: d, shadowed } = await build(root, out, { semantic: opt('semantic', null) });
     notifyShadow(shadowed);
     const bad = d.adapters.filter((a) => a.status !== 'ok');
     console.log(`map build → ${out}: 화면 ${d.summary.routes} · API ${d.summary.apis} · 함수 ${d.summary.dbFunctions} · 작업 ${d.tasks.length} · 커밋 ${d.summary.commits} · 경고 ${d.summary.warnings} · 고아 ${d.summary.orphans}`);
@@ -166,12 +181,13 @@ export async function main(argv = []) {
   }
   if (cmd === 'check' && argv.includes('--staged')) return checkStaged(root, cfg, argv.includes('--json'));
   if (cmd === 'check') {
+    const semOverride = opt('semantic', null);
     const json = argv.includes('--json');
     // --json: stdout에는 JSON만. 빌드 중 어댑터가 찍는 줄과 가림 알림은 stderr로 보낸다
     const log = console.log;
     if (json) console.log = (...a) => console.error(...a);
     let built;
-    try { built = await buildGraph(root); } finally { console.log = log; }
+    try { built = await buildGraph(root, { semantic: semOverride }); } finally { console.log = log; }
     const { data, cfg: c, shadowed } = built;
     if (json) for (const n of shadowed) console.error(`프로젝트 어댑터가 참조 어댑터를 가림: ${n}`);
     else notifyShadow(shadowed);

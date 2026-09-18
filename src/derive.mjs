@@ -171,7 +171,11 @@ export function derive(g, sem, cfg, { captureExists }) {
         delete r._q; delete r._id; delete r._amb;
       }
       // 등급: D 주장 / C 관측 / B 검사 존재 / A 최신 커밋에서 통과
-      const observed = screenNodes.length > 0 && screenNodes.every((n) => n.source === 'live');
+      // 관측 근거: 화면이 있으면 그 화면이 모두 실데이터일 때. 화면 없이 API로만 도는 단계(알림 발송 등)는
+      // 선언한 API가 모두 코드에 있을 때 관측으로 본다. 화면도 API도 없으면 주장(D)이다.
+      const observed = screenNodes.length > 0
+        ? screenNodes.every((n) => n.source === 'live')
+        : apiNodes.length > 0 && apiNodes.every((a) => !a.missing);
       const covered = observed && testFiles.length > 0;
       const verified = covered && (screenNodes.some((n) => testsPassedFresh('screen', n.path)) || apiNodes.some((a) => !a.missing && testsPassedFresh('api', a.path)) || functionNodes.some((f) => testsPassedFresh('function', f.name)));
       const grade = st.status !== 'live' ? null : verified ? 'A' : covered ? 'B' : observed ? 'C' : 'D';
