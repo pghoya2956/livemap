@@ -10,7 +10,7 @@
 
 | 종류 | 출처 | 키 | 뜻 |
 |---|---|---|---|
-| journey | 손(journeys.json) | id | 한 배우가 한 목표를 이루는 흐름. 스토리 맵의 backbone 한 칸 |
+| journey | 손(여정 정본: 역할별 md 디렉터리 또는 journeys.json) | id | 한 배우가 한 목표를 이루는 흐름. 스토리 맵의 backbone 한 칸 |
 | step | 손 | journey/step | 여정 안의 한 장면. intent(사용자가 원하는 것)·status·capture |
 | screen | 생성(라우터) | route path | 화면 하나. 페이지 파일, 데이터 출처(live/mock/mixed), 호출 API, 검사, 마지막 변경 |
 | api | 생성(BFF) | method+path | 서버 진입점. 호출하는 DB 함수·Auth |
@@ -30,7 +30,7 @@
 ## 엣지
 
 - journey → step (순서)
-- step → screen (shows): `screens: [route]`
+- step → screen (shows): `screens: [route]`(md 정본은 대응표 `journeyScreens`의 `screens`)
 - step → api (uses): 명시(`apis`) 또는 screen을 거쳐 유도
 - screen → api (calls): 페이지와 그 import 닫힘의 `/api/` 문자열 리터럴을 모든 어댑터 뒤 연결 단계가 API 노드에 대응(1.2.0). 설정에 `router.hookApi`가 있으면 hook 이름 대응표로 이은 엣지도 더한다(2.0.0에서 폐기)
 - api → function (invokes): BFF 핸들러 블록의 `rpc/<name>`

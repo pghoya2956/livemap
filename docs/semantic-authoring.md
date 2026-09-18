@@ -1,6 +1,36 @@
 # 여정 파일 작성
 
-`map/semantic/journeys.json`(설정 `semantic`)은 제품의 뜻을 사람이 적는 파일이다. 스토리 맵의 backbone(배우가 하는 활동을 순서대로)과 같다. 코드가 아니라 제품의 뜻을 적는 자리이므로 사용자 어휘만 쓰고 라우트·파일명은 `screens`·`capture` 필드에만 둔다.
+제품의 뜻을 사람이 적는 자리는 둘 중 하나다. 역할별 마크다운 디렉터리(2.0.0 권장)이거나 파일 하나(`journeys.json`, 1.x 호환)다. 설정 `semantic`이 디렉터리를 가리키면 앞, `.json`을 가리키면 뒤로 읽는다. 어느 쪽이든 스토리 맵의 backbone(배우가 하는 활동을 순서대로)이고, 사용자 어휘만 쓴다.
+
+## 역할별 마크다운(2.0.0)
+
+사람이 읽고 고치는 정본은 역할 파일이고, 화면 주소·캡처·참조 같은 구현 좌표는 프로젝트 대응표(설정 `journeyScreens`, 기본 `map/journey-screens.json`)에 둔다. 둘은 단계 ID(`<여정>/<단계>`)로 잇는다. 정본에 라우트·검사 이름을 적지 않으므로 구현이 바뀌어도 정본은 그대로다.
+
+```
+docs/product/journeys/
+  README.md      역할 표(역할 → 파일)와 상태 어휘 표
+  diver.md       `- 사용자 확인`·`- 시작 지점`, `## 하위 유형` 표, `## 넘겨받는 일`, `## 여정: <이름>` 절
+  ...            그 아래 `### <단계>` 절마다 `- id`·`- 상태`·`- 하는 사람`·`- 목적`, 필요하면 `**넘김**: <역할> \`<단계 ID>\``
+```
+
+상태 어휘는 동작·목업·미착수·다음이고 각각 `live`·`mock`·`planned`·`next`로 읽는다. 대응표는 이렇게 쓴다.
+
+```json
+{
+  "lanes": { "booking": "다이버·강사 여정" },
+  "steps": {
+    "booking/deposit": { "screens": ["/pay/:id"], "capture": "deposit", "refs": ["20260914-booking#DEC-45"] },
+    "notify/delivery": { "apis": ["/api/me/notifications"], "noTest": "발송은 화면이 없다. 근거는 API와 여정 검사다" }
+  }
+}
+```
+
+`noTest`는 그 단계에 검사가 없는 이유이고, 적으면 `step.no-test` 오류에서 면제한다. 이유를 정본 본문이 아니라 대응표에 두는 것은 검사 사정이 바뀔 때 정본을 건드리지 않기 위해서다.
+
+정본 자체의 어긋남은 `check`가 본다: 하위 유형 어휘(`journey.subtype-unknown`), 넘김 짝(`journey.handoff-missing-step`·`journey.handoff-unpaired`), 시작 지점(`journey.start-unknown`), 사용자 확인 뒤 변경(`journey.doc-changed-after-review`). 코드 설명은 `issue-codes.md`에 있다.
+
+## 파일 하나(1.x)
+
 
 사람이 적는 곳은 넷이고 나머지는 생성기가 저장소를 스캔해 만든다.
 

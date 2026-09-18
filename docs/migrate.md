@@ -32,6 +32,6 @@
 | 1.0.1 잔여 필드(`line`, `running`, `waiting`, `tasks`, 최상위 `openQuestions`, `areas`, `recent`, `roadmap[]`) | 지운다 | `overview.json` 1.1.0 필드를 읽는다 |
 | 결정·계획 항목 노드 id | 전역 번호(`DEC-57`)에서 `<작업 폴더>#<번호>`로 | 여정 `refs`를 `<작업 폴더>#<번호>` 한정 참조로 적는다(`tasks.ambiguous-ref` 0) |
 | 노드 종류 이름 | `milestone` → `roadmapItem`, `release` → `milestone` | 프로젝트 어댑터·스크립트가 노드 종류 이름에 기대는 곳을 찾아 둔다 |
-| 여정 파일 | md 여정 어댑터를 더할 수 있다 | 없음 |
+| 여정 파일 | 설정 `semantic`이 역할별 md 디렉터리를 가리킬 수 있다. 화면·캡처·참조는 대응표(`journeyScreens`)로 옮긴다. `.json` 한 파일도 계속 읽는다 | 단계 ID를 `<여정>/<단계>`로 맞추고, 화면·캡처를 대응표로 옮길 준비를 한다 |
 | 읽기 상태 강제 | `partial`·`stale`·`unknown`을 기본으로 오류로 셀지 정한다 | `livemap check --strict`로 과거 작업 채우기가 끝났는지 본다 |
 | `config.json` `engine` | `2` | 2.0.0으로 올리는 커밋에서 바꾼다. 엔진은 major가 다르면 멈추고 이 문서를 가리킨다 |
