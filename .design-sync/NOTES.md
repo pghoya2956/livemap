@@ -32,3 +32,9 @@
 - 엔진 1.2.0의 읽기 상태·판정 표시가 들어간 뒤 드라이버 판정은 렌더 21개 모두 unchanged였다. 미리보기 자료(`sample/monitor.ts`)에 "?"·판정이 들어간 개요가 없어 그림이 그대로이고, 바뀐 것은 컴포넌트 소스·타입·설명이다. 업로드 대상은 12개 컴포넌트와 번들·스타일이었고 삭제는 없었다.
 - 다음 재동기화에서 "?"·판정 표시를 카드로 보이려면 `sample/monitor.ts`에 `counts.openQuestions`가 partial이고 `reading`이 붙은 한 벌을 더한다.
 - 하위 화면(더보기 검사 탭의 읽기 이유 문장 등)은 여전히 올리지 않는다.
+
+## 2026-09-19 재동기화(1.3.0)
+
+- 1.3.0이 `ui/styles.css`에 로드맵 트리 규칙 55줄을 더하고 `Overview`·`CapturePanel`을 고쳤다. 드라이버 판정은 렌더 churn 12개(`AreaChart`·`CapturePanel`·`ChangesPanel`·`FeatureMap`·`FeatureTablePanel`·`FeatureTrendPanel`·`MilestonePanel`·`Overview`·`ProgressPanel`·`SignalsPanel`·`Ticker`·`TopBar`)였고 등급 재판정 대상은 0건이었다. 표본 다섯을 다시 찍어 통과했다. 업로드는 컴포넌트 12개와 번들·스타일이고 삭제는 없었다.
+- **`npm ci`가 `node_modules/@pghoya2956/livemap-ui` 링크를 지운다.** 이 저장소는 workspaces를 안 쓰고 그 링크가 수동이라, 릴리스 선행 검사로 `npm ci`를 돌린 뒤 재동기화를 하면 드라이버가 `livemap-ui/package.json`을 못 찾아 빌드 단계에서 멈춘다. `mkdir -p node_modules/@pghoya2956 && ln -sfn ../../ui node_modules/@pghoya2956/livemap-ui`로 되살린 뒤 `--node-modules node_modules`로 돌린다. `--node-modules`를 `.ds-sync/node_modules`로 주면 react를 못 찾고, 임시 폴더에 심볼릭 링크를 모아 주면 esbuild가 react를 못 푼다. 저장소의 진짜 `node_modules`를 써야 한다.
+- `RoadmapTree`는 `ui/index.js` 공개 목록에 없어 디자인 시스템 컴포넌트가 아니다. 트리 화면은 카드로 올라가지 않는다. 다음에 올릴지는 별도 판단이다.
