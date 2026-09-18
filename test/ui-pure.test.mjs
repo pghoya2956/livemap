@@ -458,13 +458,17 @@ const CAPS = [
   ['d', 'home'], ['d', 'resorts'], ['d', 'detail'], ['q', 'login'], ['q', 'detail'], ['q', 'quote'], ['t', 'teams'], ['b', 'mine'], ['o', 'today'],
 ].map(([journey, f]) => ({ file: `${f}.jpg`, journey, step: f }));
 
-test('SC-14 visibleCaptures: 사용자가 고르기 전에는 previewCount(기본 5)장, 범위 신원은 빈 값', () => {
+test('SC-14 visibleCaptures: 고르기 전 미리보기는 1.2.0 선택과 같다 — 기능마다 첫 장, 이미 보인 파일은 건너뜀, previewCount(기본 5)까지(DEC-52)', () => {
   const v = visibleCaptures(CAPS, { selected: 'd', userPicked: false });
-  assert.equal(v.list.length, 5);
+  assert.deepEqual(v.list.map((c) => `${c.journey}/${c.file}`), ['d/home.jpg', 'q/login.jpg', 't/teams.jpg', 'b/mine.jpg', 'o/today.jpg']);
   assert.deepEqual([v.scoped, v.key], [false, '']);
-  assert.equal(visibleCaptures(CAPS, {}).list.length, 5);
-  assert.equal(visibleCaptures(CAPS, { previewCount: 3 }).list.length, 3);
-  assert.equal(visibleCaptures(CAPS.slice(0, 2), {}).list.length, 2);
+  assert.deepEqual(visibleCaptures(CAPS, {}).list, v.list);
+  assert.deepEqual(visibleCaptures(CAPS, { previewCount: 3 }).list.map((c) => c.journey), ['d', 'q', 't']);
+  // 앞 기능이 이미 보인 파일은 건너뛰고 그 기능의 다음 장을 쓴다(같은 그림을 두 번 보이지 않는다)
+  const shared = [{ file: 'a.jpg', journey: 'x', step: '1' }, { file: 'a.jpg', journey: 'y', step: '1' }, { file: 'b.jpg', journey: 'y', step: '2' }];
+  assert.deepEqual(visibleCaptures(shared, {}).list.map((c) => `${c.journey}/${c.file}`), ['x/a.jpg', 'y/b.jpg']);
+  // 기능이 5개보다 적으면 기능 수만큼(1.2.0과 같다)
+  assert.equal(visibleCaptures(CAPS.slice(0, 4), {}).list.length, 2);
 });
 
 test('SC-7 visibleCaptures: 사용자가 기능을 고르면 그 기능 캡처만, 범위 신원은 기능 id', () => {

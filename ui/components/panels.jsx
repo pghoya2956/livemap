@@ -283,7 +283,8 @@ export function CapturePanel({ captures, journeys = [], base = 'captures/', inte
   const c = shown[i];
   const cn = c && names(c);
   const jt = scoped ? journeys.find((x) => x.id === selected)?.title ?? selected : null;
-  const sub = scoped ? '고른 기능의 화면' : shown.length ? `실제 데이터로 동작하는 화면 ${shown.length}장` : '실제 데이터로 동작하는 화면';
+  // 전체일 때 문구는 1.2.0 그대로다. 장 수는 썸네일과 장 번호가 말한다(DEC-53)
+  const sub = scoped ? '고른 기능의 화면' : '실제 데이터로 동작하는 화면';
   return (
     <Panel icon={Icons.screen} title="화면" sub={sub} className="capture">
       <div className="capbox" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
