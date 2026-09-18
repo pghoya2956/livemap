@@ -2,6 +2,8 @@
 // `## 마일스톤: 제목` 절은 release 노드(마일스톤, 1.x 임시 이름)이고, 항목의 `마일스톤` 키가 release → milestone contains 엣지가 된다.
 // 순서는 파일 안 위치다. 항목 order·자동 id는 항목 절만 센다. 장면·작업·선행은 문자열로만 남기고 해석(존재 확인)은 derive·check가 한다.
 // 완료일(completedAt)·결정 대기 시작일(waitingSince)은 로드맵 파일의 git 이력에서 계산한다.
+import { parseSections } from '../lib/md-props.mjs';
+
 const KEYS = { id: 'id', 상태: 'status', '진행 방식': 'mode', 작업: 'tasks', 장면: 'scenes', 선행: 'deps', '결정 대기': 'waitingOn', '완료 기준': 'done', 마일스톤: 'milestone' };
 const RELEASE_KEYS = { id: 'id', 상태: 'status', 완료일: 'completedOn', 목표일: 'targetOn', '결정 대기': 'waitingOn' };
 const LISTS = new Set(['tasks', 'scenes', 'deps']);
@@ -9,29 +11,27 @@ const RELEASE_HEAD = /^마일스톤\s*[:：]\s*(.*)$/;
 const SHALLOW = '얕은 클론: 완료일·결정 대기 시작일 생략';
 
 // 로드맵 본문 → { items, releases }. 이력의 옛 판도 같은 규칙으로 읽는다.
+// 절 나누기·속성·목표 문장은 md 속성 파서가 읽고(`## 제목` 1단), 여기서는 키를 필드로 옮긴다.
+// 1단이라 `###` 아래 줄은 그 절의 자식으로 빠진다. 옛 파서는 그것을 목표 문장과 속성에 섞었다.
 function parse(text) {
   const items = [], releases = [];
-  for (const block of text.split(/^## /m).slice(1)) {
-    const [head, ...lines] = block.split('\n');
-    const rel = head.trim().match(RELEASE_HEAD);
+  const LIST_KEYS = Object.entries(KEYS).filter(([, v]) => LISTS.has(v)).map(([k]) => k);
+  for (const sec of parseSections(text, { listKeys: LIST_KEYS })) {
+    const rel = sec.title.match(RELEASE_HEAD);
     const keys = rel ? RELEASE_KEYS : KEYS;
     const props = rel
       ? { order: releases.length + 1, goal: '', status: '', completedOn: '', targetOn: '', waitingOn: '' }
       : { order: items.length + 1, goal: '', status: '', mode: '', tasks: [], scenes: [], deps: [], waitingOn: '', done: '', milestone: null };
-    const goal = [];
-    for (const line of lines) {
-      const m = line.match(/^- ([^:]+):\s*(.*)$/);
-      if (m && keys[m[1].trim()]) {
-        const key = keys[m[1].trim()];
-        const value = m[2].replace(/`/g, '').trim();
-        props[key] = LISTS.has(key) ? value.split(/[,，]\s*/).map((x) => x.trim()).filter((x) => x && x !== '—') : key === 'milestone' ? value || null : value;
-      } else if (!line.startsWith('- ') && line.trim()) goal.push(line.trim());
+    for (const [name, raw] of Object.entries(sec.props)) {
+      const key = keys[name];
+      if (!key) continue;
+      props[key] = LISTS.has(key) ? (Array.isArray(raw) ? raw : []) : key === 'milestone' ? (raw || null) : raw;
     }
-    props.goal = goal.join(' ');
+    props.goal = sec.prose;
     const declared = props.id;
     delete props.id;
-    if (rel) releases.push({ id: declared || `r${props.order}`, idMissing: !declared, title: rel[1].trim(), head, props });
-    else items.push({ id: declared || `m${props.order}`, title: head.trim(), head, props });
+    if (rel) releases.push({ id: declared || `r${props.order}`, idMissing: !declared, title: rel[1].trim(), head: sec.title, props });
+    else items.push({ id: declared || `m${props.order}`, title: sec.title, head: sec.title, props });
   }
   return { items, releases };
 }
