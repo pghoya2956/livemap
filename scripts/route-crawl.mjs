@@ -3,6 +3,8 @@
 // 화면 루트(data-screen)·대상 개체·콘솔 오류·CSP 위반을 본다. 선택자·기대·패턴·개체 출처는 --targets JSON(scripts/click-targets.json)에서 읽는다.
 // 코드에 둔 것은 기대 키(expect.*)마다의 확인 방법과 라우트 패턴마다의 대상 개체 검사(ROUTE_CHECKS)다.
 // 1.3.0: 표의 screens.<화면>이 있으면 그 화면(hash)을 열어 대화형 요소를 그 화면 행과 대조하고(표에 없으면 실패) 행마다 같은 방법으로 판정한다.
+// 이동(클릭·해시 변경) 뒤에는 그 해시의 화면([data-screen])이 서고 「불러오는 중…」이 사라진 다음 잰다. 개요에서 하위 화면으로 가면 화면이 data.json을 받는 동안
+// [data-screen]이 없고, 재빌드 serve는 자료 요청이 마지막 빌드 5초 뒤면 빌드를 먼저 해서 응답이 수 초 늦다. 잠잠함(quiet)만 보고 재면 그 사이에 재서 화면 없음으로 틀린다.
 // 사용: node scripts/route-crawl.mjs --url http://127.0.0.1:<port>/map/ --targets scripts/click-targets.json [--only <screen>] [--overview-only] [--block-fonts] [--json <결과 파일>]
 //   --only <screen>    그 화면(overview|journeys|roadmap|tasks|more)의 라우트 패턴과, 그 화면으로 가는 개요 요소만 본다.
 //   --overview-only    이동 요소는 href 패턴만 보고 방문하지 않는다. 라우트 크롤을 건너뛰고, 하위 화면이 필요한 클릭 예산은 deferred로 남긴다.
@@ -42,6 +44,18 @@ export function CRAWL_LIB() {
     obs.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
     t = setTimeout(fin, ms); cap = setTimeout(fin, max);
   });
+  /** 이동 뒤 화면이 그려질 때까지 기다린다: 기대 화면의 [data-screen]이 서고 자료를 받는 동안의 「불러오는 중…」(.boot)이 없으면 끝(최대 max ms).
+   *  오류 문단(.boot-error)은 더 기다려도 바뀌지 않으므로 바로 끝낸다. 기대 화면이 없으면(표에 없는 해시) .boot가 사라지는 것만 본다. 그 뒤 DOM이 ms 동안 잠잠할 때까지(최대 cap) 기다린다.
+   *  이동 직후에는 옛 화면이 아직 서 있거나 .boot만 있어서, 잠잠함만 보면 자료가 오기 전에 잰다. */
+  J.settled = async (screen, max = 15000, ms = 200, cap = 3000) => {
+    const done = () => {
+      if (document.querySelector('.boot-error')) return true;
+      if (document.querySelector('.boot')) return false;
+      return screen ? !!document.querySelector(`[data-screen="${screen}"]`) : true;
+    };
+    for (let i = 0; !done() && i * 50 < max; i++) await new Promise((r) => setTimeout(r, 50));
+    return J.quiet(ms, cap);
+  };
   J.shown = (el) => { if (!el) return false; const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
   J.inViewport = (el) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
   J.screenAttr = () => [...document.querySelectorAll('[data-screen]')].map((e) => e.getAttribute('data-screen'));
@@ -228,8 +242,8 @@ const errCount = (log) => log.console.length + log.pageerror.length;
 export async function visitHash(page, log, ctx, hash) {
   const e0 = errCount(log), c0 = await page.evaluate(() => (window.__crawlCsp || []).length);
   await page.evaluate((h) => { location.hash = h; }, hash);
-  await C(page, 'quiet', 200, 4000);
   const m = ctx.match(hash);
+  await C(page, 'settled', m?.route.screen ?? null, SETTLE_MAX, 200, 4000);
   const screens = await C(page, 'screenAttr');
   const chk = m ? checkFor(m.route.pattern, ctx, m.tuple) : null;
   const content = chk ? await C(page, 'routeCheck', chk.kind, chk.arg) : null;
@@ -297,6 +311,13 @@ async function clickLoc(loc, how = 'click') {
   try { await loc[how]({ timeout: 3000 }); return how; } catch { await loc.dispatchEvent(how === 'dblclick' ? 'dblclick' : 'click'); return `dispatch ${how}`; }
 }
 const quiet = (page) => C(page, 'quiet', 200, 3000);
+const SETTLE_MAX = 15000;
+/** 이동(클릭·해시 변경) 뒤: 지금 해시가 가리키는 표 라우트의 화면이 그려진 다음 잠잠해질 때까지 기다린다. 표에 없는 해시면 「불러오는 중…」이 사라지는 것만 본다. */
+async function settledNav(page, ctx) {
+  const hash = await page.evaluate(() => location.hash);
+  const screen = ctx?.match(hash)?.route.screen ?? null;
+  return C(page, 'settled', screen, SETTLE_MAX, 200, 3000);
+}
 
 /** 선택 동기: 각 선택자 목록에서 선택 표시가 붙은 요소의 글자에 label이 들어 있는지. */
 // 목록이 잘려(목록 맞춤·미완성 기능만) 그 이름이 없는 목록은 판정하지 않는다(ok: null).
@@ -368,7 +389,7 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
         const i = (await page.locator(t.selector).evaluateAll((es, h) => es.map((e, k) => (e.getAttribute('href') === h && window.__crawl.shown(e) ? k : -1)).filter((k) => k >= 0), href))[0];
         if (i == null) { navs.push({ href, pass: false, reason: '다시 연 화면에 요소 없음' }); continue; }
         const e0 = errCount(log);
-        const how = await clickLoc(loc(i)); await quiet(page);
+        const how = await clickLoc(loc(i)); await settledNav(page, ctx);
         const hash = await page.evaluate(() => location.hash);
         const m = ctx.match(hash);
         // 정규식이 같은 패턴(로드맵 항목 id·마일스톤 id)은 자료에 있는 개체로 고른 패턴을 기대값으로 쓴다
@@ -506,7 +527,7 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
 }
 
 /** clickBudget 선택자 순서대로 누르고 마지막 선택자가 보이는지. 다음 선택자가 이미 보이면 그 단계를 건너뛴다. */
-export async function measureClickBudget(page, base, seq) {
+export async function measureClickBudget(page, base, seq, ctx = null) {
   await reloadOverview(page, base);
   const steps = []; let clicks = 0;
   const vis = async (sel, timeout) => { try { await page.locator(sel).first().waitFor({ state: 'visible', timeout }); return true; } catch { return false; } };
@@ -514,7 +535,7 @@ export async function measureClickBudget(page, base, seq) {
     for (let i = 0; i < seq.length - 1; i++) {
       if (i > 0 && await vis(seq[i + 1], 300)) { steps.push(`skip ${seq[i]}`); continue; }
       if (!(await vis(seq[i], i === 0 ? 1000 : 2500))) return { pass: false, clicks, steps, reason: `${seq[i]} 보이지 않음`, hash: await page.evaluate(() => location.hash) };
-      steps.push(`${await clickLoc(page.locator(seq[i]).first())} ${seq[i]}`); clicks++; await quiet(page);
+      steps.push(`${await clickLoc(page.locator(seq[i]).first())} ${seq[i]}`); clicks++; await settledNav(page, ctx);
     }
     const ok = await vis(seq[seq.length - 1], 3000);
     return { pass: ok && clicks <= 3, clicks, steps, hash: await page.evaluate(() => location.hash), reason: ok ? undefined : `${seq[seq.length - 1]} 보이지 않음` };
@@ -633,7 +654,7 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
     for (const target of targets.overview) overviewTargets.push(await checkOverviewTarget(page, log, ctx, target, { base, served, overviewOnly, budgetSel: targets.clickBudget[0], scope }));
     timing.overviewTargets = Date.now() - t; t = Date.now();
     const budgetScreen = targetScreen(ctx, targets.overview.find((o) => o.selector === targets.clickBudget[1]));
-    const clickBudget = scope(budgetScreen) ? await measureClickBudget(page, base, targets.clickBudget) : { pass: null, skipped: '--only 범위 밖' };
+    const clickBudget = scope(budgetScreen) ? await measureClickBudget(page, base, targets.clickBudget, ctx) : { pass: null, skipped: '--only 범위 밖' };
     const keyboard = scope('overview') ? await measureKeyboard(page, base, targets) : { pass: null, skipped: '--only 범위 밖' };
     timing.clickBudgetKeyboard = Date.now() - t; t = Date.now();
     // 1.3.0: 개요 밖 화면(targets.screens)도 대화형 요소를 표와 대조하고 그 화면의 행을 판정한다. 개요만 보는 실행에서는 건너뛴다
