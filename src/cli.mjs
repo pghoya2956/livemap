@@ -55,7 +55,11 @@ export function readSemantic(fs, cfg) {
   const mapFile = cfg.journeyScreens || 'map/journey-screens.json';
   let map = {};
   if (fs.has(mapFile)) { try { map = JSON.parse(fs.read(mapFile)); } catch (e) { throw new Error(`${mapFile} 읽기 실패: ${e.message}`); } }
-  return readJourneysDir(fs, path, { map, project: cfg.project });
+  const sem = readJourneysDir(fs, path, { map, project: cfg.project });
+  // 읽을 역할 파일이 있는데 여정이 0건이면 읽기가 조용히 빈 것이다(파일 없음·빈 폴더와 구분한다)
+  const roleFiles = fs.ls(path).filter((f) => f.endsWith('.md') && f !== 'README.md');
+  if (roleFiles.length && !sem.journeys.length) sem.readEmpty = `${path}에 역할 파일 ${roleFiles.length}개가 있는데 읽힌 여정이 0건`;
+  return sem;
 }
 
 export async function buildGraph(root = process.cwd(), { semantic = null } = {}) {

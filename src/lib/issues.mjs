@@ -37,6 +37,7 @@ export const ISSUE_CODES = {
   'journey.actor-unknown': code('warn', '여정', ['source']),
   // 2.0.0 여정 정본(md 디렉터리) 규칙
   'journey.subtype-unknown': code('warn', '단계', ['source']),
+  'semantic.empty': code('error', '설정', ['config', 'source']),
   'step.no-test': code('error', '단계', ['source']),
   'tests.route-not-in-journey': code('warn', '검사', ['source']),
   'journey.handoff-missing-step': code('error', '단계', ['source']),

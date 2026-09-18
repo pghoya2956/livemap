@@ -120,6 +120,7 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 | `journey.no-steps` | error | 여정 | source | 여정에 장면 없음 |
 | `journey.actor-unknown` | warn | 여정 | source | 여정·장면 배우가 배우 사전에 없음 |
 | `journey.subtype-unknown` | warn | 단계 | source | 단계의 `하는 사람`이 역할 파일 `## 하위 유형` 표에 없음(2.0.0, md 정본) |
+| `semantic.empty` | error | 설정 | config·source | 설정 `semantic`이 있는데 여정이 0건(읽기가 조용히 비었을 때 막는다) |
 | `step.no-test` | error | 단계 | source | 동작·목업 단계에 지나는 검사가 없음. 대응표 `noTest`에 이유를 적으면 면제(2.0.0) |
 | `tests.route-not-in-journey` | warn | 검사 | source | 검사가 지나는데 어느 단계에도 없는 화면(2.0.0) |
 | `journey.handoff-missing-step` | error | 단계 | source | 단계의 `**넘김**`이 가리키는 단계 ID가 없음(2.0.0) |

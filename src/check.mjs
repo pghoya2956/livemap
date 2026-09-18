@@ -20,8 +20,12 @@ export function checkProblems(d, cfg) {
   const subj = (kind, id) => ({ subject: { kind, id: String(id) } });
 
   for (const a of d.adapters) if (a.status === 'failed') err('adapter.failed', `어댑터 실패 ${a.name}: ${a.error}`, subj('adapter', a.name));
-  const counts = { screen: d.summary.routes, api: d.summary.apis, function: d.summary.dbFunctions, test: d.tests.length, task: d.tasks.length, decision: d.decisions.length };
+  const stepCount = d.semantic.journeys.reduce((n, j) => n + (j.steps?.length || 0), 0);
+  const counts = { screen: d.summary.routes, api: d.summary.apis, function: d.summary.dbFunctions, test: d.tests.length, task: d.tasks.length, decision: d.decisions.length, journey: d.semantic.journeys.length, step: stepCount };
   for (const [k, floor] of Object.entries(cfg.floors || {})) if ((counts[k] ?? 0) < floor) err('floor.below', `바닥값 미달 ${k}: ${counts[k] ?? 0} < ${floor} (스캐너가 깨졌을 가능성)`, subj('config', `floors.${k}`));
+
+  // 정본 경로를 설정했는데 여정이 0건이면 읽기가 조용히 빈 것이다. 빈 자료는 모든 대조를 통과시키므로 오류로 막는다
+  if (d.semantic.readEmpty) err('semantic.empty', `여정 정본을 읽지 못함: ${d.semantic.readEmpty}`, subj('config', 'semantic'));
 
   const ids = new Set();
   for (const j of d.semantic.journeys) {

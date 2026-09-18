@@ -89,3 +89,23 @@ test('역할 정보가 없는 프로젝트(1.x JSON 여정)에서는 이 규칙�
   const list = codes(data({ roles: [], journeys }));
   assert.ok(!list.some((c) => c.startsWith('journey.subtype') || c.startsWith('journey.handoff') || c.startsWith('journey.start') || c.startsWith('journey.doc')));
 });
+
+test('읽을 역할 파일이 있는데 여정이 0건이면 오류다(빈 목록끼리 통과하지 않게)', () => {
+  const d = data({ roles: [], journeys: [] });
+  d.semantic.readEmpty = 'docs/product/journeys에 역할 파일 4개가 있는데 읽힌 여정이 0건';
+  const withPath = checkProblems(d, { floors: {}, semantic: 'docs/product/journeys' });
+  const hit = withPath.find((p) => p.code === 'semantic.empty');
+  assert.ok(hit, '여정 0건은 semantic.empty');
+  assert.equal(hit.level, 'error');
+
+  const fresh = data({ roles: [], journeys: [] }); // 여정을 아직 안 쓴 프로젝트
+  assert.ok(!checkProblems(fresh, { floors: {}, semantic: 'map/semantic/journeys.json' }).find((p) => p.code === 'semantic.empty'));
+});
+
+test('바닥값으로 단계 수를 지킬 수 있다', () => {
+  const journeys = [{ id: 'a', title: 'A', actor: 'x', steps: [step('one', { testFiles: ['t'] })] }];
+  const d = data({ roles: [], journeys });
+  const hit = checkProblems(d, { floors: { step: 5 }, semantic: 'docs/product/journeys' }).find((p) => p.code === 'floor.below');
+  assert.ok(hit, '단계 수가 바닥값 아래면 floor.below');
+  assert.match(hit.msg, /step/);
+});
