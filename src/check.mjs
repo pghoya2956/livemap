@@ -5,6 +5,8 @@ import { problem } from './lib/issues.mjs';
 
 // derive가 만든 완성 문장을 코드로 가른다. 맞는 규칙이 없으면 마지막 대체 코드
 const STEP_WARNING = [[/^라우트 없음/, 'step.route-missing'], [/^참조 미해결/, 'step.ref-unresolved'], [/^장면은 동작인데/, 'step.screen-not-live'], [/^장면은 \S+인데 화면은 동작/, 'step.screen-live-early'], [/관측 근거 없음/, 'step.no-evidence'], [/^확인 필요/, 'step.review-stale']];
+// 로드맵 problem 중 경고로 내는 문장(1.3.0). 선행 흐름 문제라 화면은 멈추지 않고 CI도 막지 않는다
+const ROADMAP_WARNING = [[/^선행 순환/, 'roadmap.dep-cycle'], [/^마일스톤 순서 역행/, 'roadmap.milestone-backward']];
 const ROADMAP_PROBLEM = [[/^장면 없음/, 'roadmap.scene-missing'], [/^작업 폴더 없음/, 'roadmap.task-missing'], [/^선행 항목 없음/, 'roadmap.dep-missing'], [/^알 수 없는 상태/, 'roadmap.unknown-status'], [/^마일스톤 없음/, 'roadmap.milestone-missing']];
 const MILESTONE_PROBLEM = [[/: id 없음$/, 'milestone.no-id'], [/^마일스톤 id 중복/, 'milestone.duplicate-id'], [/: 알 수 없는 상태 /, 'milestone.unknown-status'], [/: 날짜 형식 /, 'milestone.bad-date']];
 const MILESTONE_WARNING = [[/: 완료인데 미완료 항목/, 'milestone.done-open-items'], [/: 항목이 모두 완료인데 상태/, 'milestone.all-items-done'], [/: 진행 항목이 있는데 상태/, 'milestone.running-items'], [/: 묶인 항목 없음$/, 'milestone.no-items'], [/: 완료일과 상태가 맞지 않음$/, 'milestone.completed-on-mismatch']];
@@ -42,7 +44,11 @@ export function checkProblems(d, cfg) {
   for (const m of d.roadmap || []) {
     const ms = subj('milestone', m.id);
     if (mids.has(m.id)) err('roadmap.duplicate-id', `로드맵 id 중복: ${m.id}`, ms); mids.add(m.id);
-    for (const p of m.problems) err(pick(ROADMAP_PROBLEM, p, 'roadmap.problem'), `로드맵 ${m.title}: ${p}`, ms);
+    for (const p of m.problems) {
+      const w = pick(ROADMAP_WARNING, p, null);
+      if (w) warn(w, `로드맵 ${m.title}: ${p}`, ms);
+      else err(pick(ROADMAP_PROBLEM, p, 'roadmap.problem'), `로드맵 ${m.title}: ${p}`, ms);
+    }
     if (m.status === '진행' && !m.tasks.length) warn('roadmap.running-no-task', `로드맵 ${m.title}: 진행인데 작업 폴더가 없음`, ms);
   }
   // 마일스톤: 문장은 derive가 만든다. 마일스톤 절이 없으면 줄이 없다

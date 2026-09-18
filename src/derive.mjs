@@ -39,6 +39,44 @@ export function splitWaiting(text) {
   return m ? { who: m[1].trim(), what: m[2] } : { who: null, what: t };
 }
 
+// 로드맵 선행의 흐름 문제(1.3.0): 선행 순환과 마일스톤 순서 역행. 화면 ui/lib/tree.js와 같은 규칙이고 check는 경고로 낸다.
+// 순환: 자기에게 되돌아오는 항목마다 자기에서 시작해 선행 → 후속 방향으로 돌아오는 가장 짧은 경로 한 문장.
+// 역행: 마일스톤이 있을 때 선행의 열(파일 순서, 미배정·없는 id는 맨 오른쪽)이 항목의 열보다 오른쪽이면 엣지마다 한 문장.
+function roadmapFlowProblems(items, releases) {
+  const out = new Map();
+  const add = (id, text) => { if (!out.has(id)) out.set(id, []); out.get(id).push(text); };
+  const ids = new Set(items.map((m) => m.id));
+  const deps = new Map(items.map((m) => [m.id, [...new Set(m.props.deps)].filter((d) => ids.has(d))]));
+  const children = new Map(items.map((m) => [m.id, []]));
+  for (const m of items) for (const d of deps.get(m.id)) children.get(d).push(m.id);
+  for (const m of items) {
+    const prev = new Map([[m.id, null]]);
+    const queue = [m.id];
+    let back = null;
+    for (let i = 0; i < queue.length && !back; i++) {
+      for (const c of children.get(queue[i])) {
+        if (c === m.id) { back = queue[i]; break; }
+        if (!prev.has(c)) { prev.set(c, queue[i]); queue.push(c); }
+      }
+    }
+    if (!back) continue;
+    const path = [m.id];
+    for (let x = back; x !== m.id; x = prev.get(x)) path.splice(1, 0, x);
+    add(m.id, `선행 순환: ${[...path, m.id].join(' → ')}`);
+  }
+  if (releases.length) {
+    const col = new Map(releases.map((r, i) => [r.id, i]));
+    const colOf = (m) => col.get(m.props.milestone) ?? releases.length;
+    const label = (m) => (col.has(m.props.milestone) ? m.props.milestone : '마일스톤 없음');
+    const byId = new Map(items.map((m) => [m.id, m]));
+    for (const m of items) for (const d of deps.get(m.id)) {
+      const p = byId.get(d);
+      if (colOf(p) > colOf(m)) add(m.id, `마일스톤 순서 역행: ${d}(${label(p)}) → ${m.id}(${label(m)})`);
+    }
+  }
+  return out;
+}
+
 export function derive(g, sem, cfg, { captureExists }) {
   const screens = g.of('screen'), apis = g.of('api'), fns = g.of('function'), tests = g.of('test'), commits = g.of('commit').sort((a, b) => b.props.date.localeCompare(a.props.date));
   const tasks = g.of('task'), decisions = g.of('decision').filter((d) => d.props.kind === 'wiki'), specDefs = g.of('decision').filter((d) => d.props.kind !== 'wiki');
@@ -181,6 +219,7 @@ export function derive(g, sem, cfg, { captureExists }) {
   const milestoneIds = new Set(milestones.map((m) => m.id));
   const releases = g.of('release').sort((a, b) => a.props.order - b.props.order);
   const releaseIds = new Set(releases.map((r) => r.id));
+  const flowProblems = roadmapFlowProblems(milestones, releases);
   const roadmap = milestones.map((m) => {
     const p = m.props;
     const scenes = p.scenes.map((r) => stepByRef[r] ? { ref: r, ...stepByRef[r] } : { ref: r, missing: true });
@@ -188,6 +227,7 @@ export function derive(g, sem, cfg, { captureExists }) {
     const problems = [...scenes.filter((s) => s.missing).map((s) => `장면 없음: ${s.ref}`), ...trackedTasks.filter((t) => t.missing).map((t) => `작업 폴더 없음: ${t.name}`), ...p.deps.filter((d) => !milestoneIds.has(d)).map((d) => `선행 항목 없음: ${d}`)];
     if (!ROADMAP_STATUS.includes(p.status)) problems.push(`알 수 없는 상태: ${p.status || '(비어 있음)'}`);
     if (p.milestone && !releaseIds.has(p.milestone)) problems.push(`마일스톤 없음 ${p.milestone}`);
+    problems.push(...(flowProblems.get(m.id) || []));
     const live = scenes.filter((s) => s.status === 'live').length;
     const deps = p.deps.map((d) => ({ id: d, title: milestones.find((x) => x.id === d)?.label || d, status: milestones.find((x) => x.id === d)?.props.status || null }));
     const waiting = splitWaiting(p.waitingOn);
