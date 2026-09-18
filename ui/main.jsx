@@ -21,7 +21,8 @@ function useHash() {
   return hash;
 }
 
-/** 경로 이동 뒤 스크롤: 로드맵 항목·마일스톤(details는 연다), 단계 상세는 가까이, 그 밖은 맨 위. */
+/** 경로 이동 뒤 스크롤: 로드맵 항목·마일스톤(details는 연다), 단계 상세는 가까이, 그 밖은 맨 위.
+ *  로드맵은 가까이(nearest)만 옮긴다. 고른 항목 카드가 트리 바로 아래 상세 슬롯에 있어 맨 위로 맞추면 누른 트리가 화면 밖으로 밀린다. */
 function scrollFor(route) {
   const { screen, params } = route;
   if (screen === 'roadmap' && params.id) {
@@ -29,7 +30,7 @@ function scrollFor(route) {
     if (el) {
       const det = el.tagName === 'DETAILS' ? el : el.closest('details');
       if (det) det.open = true;
-      el.scrollIntoView({ block: 'start' });
+      el.scrollIntoView({ block: 'nearest' });
       return;
     }
   } else if (screen === 'journeys' && params.step) {
