@@ -119,7 +119,7 @@ test('router: 큰따옴표 import도 로컬 닫힘으로 따라가 출처를 분
 // 설정 ---------------------------------------------------------------------
 test('config: semantic 키가 없으면 여정 입력이 없는 것으로 보고 build·check가 멈추지 않는다', async (t) => {
   const root = tmp(t);
-  put(root, 'map/config.json', JSON.stringify({ engine: 1, adapters: [], project: { name: 'Empty' } }));
+  put(root, 'map/config.json', JSON.stringify({ engine: 2, adapters: [], project: { name: 'Empty' } }));
   const r = await buildGraph(root);
   assert.deepEqual(r.data.semantic.journeys, []);
   assert.equal('semantic' in JSON.parse(JSON.stringify(r.data.sources)), false);

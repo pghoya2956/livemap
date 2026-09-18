@@ -50,17 +50,19 @@ test('알 수 없는 명령은 사용 안내와 exit 2', () => {
   assert.match(r.err, /export <dir>/);
 });
 
-test('engine 키: 없으면 1로 통과, 2면 exit 2와 이행 문서 경로', () => {
+test('engine 키: 없으면 1로 보고 major가 다르면 exit 2와 이행 문서 경로', () => {
   const dir = project();
   const cfgFile = join(dir, 'map/config.json');
   const cfg = readJson(cfgFile);
+  // 키가 없으면 1로 본다. 엔진 major가 2라 멈춘다
   delete cfg.engine;
   writeJson(cfgFile, cfg);
-  assert.equal(run(dir, ['build']).code, 0);
+  const missing = run(dir, ['check']);
+  assert.equal(missing.code, 2);
+  assert.match(missing.err, /node_modules\/@pghoya2956\/livemap\/docs\/migrate\.md/);
+  // 같은 major면 돈다
   writeJson(cfgFile, { ...cfg, engine: 2 });
-  const r = run(dir, ['check']);
-  assert.equal(r.code, 2);
-  assert.match(r.err, /node_modules\/@pghoya2956\/livemap\/docs\/migrate\.md/);
+  assert.equal(run(dir, ['build']).code, 0);
 });
 
 test('export: 생성물이 없으면 exit 2', () => {

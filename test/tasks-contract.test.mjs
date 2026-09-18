@@ -19,7 +19,7 @@ async function project(files, { journeys = [], config = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'livemap 작업 문서 계약 검사-'));
   made.push(dir);
   const all = {
-    'map/config.json': JSON.stringify({ engine: 1, adapters: ['tasks'], tasks: { dir: 'tasks', index: 'tasks/index.md' }, semantic: 'map/semantic/journeys.json', ...config }),
+    'map/config.json': JSON.stringify({ engine: 2, adapters: ['tasks'], tasks: { dir: 'tasks', index: 'tasks/index.md' }, semantic: 'map/semantic/journeys.json', ...config }),
     'map/semantic/journeys.json': JSON.stringify({ journeys }),
     ...files,
   };

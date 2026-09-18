@@ -33,7 +33,7 @@ test('계정', async ({ page }) => { await page.goto('/account'); });`);
   put(root, 'tests/unit.test.mjs', "import test from 'node:test';\ntest('단위', () => {});");
   put(root, 'tasks/index.md', '# 작업\n\n## 현재 실행 장부\n');
   put(root, 'map/config.json', JSON.stringify({
-    engine: 1,
+    engine: 2,
     project: { name: 'T' },
     adapters: ['router', 'bff', 'tests'],
     router: { app: 'web/src/App.tsx', pagesDir: 'web/src/pages', localDirs: ['web/src/pages'] },

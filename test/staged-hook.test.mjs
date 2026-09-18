@@ -30,7 +30,7 @@ const JUDGMENT = { schema: 1, task: '20260102-done', by: 'agent', lines: [{ at: 
 function project({ repo = true } = {}) {
   const dir = tmp('훅 프로젝트');
   write(dir, {
-    'map/config.json': JSON.stringify({ engine: 1, adapters: ['tasks'], tasks: { dir: 'tasks', index: 'tasks/index.md' }, semantic: 'map/semantic/journeys.json' }),
+    'map/config.json': JSON.stringify({ engine: 2, adapters: ['tasks'], tasks: { dir: 'tasks', index: 'tasks/index.md' }, semantic: 'map/semantic/journeys.json' }),
     'map/semantic/journeys.json': JSON.stringify({ journeys: [] }),
     'tasks/index.md': md('# 작업', '## 진행', '| [옛](20260101-old/spec/final.md) |', '## 완료', '| [완료](20260102-done/spec/final.md) |'),
     'tasks/20260101-old/spec/final.md': OLD_SPEC,

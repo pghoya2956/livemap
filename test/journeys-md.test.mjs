@@ -184,7 +184,7 @@ test('빌드까지: 역할 파일이 있는데 형식이 어긋나 여정이 0�
     writeFileSync(join(root, 'docs/journeys/diver.md'), '# 다이버\n\n- 사용자 확인: 2026-09-18\n\n## 이 역할\n\n설명만 있다.\n');
     mkdirSync(join(root, 'map'), { recursive: true });
     writeFileSync(join(root, 'map/config.json'), JSON.stringify({
-      engine: 1, project: { name: 'T' }, adapters: ['router'],
+      engine: 2, project: { name: 'T' }, adapters: ['router'],
       router: { app: 'web/src/App.tsx', pagesDir: 'web/src/pages', localDirs: ['web/src/pages'] },
       semantic: 'docs/journeys', floors: {},
     }));

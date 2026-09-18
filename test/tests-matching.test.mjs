@@ -41,7 +41,7 @@ function project() {
   put(root, 'web/src/pages/Resorts.tsx', 'export function Resorts() { return <div/>; }');
   put(root, 'map/semantic/journeys.json', JSON.stringify(SEMANTIC));
   put(root, 'map/config.json', JSON.stringify({
-    engine: 1,
+    engine: 2,
     project: { name: 'T' },
     adapters: ['router', 'tests'],
     router: { app: 'web/src/App.tsx', pagesDir: 'web/src/pages', localDirs: ['web/src/pages'] },

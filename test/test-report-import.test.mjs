@@ -27,7 +27,7 @@ const RESULTS = 'map/.out/test-results.json';
 function project(files = {}) {
   const dir = tmp('import');
   mkdirSync(join(dir, 'map'));
-  writeFileSync(join(dir, 'map', 'config.json'), JSON.stringify({ engine: 1, tests: { dir: 'tests', report: 'map/.out/junit.xml' } }));
+  writeFileSync(join(dir, 'map', 'config.json'), JSON.stringify({ engine: 2, tests: { dir: 'tests', report: 'map/.out/junit.xml' } }));
   writeFileSync(join(dir, '.gitignore'), 'map/.out/\nnode_modules\n');
   for (const [name, text] of Object.entries(files)) { mkdirSync(dirname(join(dir, name)), { recursive: true }); writeFileSync(join(dir, name), text); }
   git(dir, 'init', '-q');

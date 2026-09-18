@@ -1,5 +1,5 @@
 {
-  "engine": 1,
+  "engine": 2,
   "project": { "name": "프로젝트 이름", "host": "https://example.invalid" },
   "adapters": ["router", "bff", "migrations", "tests", "wiki", "tasks", "roadmap", "git", "deploy", "testreport"],
   "router": { "app": "web/src/App.tsx", "pagesDir": "web/src/pages", "localDirs": ["web/src/pages", "web/src/components"], "mockPattern": "/mock'", "fixedPattern": "/content/", "livePattern": "lib/queries", "hookApi": { "Session": "/api/session" } },

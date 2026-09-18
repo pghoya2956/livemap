@@ -125,7 +125,7 @@ export const NOTE = "/mock' /content/";
   ] }),
 };
 const CFG = {
-  engine: 1,
+  engine: 2,
   adapters: ['router', 'bff'],
   project: { name: 'Shop' },
   router: { app: 'web/src/App.tsx', pagesDir: 'web/src/pages', localDirs: ['web/src/pages', 'web/src/components'], mockPattern: "/mock'", fixedPattern: '/content/', livePattern: 'lib/' },

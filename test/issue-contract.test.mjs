@@ -25,7 +25,7 @@ const issuesModule = () => import('../src/lib/issues.mjs');
 function probeProject(body, name = 'probe') {
   const dir = tmp('이슈 계약');
   mkdirSync(join(dir, 'map/adapters'), { recursive: true });
-  writeFileSync(join(dir, 'map/config.json'), JSON.stringify({ engine: 1, adapters: [name], semantic: 'map/semantic/없음.json' }, null, 2) + '\n');
+  writeFileSync(join(dir, 'map/config.json'), JSON.stringify({ engine: 2, adapters: [name], semantic: 'map/semantic/없음.json' }, null, 2) + '\n');
   writeFileSync(join(dir, 'map/adapters', `${name}.mjs`), `export default function ${name}(g) {\n${body}\n  return null;\n}\n`);
   return dir;
 }

@@ -36,7 +36,7 @@ function project({ config = false } = {}) {
   writeFileSync(join(dir, 'tests', 'plain.test.mjs'), "import test from 'node:test';\ntest('통과', () => {});\n");
   if (config) {
     mkdirSync(join(dir, 'map'));
-    writeFileSync(join(dir, 'map', 'config.json'), JSON.stringify({ engine: 1, tests: { dir: 'tests', report: 'map/.out/junit.xml' } }));
+    writeFileSync(join(dir, 'map', 'config.json'), JSON.stringify({ engine: 2, tests: { dir: 'tests', report: 'map/.out/junit.xml' } }));
     writeFileSync(join(dir, '.gitignore'), 'map/.out/\n');
   }
   git(dir, 'init', '-q');
