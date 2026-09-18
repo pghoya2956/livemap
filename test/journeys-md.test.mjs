@@ -170,3 +170,28 @@ test('사용자 확인 날짜 표기를 한 가지로 맞춘다', () => {
   assert.equal(normalizeDate(' 2026.09.18 '), '2026-09-18');
   assert.equal(normalizeDate('미정'), '미정');
 });
+
+test('빌드까지: 역할 파일이 있는데 형식이 어긋나 여정이 0건이면 check가 오류로 막는다', async () => {
+  const { buildGraph } = await import('../src/cli.mjs');
+  const { checkProblems } = await import('../src/check.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'livemap-empty-'));
+  try {
+    mkdirSync(join(root, 'web/src/pages'), { recursive: true });
+    writeFileSync(join(root, 'web/src/App.tsx'), '<Route path="/x" element={<X />} />');
+    writeFileSync(join(root, 'web/src/pages/X.tsx'), 'export function X() { return <div/>; }');
+    mkdirSync(join(root, 'docs/journeys'), { recursive: true });
+    // 역할 파일은 있지만 `## 여정:` 절이 없다(형식이 바뀐 상황)
+    writeFileSync(join(root, 'docs/journeys/diver.md'), '# 다이버\n\n- 사용자 확인: 2026-09-18\n\n## 이 역할\n\n설명만 있다.\n');
+    mkdirSync(join(root, 'map'), { recursive: true });
+    writeFileSync(join(root, 'map/config.json'), JSON.stringify({
+      engine: 1, project: { name: 'T' }, adapters: ['router'],
+      router: { app: 'web/src/App.tsx', pagesDir: 'web/src/pages', localDirs: ['web/src/pages'] },
+      semantic: 'docs/journeys', floors: {},
+    }));
+    const { data, cfg } = await buildGraph(root);
+    assert.equal(data.semantic.journeys.length, 0);
+    const hit = checkProblems(data, cfg).find((p) => p.code === 'semantic.empty');
+    assert.ok(hit, '읽을 역할 파일이 있는데 여정 0건이면 semantic.empty');
+    assert.equal(hit.level, 'error');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
