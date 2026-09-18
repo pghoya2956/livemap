@@ -57,6 +57,9 @@ export const ISSUE_CODES = {
   'roadmap.running-no-task': code('warn', '로드맵 항목', ['source']),
   'roadmap.running-no-milestone': code('warn', '로드맵 항목', ['source']),
   'roadmap.running-open-deps': code('warn', '로드맵 항목', ['source']),
+  // 1.3.0: 선행 흐름 경고
+  'roadmap.dep-cycle': code('warn', '로드맵 항목', ['source']),
+  'roadmap.milestone-backward': code('warn', '로드맵 항목', ['source']),
   'milestone.no-id': code('error', '마일스톤', ['source']),
   'milestone.duplicate-id': code('error', '마일스톤', ['source']),
   'milestone.unknown-status': code('error', '마일스톤', ['source']),

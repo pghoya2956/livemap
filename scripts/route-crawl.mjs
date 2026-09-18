@@ -2,6 +2,7 @@
 // 클릭 경로 크롤러(SC-14): 개요의 클릭 대상 표 요소를 누르거나 확인하고, 라우트 패턴마다 자료의 모든 개체 주소를 방문해
 // 화면 루트(data-screen)·대상 개체·콘솔 오류·CSP 위반을 본다. 선택자·기대·패턴·개체 출처는 --targets JSON(scripts/click-targets.json)에서 읽는다.
 // 코드에 둔 것은 기대 키(expect.*)마다의 확인 방법과 라우트 패턴마다의 대상 개체 검사(ROUTE_CHECKS)다.
+// 1.3.0: 표의 screens.<화면>이 있으면 그 화면(hash)을 열어 대화형 요소를 그 화면 행과 대조하고(표에 없으면 실패) 행마다 같은 방법으로 판정한다.
 // 사용: node scripts/route-crawl.mjs --url http://127.0.0.1:<port>/map/ --targets scripts/click-targets.json [--only <screen>] [--overview-only] [--block-fonts] [--json <결과 파일>]
 //   --only <screen>    그 화면(overview|journeys|roadmap|tasks|more)의 라우트 패턴과, 그 화면으로 가는 개요 요소만 본다.
 //   --overview-only    이동 요소는 href 패턴만 보고 방문하지 않는다. 라우트 크롤을 건너뛰고, 하위 화면이 필요한 클릭 예산은 deferred로 남긴다.
@@ -279,6 +280,13 @@ export async function crawlRoutes(page, log, ctx, { maxFollow = 400, scope = () 
   };
 }
 
+/** 개요 밖 화면을 새로 연다(빈 문서를 거쳐 상태를 버린다). */
+async function openScreen(page, base, hash, screen) {
+  await page.goto('about:blank');
+  await page.goto(`${base}${hash}`, { waitUntil: 'load' });
+  await page.waitForSelector(`[data-screen="${screen}"]`, { timeout: 15000 });
+  await settle(page, 250);
+}
 async function reloadOverview(page, base) {
   await page.goto(base, { waitUntil: 'load' });
   await page.waitForSelector('.panel', { timeout: 15000 });
@@ -321,14 +329,15 @@ const whenHolds = (when, served) => {
 };
 
 const KNOWN_EXPECT = new Set(['hrefs', 'ariaCurrent', 'hrefIn', 'pattern', 'patternIn', 'visible', 'hostFrom', 'rel', 'ariaPressedToggles', 'stopsAnimation', 'ariaPressed',
-  'filtersRowsByKind', 'syncsSelection', 'keys', 'hidesLayer', 'dblclickClearsFocus', 'escapeKey', 'switchesCapture', 'stopsRotation', 'switchesDetail', 'cursor', 'title']);
+  'filtersRowsByKind', 'syncsSelection', 'keys', 'hidesLayer', 'dblclickClearsFocus', 'escapeKey', 'switchesCapture', 'stopsRotation', 'switchesDetail', 'togglesDetails', 'cursor', 'title']);
 
 /** 표 요소 하나를 판정한다. 매번 개요를 새로 연다. scope가 있으면 이동 요소는 그 화면으로 가는 주소만, 제자리·외부·비대화형 요소는 개요 범위에서만 본다. */
-export async function checkOverviewTarget(page, log, ctx, t, { base, served, overviewOnly, budgetSel, scope = () => true }) {
+export async function checkOverviewTarget(page, log, ctx, t, { base, served, overviewOnly, budgetSel, scope = () => true, open = null, screen = 'overview' }) {
+  const reopen = open || (() => reloadOverview(page, base));
   const x = t.expect || {};
   const out = { name: t.name, selector: t.selector, kind: t.kind, source: t.source, optional: !!t.optional };
-  if (t.kind !== 'route' && !scope('overview')) return { ...out, pass: null, skipped: '--only 범위 밖' };
-  await reloadOverview(page, base);
+  if (t.kind !== 'route' && !scope(screen)) return { ...out, pass: null, skipped: '--only 범위 밖' };
+  await reopen();
   const unknownKeys = Object.keys(x).filter((k) => !KNOWN_EXPECT.has(k));
   if (unknownKeys.length) out.unimplemented = unknownKeys;
   let idx;
@@ -355,9 +364,9 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
     if (!overviewOnly) {
       const navs = [];
       for (const href of inScope.slice(0, 6)) {
-        await reloadOverview(page, base);
+        await reopen();
         const i = (await page.locator(t.selector).evaluateAll((es, h) => es.map((e, k) => (e.getAttribute('href') === h && window.__crawl.shown(e) ? k : -1)).filter((k) => k >= 0), href))[0];
-        if (i == null) { navs.push({ href, pass: false, reason: '다시 연 개요에 요소 없음' }); continue; }
+        if (i == null) { navs.push({ href, pass: false, reason: '다시 연 화면에 요소 없음' }); continue; }
         const e0 = errCount(log);
         const how = await clickLoc(loc(i)); await quiet(page);
         const hash = await page.evaluate(() => location.hash);
@@ -442,7 +451,7 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
         out.sync = { label: c.label, lists: st };
         checks.syncsSelection = syncOk(st);
         for (const key of x.keys || []) {
-          await reloadOverview(page, base);
+          await reopen();
           const kc = pickable(await syncCandidates(page, t.selector, x.syncsSelection));
           const z = kc[0];
           if (!z) { checks[`key ${JSON.stringify(key)}`] = false; continue; }
@@ -463,7 +472,7 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
         else { r.afterSelect = await state(); await loc(i0).dblclick({ position: { x: 4, y: 4 }, timeout: 3000 }).catch(() => loc(i0).dispatchEvent('dblclick')); await quiet(page); r.afterDblclick = await state(); checks.dblclickClearsFocus = r.afterSelect !== s0 && r.afterDblclick === s0; }
       }
       if (x.escapeKey) {
-        await reloadOverview(page, base);
+        await reopen();
         if (!(await pick())) checks.escapeKey = false;
         else { r.afterSelect2 = await state(); await page.keyboard.press('Escape'); await quiet(page); r.afterEscape = await state(); checks.escapeKey = r.afterSelect2 !== s0 && r.afterEscape === s0; }
       }
@@ -475,6 +484,12 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
       const s0 = await state(k); await clickLoc(loc(k)); await quiet(page); const s1 = await state(k);
       if (x.switchesCapture) checks.switchesCapture = idx.length > 1 ? s1 !== s0 : true;
       if (x.stopsRotation) { await page.waitForTimeout(6800); const s2 = await state(k); checks.stopsRotation = s2 === s1; out.capture = { states: [s0, s1, s2] }; }
+    }
+    if (x.togglesDetails) {
+      const open0 = () => loc(i0).evaluate((e) => !!e.closest('details')?.open);
+      const o0 = await open0(); await clickLoc(loc(i0)); await quiet(page); const o1 = await open0(); await clickLoc(loc(i0)); await quiet(page); const o2 = await open0();
+      out.details = { open: [o0, o1, o2] };
+      checks.togglesDetails = o1 !== o0 && o2 === o0;
     }
     if (x.switchesDetail) {
       const k = idx[idx.length - 1];
@@ -621,6 +636,18 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
     const clickBudget = scope(budgetScreen) ? await measureClickBudget(page, base, targets.clickBudget) : { pass: null, skipped: '--only 범위 밖' };
     const keyboard = scope('overview') ? await measureKeyboard(page, base, targets) : { pass: null, skipped: '--only 범위 밖' };
     timing.clickBudgetKeyboard = Date.now() - t; t = Date.now();
+    // 1.3.0: 개요 밖 화면(targets.screens)도 대화형 요소를 표와 대조하고 그 화면의 행을 판정한다. 개요만 보는 실행에서는 건너뛴다
+    const screens = {};
+    for (const [screen, spec] of Object.entries(targets.screens || {})) {
+      if (overviewOnly || !scope(screen)) { screens[screen] = { skipped: overviewOnly ? '--overview-only' : '--only 범위 밖' }; continue; }
+      const open = () => openScreen(page, base, spec.hash, screen);
+      await open();
+      const si = await C(page, 'interactive', spec.targets.map((x) => x.selector));
+      const rows = [];
+      for (const target of spec.targets) rows.push(await checkOverviewTarget(page, log, ctx, target, { base, served, overviewOnly, budgetSel: targets.clickBudget[0], scope, open, screen }));
+      screens[screen] = { hash: spec.hash, interactive: si.interactive, unlisted: si.unlisted, targets: rows };
+    }
+    timing.screens = Date.now() - t; t = Date.now();
     let routes, patternsMissing;
     if (overviewOnly) { routes = { skipped: '--overview-only' }; patternsMissing = { skipped: '--overview-only' }; }
     else {
@@ -631,17 +658,21 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
       patternsMissing = routes.byPattern.filter((p) => p.entities === 0 && !optionalPat.has(p.pattern)).map((p) => ({ pattern: p.pattern, reason: '자료에 개체 없음(방문 못 함)' }));
       timing.routes = Date.now() - t;
     }
-    const navMissing = sum(overviewTargets.map((o) => o.screenAttrMissing || 0));
+    const screenRows = Object.values(screens).flatMap((x) => x.targets || []);
+    const navMissing = sum([...overviewTargets, ...screenRows].map((o) => o.screenAttrMissing || 0));
     const summary = {
       targets: { pass: overviewTargets.filter((o) => o.pass === true).length, fail: overviewTargets.filter((o) => o.pass === false).length, skipped: overviewTargets.filter((o) => o.pass === null).length },
       interactive: inter.interactive, unlisted: inter.unlisted.length,
       visits: routes.visits ?? null, visitsPassed: routes.passed ?? null, visitFailures: routes.failures?.length ?? null, offPattern: routes.offPattern?.length ?? null,
       screenAttrMissing: (routes.screenAttrMissing || 0) + navMissing,
+      screens: Object.fromEntries(Object.entries(screens).map(([k, x]) => [k, x.skipped ? { skipped: x.skipped } : { interactive: x.interactive, unlisted: x.unlisted.length,
+        targets: { pass: x.targets.filter((o) => o.pass === true).length, fail: x.targets.filter((o) => o.pass === false).length, skipped: x.targets.filter((o) => o.pass === null).length } }])),
     };
-    const pass = overviewTargets.every((o) => o.pass !== false) && inter.unlisted.length === 0
+    const screensOk = Object.values(screens).every((x) => x.skipped || (x.unlisted.length === 0 && x.targets.every((o) => o.pass !== false)));
+    const pass = overviewTargets.every((o) => o.pass !== false) && inter.unlisted.length === 0 && screensOk
       && (overviewOnly || (routes.failures.length === 0 && routes.offPattern.length === 0 && patternsMissing.length === 0))
       && summary.screenAttrMissing === 0 && (clickBudget.pass !== false || (overviewOnly && (clickBudget.deferred = DEFERRED))) && keyboard.pass !== false;
-    return { pass, summary, overviewTargets, unlisted: inter.unlisted, routes, patternsMissing, clickBudget, keyboard,
+    return { pass, summary, overviewTargets, unlisted: inter.unlisted, screens, routes, patternsMissing, clickBudget, keyboard,
       dataJson: !!data, overviewOnly: !!overviewOnly, only, runtimeMs: Date.now() - t0, timing, targets: resolve(targetsPath) };
   } finally { await bctx.close(); }
 }
@@ -677,6 +708,10 @@ async function main() {
   const bad = (x) => x && x.pass === false;
   for (const o of r.overviewTargets.filter(bad)) console.log(`  표 요소 실패: ${o.name} ${o.reason || JSON.stringify(o.checks)}`);
   for (const u of r.unlisted.slice(0, 10)) console.log(`  표에 없는 대화형 요소: ${u.at} ${u.text}`);
+  for (const [k, x] of Object.entries(r.screens || {})) {
+    for (const o of (x.targets || []).filter(bad)) console.log(`  표 요소 실패: [${k}] ${o.name} ${o.reason || JSON.stringify(o.checks)}`);
+    for (const u of (x.unlisted || []).slice(0, 10)) console.log(`  표에 없는 대화형 요소: [${k}] ${u.at} ${u.text}`);
+  }
   if (Array.isArray(r.patternsMissing)) for (const p of r.patternsMissing) console.log(`  개체 없는 패턴: ${p.pattern}`);
   if (Array.isArray(r.routes.failures)) for (const v of r.routes.failures.slice(0, 15)) console.log(`  방문 실패: ${v.hash} ${v.check} ${JSON.stringify(v.content)}${v.errors.length ? ` 오류 ${v.errors[0]}` : ''}${v.screenOk === false ? ` 화면 ${v.screen}` : ''}`);
   if (r.routes.offPattern?.length) console.log(`  패턴 밖 링크: ${r.routes.offPattern.slice(0, 10).join(' ')}`);
