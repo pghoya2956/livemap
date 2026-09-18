@@ -90,6 +90,7 @@ const USAGE = `usage: livemap <command>
   serve        [--port 4180] [--static <dir>] 로컬 뷰 http://127.0.0.1:<port>/map/
   export <dir> [--out map/.out]               화면·서체·캡처·생성물을 한 폴더에(먼저 build)
   init                                        map/ 초안 파일·.gitignore·npm 스크립트·커밋 전 훅
+  affected     [--base <ref>]                 바뀐 화면을 지나는 브라우저 검사와 실행 명령
   test-report                                 단위 검사를 JUnit 리포트와 결과 JSON으로
   test-report --import <파일> [--sha <커밋>]  Playwright JSON·JUnit·livemap 리포터 출력을 결과 JSON에
   --version                                   엔진 버전`;
@@ -142,7 +143,7 @@ export async function main(argv = []) {
 
   const root = resolve(opt('root', process.cwd()));
   const out = resolve(root, opt('out', 'map/.out'));
-  if (!['build', 'check', 'serve', 'export', 'test-report'].includes(cmd)) { console.error(USAGE); return 2; }
+  if (!['build', 'check', 'serve', 'export', 'test-report', 'affected'].includes(cmd)) { console.error(USAGE); return 2; }
 
   const staticDir = cmd === 'serve' ? opt('static') : undefined;
   let cfg = null;
@@ -201,6 +202,12 @@ export async function main(argv = []) {
     if (!target) { console.error('usage: livemap export <dir> [--out map/.out]'); return 2; }
     const { exportSite } = await import('./serve.mjs');
     return exportSite({ root, out, captures: resolve(root, capturesDir(cfg)), target: resolve(process.cwd(), target) });
+  }
+  if (cmd === 'affected') {
+    const { affected, affectedText } = await import('./affected.mjs');
+    const r = await affected({ root, base: opt('base', null) });
+    for (const line of affectedText(r)) console.log(line);
+    return 0;
   }
   if (cmd === 'test-report') {
     const { testReport, importReport } = await import('./test-report.mjs');
