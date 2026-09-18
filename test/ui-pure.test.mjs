@@ -1,5 +1,5 @@
 // 화면 순수 함수 검사(스펙 「테스트 계획」 화면 순수 함수): 신선도, 결정 대기 경과일, 시각 표기, 호스트 이름, 목록 맞춤,
-// 기능 지도 12개 고르기, 마지막 방문 비교, 해시 라우트, 로드맵 트리 배치. JSX 없는 ui/lib 모듈만 import한다
+// 기능 지도 12개 고르기, 마지막 방문 비교, 해시 라우트, 로드맵 트리 배치, 캡처 패널 범위. JSX 없는 ui/lib 모듈만 import한다
 // (트리 검사의 픽스처 자료만 엔진 빌드로 만든다).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,6 +12,7 @@ import { fitCount, mapJourneys } from '../ui/lib/fit.js';
 import { isNewer } from '../ui/lib/visit.js';
 import { parseRoute } from '../ui/lib/route.js';
 import { buildTree, pathOf, geometry, crossings } from '../ui/lib/tree.js';
+import { visibleCaptures } from '../ui/lib/capture.js';
 
 const G = '2026-09-16T17:29:52.070Z';
 const plus = (min) => Date.parse(G) + min * 60000;
@@ -450,4 +451,30 @@ test('SC-13 tree geometry: milestone 모드는 padLeft = 8 × 차선수 + 8, gap
     byLanes.push(g.padLeft);
   }
   assert.deepEqual(byLanes, [8, 16, 24, 32]);
+});
+
+// ---- 캡처 패널 범위(ui/lib/capture.js): 고르기 전 미리보기, 고른 기능 범위, 빈 범위, 되돌림 기준(DEC-24·DEC-38·DEC-39) ----
+const CAPS = [
+  ['d', 'home'], ['d', 'resorts'], ['d', 'detail'], ['q', 'login'], ['q', 'detail'], ['q', 'quote'], ['t', 'teams'], ['b', 'mine'], ['o', 'today'],
+].map(([journey, f]) => ({ file: `${f}.jpg`, journey, step: f }));
+
+test('SC-14 visibleCaptures: 사용자가 고르기 전에는 previewCount(기본 5)장, 범위 신원은 빈 값', () => {
+  const v = visibleCaptures(CAPS, { selected: 'd', userPicked: false });
+  assert.equal(v.list.length, 5);
+  assert.deepEqual([v.scoped, v.key], [false, '']);
+  assert.equal(visibleCaptures(CAPS, {}).list.length, 5);
+  assert.equal(visibleCaptures(CAPS, { previewCount: 3 }).list.length, 3);
+  assert.equal(visibleCaptures(CAPS.slice(0, 2), {}).list.length, 2);
+});
+
+test('SC-7 visibleCaptures: 사용자가 기능을 고르면 그 기능 캡처만, 범위 신원은 기능 id', () => {
+  const v = visibleCaptures(CAPS, { selected: 'q', userPicked: true });
+  assert.deepEqual(v.list.map((c) => c.step), ['login', 'detail', 'quote']);
+  assert.deepEqual([v.scoped, v.key], [true, 'q']);
+});
+
+test('SC-8 visibleCaptures: 고른 기능에 캡처가 없으면 빈 목록이고 범위는 유지한다', () => {
+  const v = visibleCaptures(CAPS, { selected: 'notify', userPicked: true });
+  assert.deepEqual([v.list.length, v.scoped, v.key], [0, true, 'notify']);
+  assert.deepEqual(visibleCaptures([], { selected: 'd', userPicked: true }).list, []);
 });
