@@ -72,6 +72,47 @@ export function checkProblems(d, cfg) {
     if (j.actor && !(j.actor in actors)) warn('journey.actor-unknown', `${j.title}: 배우 사전에 없는 값 ${j.actor}`, subj('journey', j.id));
     for (const s of j.steps) if (s.actor && s.actor !== j.actor && !(s.actor in actors)) warn('journey.actor-unknown', `${j.title} › ${s.label}: 배우 사전에 없는 값 ${s.actor}`, subj('step', `${j.id}/${s.id}`));
   }
+  // 여정 정본(md 디렉터리) 규칙: 하위 유형 어휘·넘김 짝·시작 지점·사용자 확인 뒤 변경.
+  // 역할 정보가 없는 프로젝트(1.x JSON 여정)에서는 건너뛴다.
+  const roles = d.semantic.roles || [];
+  if (roles.length) {
+    const stepIds = new Set(d.semantic.journeys.flatMap((j) => j.steps.map((s) => `${j.id}/${s.id}`)));
+    const byRole = new Map(roles.map((r) => [r.slug, r]));
+    const roleByLabel = new Map(roles.map((r) => [(actors[r.slug] || r.slug), r]));
+    const anchorsOf = (r) => [{ file: r.file, line: 1 }];
+    for (const r of roles) {
+      const declared = new Set((r.subtypes || []).map((x) => x.name));
+      const starts = [r.startStep, ...(r.subtypes || []).map((x) => x.start)].filter(Boolean);
+      for (const start of new Set(starts)) {
+        if (!stepIds.has(start)) err('journey.start-unknown', `${r.file}: 시작 지점이 단계 ID가 아님 ${start}`, { subject: { kind: 'journeyDoc', id: r.slug }, anchors: anchorsOf(r), resolutions: ['source'] });
+      }
+      if (r.changedAfterReview) {
+        warn('journey.doc-changed-after-review', `${r.file}: 사용자 확인(${r.reviewedAt}) 뒤에 바뀜`, { subject: { kind: 'journeyDoc', id: r.slug }, anchors: anchorsOf(r), resolutions: ['source'] });
+      }
+      // 하위 유형 어휘: 그 역할 파일의 단계가 쓰는 `하는 사람`이 표에 있어야 한다
+      if (declared.size) {
+        for (const j of d.semantic.journeys.filter((x) => x.actor === r.slug)) {
+          for (const s of j.steps) {
+            for (const name of s.subtypes || []) {
+              if (!declared.has(name)) warn('journey.subtype-unknown', `${j.title} › ${s.label}: 하위 유형 표에 없는 값 ${name}`, { subject: { kind: 'step', id: `${j.id}/${s.id}` }, anchors: anchorsOf(r), resolutions: ['source'] });
+            }
+          }
+        }
+      }
+    }
+    // 넘김 짝: 가리키는 단계가 있어야 하고, 받는 역할 파일의 `넘겨받는 일`에 그 단계가 적혀 있어야 한다
+    for (const j of d.semantic.journeys) {
+      for (const s of j.steps) {
+        for (const h of s.handoffs || []) {
+          const ss = { subject: { kind: 'step', id: `${j.id}/${s.id}` }, resolutions: ['source'] };
+          if (!stepIds.has(h.step)) { err('journey.handoff-missing-step', `${j.title} › ${s.label}: 넘김 대상 단계가 없음 ${h.step}`, ss); continue; }
+          const target = roleByLabel.get(h.role) || byRole.get(h.role);
+          if (!target) { warn('journey.handoff-unpaired', `${j.title} › ${s.label}: 넘김 받는 역할을 찾지 못함 ${h.role}`, ss); continue; }
+          if (!(target.handoffs || []).includes(h.step)) warn('journey.handoff-unpaired', `${j.title} › ${s.label}: ${target.file}의 넘겨받는 일에 ${h.step}이 없음`, ss);
+        }
+      }
+    }
+  }
   if (d.orphans.screens.length) warn('orphan.screens', `여정에 없는 화면 ${d.orphans.screens.length}: ${d.orphans.screens.join(', ')}`);
   if (d.orphans.apis.length) warn('orphan.apis', `어느 화면도 부르지 않는 API ${d.orphans.apis.length}: ${d.orphans.apis.join(', ')}`);
   if (d.orphans.tests.length) warn('orphan.tests', `라우트·API에 붙지 않는 검사 ${d.orphans.tests.length}: ${d.orphans.tests.join(', ')}`);

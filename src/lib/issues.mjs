@@ -35,6 +35,13 @@ export const ISSUE_CODES = {
   'journey.duplicate-id': code('error', '여정', ['source']),
   'journey.no-steps': code('error', '여정', ['source']),
   'journey.actor-unknown': code('warn', '여정', ['source']),
+  // 2.0.0 여정 정본(md 디렉터리) 규칙
+  'journey.subtype-unknown': code('warn', '단계', ['source']),
+  'journey.handoff-missing-step': code('error', '단계', ['source']),
+  'journey.handoff-unpaired': code('warn', '단계', ['source']),
+  'journey.start-unknown': code('error', '여정 문서', ['source']),
+  'journey.doc-changed-after-review': code('warn', '여정 문서', ['source']),
+  'tests.tag-unknown': code('warn', '검사', ['source']),
   'step.duplicate-id': code('error', '여정', ['source']),
   'step.intent-empty': code('warn', '단계', ['source']),
   'step.route-missing': code('error', '단계', ['source', 'code']),

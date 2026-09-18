@@ -119,6 +119,12 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 | `journey.duplicate-id` | error | 여정 | source | 여정 id 중복 |
 | `journey.no-steps` | error | 여정 | source | 여정에 장면 없음 |
 | `journey.actor-unknown` | warn | 여정 | source | 여정·장면 배우가 배우 사전에 없음 |
+| `journey.subtype-unknown` | warn | 단계 | source | 단계의 `하는 사람`이 역할 파일 `## 하위 유형` 표에 없음(2.0.0, md 정본) |
+| `journey.handoff-missing-step` | error | 단계 | source | 단계의 `**넘김**`이 가리키는 단계 ID가 없음(2.0.0) |
+| `journey.handoff-unpaired` | warn | 단계 | source | 받는 역할 파일의 `## 넘겨받는 일`에 그 단계가 없음(2.0.0) |
+| `journey.start-unknown` | error | 여정 문서 | source | 파일 머리·하위 유형 표의 `시작 지점`이 단계 ID가 아님(2.0.0) |
+| `journey.doc-changed-after-review` | warn | 여정 문서 | source | 역할 파일이 `사용자 확인` 날짜 뒤에 바뀜(2.0.0) |
+| `tests.tag-unknown` | warn | 검사 | source | 브라우저 검사의 단계 태그가 여정에 없는 단계를 가리킴 |
 | `step.duplicate-id` | error | 여정 | source | 한 여정 안에서 장면 id 중복 |
 | `step.intent-empty` | warn | 단계 | source | 장면 intent 비어 있음 |
 | `step.route-missing` | error | 단계 | source·code | 장면이 가리키는 라우트 없음 |

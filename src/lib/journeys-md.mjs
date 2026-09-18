@@ -10,6 +10,8 @@ import { parseSections } from './md-props.mjs';
 
 const STATUS = { 동작: 'live', 목업: 'mock', 미착수: 'planned', 다음: 'next' };
 const JOURNEY = /^여정\s*[:：]\s*(.*)$/;
+// 단계의 넘김 줄: `**넘김**: <역할> \`<단계 ID>\`(조건)`
+const HANDOFF = /\*\*넘김\*\*\s*[:：]\s*([^`\n(]+?)\s*`([^`]+)`/g;
 const LIST_KEYS = ['하는 사람'];
 
 // `20260917 11:00`·`2026-09-17`·`2026.09.17` → `2026-09-17`. 모양이 다르면 원문 그대로 둔다(검사 규칙이 본다)
@@ -73,8 +75,10 @@ export function readRoleFile(text, slug) {
       const id = String(child.props.id ?? '').trim();
       if (!id) continue;
       const [journeyId, stepId] = id.includes('/') ? [id.slice(0, id.indexOf('/')), id.slice(id.indexOf('/') + 1)] : [null, id];
+      const handoffs2 = [];
+      for (const line of [...child.items, child.prose]) for (const m of String(line).matchAll(HANDOFF)) handoffs2.push({ role: m[1].trim(), step: m[2].trim() });
       steps.push({
-        id: stepId, journeyId, fullId: id, label: child.title,
+        id: stepId, journeyId, fullId: id, label: child.title, handoffs: handoffs2,
         status: STATUS[child.props['상태']] || child.props['상태'] || '',
         statusWord: child.props['상태'] || '',
         intent: child.props['목적'] || child.prose || '',
@@ -95,7 +99,10 @@ export function readJourneysDir(fs, dir, { map = {}, project = null } = {}) {
   const roles = [];
   for (const f of files) {
     if (f === 'README.md') continue;
-    roles.push({ file: `${dir}/${f}`, ...readRoleFile(fs.read(`${dir}/${f}`), slugOf(f)) });
+    const file = `${dir}/${f}`;
+    const role = readRoleFile(fs.read(file), slugOf(f));
+    const last = fs.lastCommit ? fs.lastCommit(file) : null;
+    roles.push({ file, last, changedAfterReview: !!(last && role.reviewedAt && last.date > role.reviewedAt), ...role });
   }
   const stepsMap = map.steps || {};
   const journeys = [];
@@ -110,7 +117,7 @@ export function readJourneysDir(fs, dir, { map = {}, project = null } = {}) {
             id: s.id, label: s.label, intent: s.intent, status: s.status,
             actor: extra.actor, screens: extra.screens || [], capture: extra.capture, apis: extra.apis,
             refs: extra.refs || [], note: extra.note, reviewedAt: extra.reviewedAt || role.reviewedAt,
-            subtypes: s.subtypes, src: { file: role.file, line: s.line },
+            subtypes: s.subtypes, handoffs: s.handoffs, src: { file: role.file, line: s.line },
           };
         }),
       });

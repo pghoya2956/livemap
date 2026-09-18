@@ -291,7 +291,7 @@ export function derive(g, sem, cfg, { captureExists }) {
     schemaVersion: 1, generatedAt: new Date().toISOString(), project: sem.project || cfg.project, head, deploy: homelab, testreport: report,
     // 결과 실행 목록(러너·출처·sha·시각·exit·최신 여부만, dirtyPaths는 싣지 않는다)
     testRuns: report?.runs || [],
-    adapters: g.toJSON().adapters, semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, journeys },
+    adapters: g.toJSON().adapters, semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, roles: sem.roles || [], journeys },
     summary, orphans, coverage, tasks: taskView, roadmap, ledger, decisions: decisionView, plans, commits: commitView, areaCounts,
     screens: screenView, apis: apiView, functions: fnView, migrations: migView, tests: testView,
     milestones: milestoneView, issues: g.issues.map((i) => ({ ...i })), sources: { semantic: cfg.semantic, roadmap: cfg.roadmap?.file ?? null },
