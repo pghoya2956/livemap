@@ -315,10 +315,16 @@ export function overviewSlice(d, opts = {}) {
   const currentMilestone = (milestones.find((m) => m.status === '진행') || milestones.find((m) => m.status === '다음'))?.id ?? null;
   const openItems = (d.roadmap || []).filter((r) => r.status !== '완료').sort((a, b) => a.order - b.order);
 
+  // 캡처: 기능마다 동작 단계의 캡처 파일을 단계 순서로 최대 5장. 중복 제거는 기능 안에서만 하고 전체 상한은 없다(1.3.0, DEC-23)
   const captures = [];
   for (const j of d.semantic.journeys) {
-    const s = j.steps.find((x) => x.status === 'live' && x.captureFile && !captures.some((c) => c.file === x.captureFile));
-    if (s && captures.length < 5) captures.push({ file: s.captureFile, journey: j.id, step: s.id });
+    const files = new Set();
+    for (const s of j.steps) {
+      if (files.size >= 5) break;
+      if (s.status !== 'live' || !s.captureFile || files.has(s.captureFile)) continue;
+      files.add(s.captureFile);
+      captures.push({ file: s.captureFile, journey: j.id, step: s.id });
+    }
   }
   const changes = human.slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 20).map((c) => {
     const touched = new Set(c.journeys.map((x) => x.journey));
