@@ -1,10 +1,13 @@
 // 로드맵 화면(#/roadmap, #/roadmap/<항목 또는 마일스톤 id>).
 // 1.0.1 site/map.js의 roadmapView()를 이식한다. 1.1.0은 마일스톤별 <details> 묶음, 완료일·결정 대기 주체·경과일·막힘 표시, 상태 필터 칩을 더한다.
 // 어휘는 "장면"→"단계"로 바꾸고 파일 경로 문구는 data.sources에서 읽는다.
+// 1.3.0은 카드 목록 위에 기술 트리 패널과 고른 항목 상세 슬롯을 두고, 카드에 층·잠김 칩, 후속 줄, 연결 단계를 함께 가리키는 항목을 더한다.
 import React from 'react';
 import { Screen, Empty, RoadmapTag } from './common.jsx';
 import { StepMark, Proj, Chip } from '../components/primitives.jsx';
+import { RoadmapTree } from '../components/RoadmapTree.jsx';
 import { STATUS, mdKo, waitDays } from '../lib/format.js';
+import { buildTree } from '../lib/tree.js';
 
 const DONE = '완료';
 const STATUS_SEQ = ['완료', '진행', '다음', '대기', '이후'];
@@ -39,15 +42,25 @@ function Waiting({ who, what, raw, since, refIso }) {
   );
 }
 
-/** 연결 단계 칩: 상태 표식 + 단계 이름, 기능 단계 화면으로. 없는 단계는 경고 글자. */
-function StepLink({ s }) {
+/** 연결 단계 칩: 상태 표식 + 단계 이름, 기능 단계 화면으로. 없는 단계는 경고 글자.
+ *  also: 같은 단계를 함께 가리키는 다른 항목들. 칩 제목에 수를, 칩 아래에 그 항목 링크를 단다. */
+function StepLink({ s, also = [] }) {
   if (s.missing) return <span className="rm-miss">단계 없음 {s.ref}</span>;
-  const title = `${s.label} · ${STATUS[s.status]?.word || s.status}${s.fixed ? ' · 하드코딩 표시값' : ''}`;
-  return (
+  const title = `${s.label} · ${STATUS[s.status]?.word || s.status}${s.fixed ? ' · 하드코딩 표시값' : ''}${also.length ? ` · 이 단계를 함께 가리키는 항목 ${also.length}` : ''}`;
+  const chip = (
     <a className="rm-step" href={`#/journeys/${encodeURIComponent(s.journey)}/${encodeURIComponent(s.step)}`} title={title}>
       <StepMark status={s.status} size={10} /><Proj>{s.label}</Proj>
       {s.fixed && <span className="rm-fixed">고정값</span>}
     </a>
+  );
+  if (!also.length) return chip;
+  return (
+    <span className="rm-stepw">
+      {chip}
+      <span className="rm-also">함께 가리키는 항목 {also.length} · {also.map((x, i) => (
+        <React.Fragment key={x.id}>{i > 0 && ', '}<a href={`#/roadmap/${encodeURIComponent(x.id)}`}><Proj>{x.title}</Proj></a></React.Fragment>
+      ))}</span>
+    </span>
   );
 }
 
@@ -63,8 +76,9 @@ function TaskLine({ t }) {
   );
 }
 
-/** 항목 카드. 1.0.1 .rm-item 구성에 완료일·결정 대기 주체·경과일·막힘을 더한다. */
-function ItemCard({ m, selected, refIso }) {
+/** 항목 카드. 1.0.1 .rm-item 구성에 완료일·결정 대기 주체·경과일·막힘을 더한다.
+ *  1.3.0: node(buildTree 노드)로 층·잠김 칩과 후속 줄, sharedBy(단계 ref → 항목들)로 함께 가리키는 항목을 더한다. */
+function ItemCard({ m, selected, refIso, node, byId, sharedBy }) {
   const p = m.progress || { live: 0, total: 0, fixed: 0 };
   const blocked = (m.blockedBy || []).filter((b) => BLOCK_WORD[b]);
   const waiting = m.waitingOn || m.waitingWhat;
@@ -77,6 +91,8 @@ function ItemCard({ m, selected, refIso }) {
           <h3><Proj>{m.title}</Proj></h3>
           <RoadmapTag status={m.status} />
           <span className="chip">{m.mode ? <Proj>{m.mode}</Proj> : '진행 방식 없음'}</span>
+          {node && <span className="chip rm-layer" title="선행 깊이">{node.depth == null ? '순환' : `${node.depth + 1}층`}</span>}
+          {node?.locked && <span className="chip rm-lock" title={`선행이 안 끝남: ${node.blockedByDeps.map((id) => byId.get(id)?.title || id).join(', ')}`}>잠김</span>}
           <span className="rm-dim">동작 단계 {p.live}/{p.total}{p.fixed ? ` · 하드코딩 표시 단계 ${p.fixed}` : ''}</span>
           {m.completedAt && <span className="rm-date">{mdKo(m.completedAt)} 완료</span>}
           {blocked.length > 0 && <span className="rm-block" title="막힌 이유">막힘 · {blocked.map((b) => BLOCK_WORD[b]).join(' · ')}</span>}
@@ -93,10 +109,15 @@ function ItemCard({ m, selected, refIso }) {
               <span key={x.id}>{x.status ? <a href={`#/roadmap/${encodeURIComponent(x.id)}`}><Proj>{x.title}</Proj></a> : <Proj>{x.title}</Proj>}{x.status && <> <RoadmapTag status={x.status} /></>}</span>
             ))}</dd></>
           )}
+          {node?.children.length > 0 && (
+            <><dt>후속</dt><dd className="rm-deps">{node.children.map((id) => { const c = byId.get(id); return (
+              <span key={id}><a href={`#/roadmap/${encodeURIComponent(id)}`}><Proj>{c.title}</Proj></a> <RoadmapTag status={c.status} /></span>
+            ); })}</dd></>
+          )}
           <dt>작업</dt>
           <dd>{m.tasks?.length ? m.tasks.map((t) => <TaskLine key={t.name} t={t} />) : <span className="rm-dim">착수 전</span>}</dd>
           <dt>연결 단계</dt>
-          <dd className="rm-steps">{m.scenes?.length ? m.scenes.map((s, i) => <StepLink key={s.ref || i} s={s} />) : <span className="rm-dim">연결된 단계 없음</span>}</dd>
+          <dd className="rm-steps">{m.scenes?.length ? m.scenes.map((s, i) => <StepLink key={s.ref || i} s={s} also={(sharedBy?.get(s.ref) || []).filter((x) => x.id !== m.id)} />) : <span className="rm-dim">연결된 단계 없음</span>}</dd>
         </dl>
       </div>
     </article>
@@ -143,6 +164,14 @@ export function Roadmap({ ov, data, params }) {
   const sel = params.id || null;
   const refIso = data.generatedAt || ov.generatedAt;
   const [filter, setFilter] = React.useState('전체');
+  const tree = React.useMemo(() => buildTree(R, MS), [data]);
+  const byId = React.useMemo(() => new Map(R.map((m) => [m.id, m])), [data]);
+  // 단계 ref → 그 단계를 가리키는 항목들(카드의 「함께 가리키는 항목」)
+  const sharedBy = React.useMemo(() => {
+    const map = new Map();
+    for (const m of R) for (const s of m.scenes || []) if (!s.missing) { if (!map.has(s.ref)) map.set(s.ref, []); if (!map.get(s.ref).includes(m)) map.get(s.ref).push(m); }
+    return map;
+  }, [data]);
 
   const doneItems = R.filter((m) => m.status === DONE).length;
   const sub = MS.length
@@ -159,9 +188,11 @@ export function Roadmap({ ov, data, params }) {
 
   const counts = R.reduce((a, m) => ({ ...a, [m.status]: (a[m.status] || 0) + 1 }), {});
   const keys = [...STATUS_SEQ.filter((k) => counts[k]), ...Object.keys(counts).filter((k) => !STATUS_SEQ.includes(k))];
-  // 경로로 고른 항목은 필터와 무관하게 보인다(스크롤 대상이 사라지지 않게).
-  const visible = (m) => filter === '전체' || m.status === filter || m.id === sel;
-  const card = (m) => <ItemCard key={m.id} m={m} selected={sel === m.id} refIso={refIso} />;
+  // 고른 항목은 트리 바로 아래 상세 슬롯에서만 렌더하고 목록에서 뺀다(id="rm-<id>"가 문서에 하나, DEC-19).
+  const selItem = sel ? byId.get(sel) : null;
+  const passes = (m) => filter === '전체' || m.status === filter;
+  const visible = (m) => passes(m) && m.id !== sel;
+  const card = (m) => <ItemCard key={m.id} m={m} selected={sel === m.id} refIso={refIso} node={tree.nodes[m.id]} byId={byId} sharedBy={sharedBy} />;
 
   let body;
   if (!MS.length) {
@@ -175,11 +206,11 @@ export function Roadmap({ ov, data, params }) {
     body = groups.map(({ ms, items }) => {
       const shown = items.filter(visible);
       if (!ms) {
-        if (!items.length || !shown.length) return null;
+        if (!items.length || (!shown.length && !items.includes(selItem))) return null;
         return (
           <details className="rm-ms" key="-none" open>
             <summary><span className="rm-ms-t">마일스톤 없음</span><span className="rm-dim">항목 {items.length}</span></summary>
-            <div className="rm">{shown.map(card)}</div>
+            {shown.length ? <div className="rm">{shown.map(card)}</div> : <Empty>고른 항목은 위 상세에 있다</Empty>}
           </details>
         );
       }
@@ -187,7 +218,7 @@ export function Roadmap({ ov, data, params }) {
       const open = ms.status !== DONE || sel === ms.id || items.some((m) => m.id === sel);
       return (
         <MilestoneGroup key={ms.id} ms={ms} items={items.length} open={open} refIso={refIso}>
-          {shown.length ? <div className="rm">{shown.map(card)}</div> : <Empty>{filter === '전체' ? '묶인 항목 없음' : '고른 상태의 항목 없음'}</Empty>}
+          {shown.length ? <div className="rm">{shown.map(card)}</div> : <Empty>{items.includes(selItem) ? '고른 항목은 위 상세에 있다' : filter === '전체' ? '묶인 항목 없음' : '고른 상태의 항목 없음'}</Empty>}
         </MilestoneGroup>
       );
     });
@@ -203,6 +234,8 @@ export function Roadmap({ ov, data, params }) {
           <Chip key={k} on={filter === k} count={k === '전체' ? R.length : counts[k]} onClick={() => setFilter(k)}>{k === '진행' ? '진행 중' : k}</Chip>
         ))}
       </div>
+      <RoadmapTree tree={tree} items={R} milestones={MS} sel={sel} faded={(id) => !passes(byId.get(id))} refIso={refIso} />
+      {selItem && <div className="rt-detail">{card(selItem)}</div>}
       {body}
       {foot && <p className="src rm-src">{foot}</p>}
     </Screen>
