@@ -62,14 +62,19 @@ export function normalizeApiLiteral(raw, template = true) {
   return open ? { path, open: true } : { path };
 }
 
-// 글자에서 리터럴을 뽑는다: [{ path, open?, line }]. startLine은 text 첫 줄의 줄 번호
+// 글자에서 API 리터럴을 뽑는다: [{ path, open?, line }]. startLine은 text 첫 줄의 줄 번호
 export function extractApiLiterals(text, startLine = 1) {
+  return extractPathLiterals(text, startLine, API_PREFIX);
+}
+
+// 같은 규칙으로 임의 접두어의 경로 리터럴을 뽑는다(화면 주소는 '/'). 백틱 템플릿의 ${…}는 :param이 된다
+export function extractPathLiterals(text, startLine = 1, prefix = '/') {
   const out = [];
   let line = startLine;
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
     if (ch === '\n') { line += 1; continue; }
-    if (!QUOTES.has(ch) || !text.startsWith(API_PREFIX, i + 1)) continue;
+    if (!QUOTES.has(ch) || !text.startsWith(prefix, i + 1)) continue;
     // 닫는 따옴표까지(백틱은 ${…} 안을 건너뛴다). 작은·큰따옴표는 줄을 넘지 않는다
     let j = i + 1, depth = 0;
     for (; j < text.length; j += 1) {
