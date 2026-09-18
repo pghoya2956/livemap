@@ -416,7 +416,7 @@ test('SC-1 tree geometry: 6열·폭 1400은 노드 폭 150~240에 스크롤 없�
   assert.equal(g12.scroll, true);
   assert.equal(g12.nodeW, 150);
   assert.ok(g12.W > 600);
-  assert.equal(geometry(t12, 3000).nodeW, 240); // 천장
+  assert.equal(geometry(t12, 4000).nodeW, 240); // 천장: (4000 − 440 − 32) ÷ 12 = 294
 
   // 합성 40개(Phase 0 SCALE40): 10열, 폭 1440·800 둘 다 바닥, 전체 폭 1,892px, 높이 846px
   const s = await roadmapFixture('scale40');
