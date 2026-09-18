@@ -37,25 +37,32 @@ test('단계의 하는 사람이 역할 파일 하위 유형 표에 없으면 �
 });
 
 test('넘김이 가리키는 단계가 없으면 오류, 받는 역할이 넘겨받는 일에 안 적었으면 경고다', () => {
-  const roles = [
-    role({ slug: 'diver', subtypes: [{ name: '방문자', start: 'a/one' }] }),
-    role({ slug: 'resort', startStep: 'b/two', subtypes: [], handoffs: ['a/one'] }),
-  ];
+  // 정본 규칙: 역할을 건너가는 단계는 여정을 시작한 역할이 소유하고, 받는 역할 파일은 `넘겨받는 일`에 같은 ID를 둔다.
+  // 받는 역할이 그 단계를 이미 소유하면(자기 여정의 단계) 따로 적지 않는다.
   const journeys = [
+    { id: 'a', title: 'A', actor: 'diver', steps: [step('one', { subtypes: ['방문자'], handoffs: [{ role: '리조트', step: 'a/two' }] })] },
+    { id: 'a2', title: 'A2', actor: 'diver', steps: [step('two')] },
+  ];
+  journeys[1].id = 'a'; // 같은 여정의 다음 단계를 리조트가 받는다(소유는 다이버 파일)
+  const unpaired = [role({ slug: 'diver', subtypes: [{ name: '방문자', start: 'a/one' }] }), role({ slug: 'resort', startStep: 'a/one', handoffs: [] })];
+  const warn = checkProblems(data({ roles: unpaired, journeys }), { floors: {} }).find((p) => p.code === 'journey.handoff-unpaired');
+  assert.ok(warn, '받는 역할 파일에 짝이 없으면 경고');
+
+  const paired = [role({ slug: 'diver', subtypes: [{ name: '방문자', start: 'a/one' }] }), role({ slug: 'resort', startStep: 'a/one', handoffs: ['a/two'] })];
+  assert.ok(!codes(data({ roles: paired, journeys })).includes('journey.handoff-unpaired'));
+
+  const owned = [
     { id: 'a', title: 'A', actor: 'diver', steps: [step('one', { subtypes: ['방문자'], handoffs: [{ role: '리조트', step: 'b/two' }] })] },
     { id: 'b', title: 'B', actor: 'resort', steps: [step('two')] },
   ];
-  const warn = checkProblems(data({ roles, journeys }), { floors: {} }).find((p) => p.code === 'journey.handoff-unpaired');
-  assert.ok(warn, '받는 역할 파일에 짝이 없으면 경고');
-
-  const paired = [role({ slug: 'diver', subtypes: [{ name: '방문자', start: 'a/one' }] }), role({ slug: 'resort', startStep: 'b/two', handoffs: ['b/two'] })];
-  assert.ok(!codes(data({ roles: paired, journeys })).includes('journey.handoff-unpaired'));
+  const noEntry = [role({ slug: 'diver', subtypes: [{ name: '방문자', start: 'a/one' }] }), role({ slug: 'resort', startStep: 'b/two', handoffs: [] })];
+  assert.ok(!codes(data({ roles: noEntry, journeys: owned })).includes('journey.handoff-unpaired'), '받는 역할이 소유한 단계는 적지 않아도 된다');
 
   const dangling = [
     { id: 'a', title: 'A', actor: 'diver', steps: [step('one', { subtypes: ['방문자'], handoffs: [{ role: '리조트', step: 'b/없음' }] })] },
     { id: 'b', title: 'B', actor: 'resort', steps: [step('two')] },
   ];
-  const err = checkProblems(data({ roles: paired, journeys: dangling }), { floors: {} }).find((p) => p.code === 'journey.handoff-missing-step');
+  const err = checkProblems(data({ roles: noEntry, journeys: dangling }), { floors: {} }).find((p) => p.code === 'journey.handoff-missing-step');
   assert.ok(err, '없는 단계로 넘기면 오류');
   assert.equal(err.level, 'error');
 });

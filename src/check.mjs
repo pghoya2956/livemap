@@ -80,8 +80,10 @@ export function checkProblems(d, cfg) {
     const byRole = new Map(roles.map((r) => [r.slug, r]));
     const roleByLabel = new Map(roles.map((r) => [(actors[r.slug] || r.slug), r]));
     const anchorsOf = (r) => [{ file: r.file, line: 1 }];
+    const allSubtypes = new Set(roles.flatMap((r) => (r.subtypes || []).map((x) => x.name)));
+    const ownerOf = new Map(d.semantic.journeys.flatMap((j) => j.steps.map((s) => [`${j.id}/${s.id}`, j.actor])));
     for (const r of roles) {
-      const declared = new Set((r.subtypes || []).map((x) => x.name));
+      const declared = allSubtypes;
       const starts = [r.startStep, ...(r.subtypes || []).map((x) => x.start)].filter(Boolean);
       for (const start of new Set(starts)) {
         if (!stepIds.has(start)) err('journey.start-unknown', `${r.file}: 시작 지점이 단계 ID가 아님 ${start}`, { subject: { kind: 'journeyDoc', id: r.slug }, anchors: anchorsOf(r), resolutions: ['source'] });
@@ -108,6 +110,7 @@ export function checkProblems(d, cfg) {
           if (!stepIds.has(h.step)) { err('journey.handoff-missing-step', `${j.title} › ${s.label}: 넘김 대상 단계가 없음 ${h.step}`, ss); continue; }
           const target = roleByLabel.get(h.role) || byRole.get(h.role);
           if (!target) { warn('journey.handoff-unpaired', `${j.title} › ${s.label}: 넘김 받는 역할을 찾지 못함 ${h.role}`, ss); continue; }
+          if (ownerOf.get(h.step) === target.slug) continue; // 받는 역할이 소유한 단계는 자기 파일에 이미 있다
           if (!(target.handoffs || []).includes(h.step)) warn('journey.handoff-unpaired', `${j.title} › ${s.label}: ${target.file}의 넘겨받는 일에 ${h.step}이 없음`, ss);
         }
       }
