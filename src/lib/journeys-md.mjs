@@ -5,7 +5,8 @@
 // 디렉터리 모양
 //   README.md      역할 표(역할 → 파일·이름)와 상태 어휘 표
 //   <역할>.md      머리 `- 사용자 확인`·`- 시작 지점`, `## 여정: <이름>` 절, 그 아래 `### <단계>` 절
-//   대응표(JSON)   { lanes: { <여정 또는 역할>: <레인> }, steps: { "<여정>/<단계>": { screens, capture, refs, apis, note, actor } } }
+//   대응표(JSON)   { lanes: { <여정 또는 역할>: <레인> }, steps: { "<여정>/<단계>": { screens, capture, refs, apis, note, noTest } } }
+//   noTest는 "이 단계에 검사가 없는 이유"이고 적으면 정본→검사 규칙에서 면제한다(이유는 정본 본문에 두지 않는다)
 import { parseSections } from './md-props.mjs';
 
 const STATUS = { 동작: 'live', 목업: 'mock', 미착수: 'planned', 다음: 'next' };
@@ -116,7 +117,7 @@ export function readJourneysDir(fs, dir, { map = {}, project = null } = {}) {
           return {
             id: s.id, label: s.label, intent: s.intent, status: s.status,
             actor: extra.actor, screens: extra.screens || [], capture: extra.capture, apis: extra.apis,
-            refs: extra.refs || [], note: extra.note, reviewedAt: extra.reviewedAt || role.reviewedAt,
+            refs: extra.refs || [], note: extra.note, noTest: extra.noTest, reviewedAt: extra.reviewedAt || role.reviewedAt,
             subtypes: s.subtypes, handoffs: s.handoffs, src: { file: role.file, line: s.line },
           };
         }),

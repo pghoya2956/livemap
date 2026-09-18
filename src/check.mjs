@@ -72,6 +72,21 @@ export function checkProblems(d, cfg) {
     if (j.actor && !(j.actor in actors)) warn('journey.actor-unknown', `${j.title}: 배우 사전에 없는 값 ${j.actor}`, subj('journey', j.id));
     for (const s of j.steps) if (s.actor && s.actor !== j.actor && !(s.actor in actors)) warn('journey.actor-unknown', `${j.title} › ${s.label}: 배우 사전에 없는 값 ${s.actor}`, subj('step', `${j.id}/${s.id}`));
   }
+  // 정본 → 검사: 동작·목업 단계는 지나는 검사가 있어야 한다. 대응표에 `noTest` 이유를 적으면 면제한다.
+  // 미착수·다음 단계는 아직 만들지 않은 것이라 검사가 없어도 오류가 아니다.
+  // md 정본(2.0.0)을 읽는 프로젝트에서만 돈다. 1.x JSON 여정은 이유를 적을 자리가 정해져 있지 않아 종료 코드가 바뀐다.
+  if ((d.semantic.roles || []).length) for (const j of d.semantic.journeys) {
+    for (const s of j.steps) {
+      if (s.status !== 'live' && s.status !== 'mock') continue;
+      if ((s.testFiles || []).length || s.noTest) continue;
+      err('step.no-test', `${j.title} › ${s.label}: 지나는 검사 없음(대응표에 이유를 적으면 면제)`, subj('step', `${j.id}/${s.id}`));
+    }
+  }
+  // 검사 → 정본: 검사가 지나는데 어느 단계에도 없는 라우트. 검사가 없는 고아 화면은 기존 orphan.screens가 센다
+  if ((d.semantic.roles || []).length) {
+    const testedOrphans = (d.orphans.screens || []).filter((path) => (d.screens.find((x) => x.path === path)?.tests || []).length);
+    if (testedOrphans.length) warn('tests.route-not-in-journey', `검사가 지나는데 여정에 없는 화면 ${testedOrphans.length}: ${testedOrphans.join(', ')}`);
+  }
   // 여정 정본(md 디렉터리) 규칙: 하위 유형 어휘·넘김 짝·시작 지점·사용자 확인 뒤 변경.
   // 역할 정보가 없는 프로젝트(1.x JSON 여정)에서는 건너뛴다.
   const roles = d.semantic.roles || [];

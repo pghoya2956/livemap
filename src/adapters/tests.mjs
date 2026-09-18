@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { setReading } from '../lib/reading.mjs';
 import { extractPathLiterals } from '../lib/literals.mjs';
+import { readSemantic } from '../cli.mjs';
 // 검사 어댑터: tests/ 파일에서 test 노드를 만들고, 화면·API·DB 함수를 덮는(covers) 엣지를 잇는다.
 // 화면은 두 길로 잇는다. 하나는 파일(로컬 import 닫힘 포함)의 경로 리터럴이고, 둘은 Playwright 단계 태그 `@<여정>/<단계>`다.
 // 리터럴은 작은·큰따옴표와 백틱 템플릿을 같은 규칙으로 읽는다(`/r/${slug}` → `/r/:param`). 헬퍼가 돌려주는 템플릿도 닫힘에 들어와 잡힌다.
@@ -55,12 +56,11 @@ export function matchesScreen(litPath, screenId) {
   return b.every((seg, i) => seg === a[i] || (seg.startsWith(':') && a[i] !== ''));
 }
 
-// 여정 파일에서 단계 id → 화면 목록. 1.x는 JSON 한 파일이다(2.0.0에서 md 디렉터리로 바뀐다).
+// 여정 정본에서 단계 id → 화면 목록. JSON 한 파일(1.x)과 md 디렉터리(2.0.0)를 같은 읽개로 받는다.
 function stepScreens(fs, cfg) {
   const map = new Map();
-  if (!cfg.semantic || !fs.has(cfg.semantic)) return map;
   let sem;
-  try { sem = JSON.parse(fs.read(cfg.semantic)); } catch { return map; }
+  try { sem = readSemantic(fs, cfg); } catch { return map; }
   for (const j of sem.journeys || []) for (const s of j.steps || []) map.set(`${j.id}/${s.id}`, s.screens || []);
   return map;
 }
