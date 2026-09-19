@@ -77,34 +77,29 @@ function roadmapFlowProblems(items, releases) {
   return out;
 }
 
-export function derive(g, sem, cfg, { captureExists }) {
-  const screens = g.of('screen'), apis = g.of('api'), fns = g.of('function'), tests = g.of('test'), commits = g.of('commit').sort((a, b) => b.props.date.localeCompare(a.props.date));
-  const tasks = g.of('task'), decisions = g.of('decision').filter((d) => d.props.kind === 'wiki'), specDefs = g.of('decision').filter((d) => d.props.kind !== 'wiki');
-  const head = g.get('deploy', 'head')?.props || null;
-  const homelab = g.get('deploy', 'homelab')?.props || null;
-  const report = g.get('testreport', 'last')?.props || null;
-  const short = (t) => t.split('.').pop();
-  const testsOf = (kind, id) => g.in(kind, id, 'covers').map((t) => t.label);
-  // 등급 A: 덮는 검사 파일 중 하나가 최신 실행에서 검사 1개 이상·실패 0(파일 경로 정확 일치는 testreport 어댑터가 맞춘다)
-  const testsPassedFresh = (kind, id) => g.in(kind, id, 'covers').some((t) => t.props.lastRun?.passed && t.props.lastRun?.fresh && (t.props.lastRun.tests ?? 1) >= 1);
+// ---- derive 조각: 아래 함수는 인자만 읽는 순수 함수다. 그래프 기록(issue)·뷰 객체 덧붙임은 derive()가 조각 결과를 받아 한다 ----
+const short = (t) => t.split('.').pop();
+const testsOf = (g, kind, id) => g.in(kind, id, 'covers').map((t) => t.label);
+// 등급 A: 덮는 검사 파일 중 하나가 최신 실행에서 검사 1개 이상·실패 0(파일 경로 정확 일치는 testreport 어댑터가 맞춘다)
+const testsPassedFresh = (g, kind, id) => g.in(kind, id, 'covers').some((t) => t.props.lastRun?.passed && t.props.lastRun?.fresh && (t.props.lastRun.tests ?? 1) >= 1);
 
-  // ---- 화면·API·함수 뷰 ----
-  const screenView = screens.map((s) => ({
+// 화면·API·함수·마이그레이션·검사 뷰. 화면의 steps는 비워 두고 여정 조각이 채울 항목을 derive()가 덧붙인다
+function codeViews(g) {
+  const screenView = g.of('screen').map((s) => ({
     path: s.id, component: s.props.component, file: s.props.file, guarded: s.props.guarded, source: s.props.source, mockVia: s.props.mockVia, fixedVia: s.props.fixedVia || [], files: s.props.files,
-    apis: g.out('screen', s.id, 'calls').map((a) => a.id), tests: testsOf('screen', s.id), last: s.props.last, src: s.src,
+    apis: g.out('screen', s.id, 'calls').map((a) => a.id), tests: testsOf(g, 'screen', s.id), last: s.props.last, src: s.src,
     steps: [], reading: s.props.reading || {},
   }));
-  const apiView = apis.map((a) => ({ path: a.id, method: a.props.method || '?', calls: a.props.calls || [], tests: testsOf('api', a.id), src: a.src, declared: !!a.src }));
-  const fnView = fns.map((f) => ({ name: f.id, usedByApi: g.in('function', f.id, 'invokes').length > 0, tables: g.out('function', f.id, 'touches').map((t) => t.label), tests: testsOf('function', f.id), migration: f.props.migration || null, src: f.src }));
+  const apiView = g.of('api').map((a) => ({ path: a.id, method: a.props.method || '?', calls: a.props.calls || [], tests: testsOf(g, 'api', a.id), src: a.src, declared: !!a.src }));
+  const fnView = g.of('function').map((f) => ({ name: f.id, usedByApi: g.in('function', f.id, 'invokes').length > 0, tables: g.out('function', f.id, 'touches').map((t) => t.label), tests: testsOf(g, 'function', f.id), migration: f.props.migration || null, src: f.src }));
   const migView = g.of('migration').map((m) => ({ file: m.id, tables: m.props.tables.map(short), functions: m.props.functions.map(short), grants: m.props.grants, rls: m.props.rls, last: m.props.last }));
-  const testView = tests.map((t) => ({ file: t.id, label: t.label, kind: t.props.kind, count: t.props.count, gated: t.props.gated, lastRun: t.props.lastRun || null, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {} }));
+  const testView = g.of('test').map((t) => ({ file: t.id, label: t.label, kind: t.props.kind, count: t.props.count, gated: t.props.gated, lastRun: t.props.lastRun || null, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {} }));
+  return { screenView, apiView, fnView, migView, testView };
+}
 
-  // ---- 여정 해석 ----
-  const byPath = Object.fromEntries(screenView.map((s) => [s.path, s]));
-  const apiByPath = Object.fromEntries(apiView.map((a) => [a.path, a]));
-  const decisionBySlug = Object.fromEntries(decisions.map((d) => [d.id, d]));
-  // 번호 참조: 정의 작업(definers)이 하나면 그 작업(rule), 여럿이면 폴더 이름 순 첫 작업(partial, tasks.ambiguous-ref).
-  // 정의 작업이 없는 노드(1.1.1 호환 줄에서만 만든 노드)는 1.1.1처럼 노드를 만든 작업으로 잇는다. <폴더>#<번호>는 그 작업의 정의만 본다
+// 번호 참조 풀기. 정의 작업(definers)이 하나면 그 작업(rule), 여럿이면 폴더 이름 순 첫 작업(partial, tasks.ambiguous-ref).
+// 정의 작업이 없는 노드(1.1.1 호환 줄에서만 만든 노드)는 1.1.1처럼 노드를 만든 작업으로 잇는다. <폴더>#<번호>는 그 작업의 정의만 본다
+function refResolver(g, specDefs) {
   const defNode = Object.fromEntries(specDefs.map((d) => [d.id, d]));
   const defOf = (d, task) => ({ task, file: d.props.file, done: d.props.done });
   const resolveRef = (ref) => {
@@ -124,77 +119,89 @@ export function derive(g, sem, cfg, { captureExists }) {
     const task = g.in('decision', d.id, 'defines')[0]?.id || null;
     return task ? { ...defOf(d, task), definers, reading: 'rule' } : { id: d.id };
   };
+  return { defNode, resolveRef };
+}
+
+// 장면 하나. ctx는 journeySlice가 만든 조회표·기록 함수 묶음이다
+function deriveStep(ctx, j, st) {
+  const { g, cfg, byPath, apiByPath, decisionBySlug, defNode, resolveRef, fnView, observedApis, issue, screenStep } = ctx;
+  const actor = st.actor || j.actor;
+  const screenNodes = (st.screens || []).map((p) => byPath[p] ? { path: p, source: byPath[p].source, file: byPath[p].file, tests: byPath[p].tests, last: byPath[p].last, mockVia: byPath[p].mockVia, fixedVia: byPath[p].fixedVia } : { path: p, source: 'missing' });
+  const apiSet = new Set(st.apis || []);
+  for (const a of st.apis || []) {
+    if (observedApis.has(a)) continue;
+    const message = `${j.title} › ${st.label}: 여정 apis ${a}를 부르는 화면이 관측되지 않음`;
+    const subject = { kind: 'step', id: `${j.id}/${st.id}` };
+    issue('journey.api-not-observed', ['warn', '여정 API', message, { code: 'journey.api-not-observed', subject, anchors: cfg.semantic ? [{ file: cfg.semantic }] : [] }]);
+  }
+  for (const p of st.screens || []) for (const a of byPath[p]?.apis || []) apiSet.add(a);
+  const apiNodes = [...apiSet].map((p) => apiByPath[p] ? { path: p, method: apiByPath[p].method, calls: apiByPath[p].calls, tests: apiByPath[p].tests } : { path: p, method: '?', calls: [], tests: [], missing: true });
+  const fnNames = [...new Set(apiNodes.flatMap((a) => a.calls.filter((c) => !c.startsWith('auth:'))))];
+  const functionNodes = fnNames.map((n) => ({ name: n, tables: fnView.find((f) => f.name === n)?.tables || [], tests: testsOf(g, 'function', n) }));
+  const testFiles = [...new Set([...screenNodes.flatMap((x) => x.tests || []), ...apiNodes.flatMap((x) => x.tests || []), ...functionNodes.flatMap((x) => x.tests || [])])];
+  const refNodes = (st.refs || []).map((r) => { const { qualified, id, ambiguous, ...hit } = resolveRef(r) || {}; return { ref: r, ...hit, wiki: decisionBySlug[r] ? { title: decisionBySlug[r].label, file: decisionBySlug[r].props.file, status: decisionBySlug[r].props.status } : null, _q: qualified, _id: id, _amb: ambiguous }; });
+  const taskNames = [...new Set(refNodes.map((r) => r.task).filter(Boolean))];
+  const warnings = [];
+  for (const n of screenNodes) {
+    if (n.source === 'missing') warnings.push(`라우트 없음: ${n.path}`);
+    else if (st.status === 'live' && n.source !== 'live') warnings.push(`장면은 동작인데 화면은 ${n.source}: ${n.path}`);
+    else if ((st.status === 'planned' || st.status === 'next') && n.source === 'live') warnings.push(`장면은 ${st.status}인데 화면은 동작: ${n.path}`);
+  }
+  for (const r of refNodes) {
+    if ((/^(DEC|PN|P\d)-/i.test(r.ref) || r._q) && !r.task) warnings.push(`참조 미해결: ${r.ref}`);
+    // 1.1.1이 인식하지 않던 접두어는 풀리지 않아도 경고(1.x 종료 코드 보호)
+    else if (r._id && !r.task) warnings.push(`번호 참조 대상 없음: ${r.ref}`);
+    if (r._amb) {
+      const d = defNode[r._amb];
+      const message = `${j.title} › ${st.label}: ${r._amb}을 정의한 작업 ${r.definers.length}개, 폴더 이름 순 첫 작업 ${r.task}로 이음`;
+      const subject = { kind: 'step', id: `${j.id}/${st.id}` };
+      issue('tasks.ambiguous-ref', ['warn', '여정 참조', message, { code: 'tasks.ambiguous-ref', subject, anchors: (d.props.definedAt || []).map((x) => ({ file: x.file, line: x.line })) }]);
+    }
+    delete r._q; delete r._id; delete r._amb;
+  }
+  // 등급: D 주장 / C 관측 / B 검사 존재 / A 최신 커밋에서 통과
+  // 관측 근거: 화면이 있으면 그 화면이 모두 실데이터일 때. 화면 없이 API로만 도는 단계(알림 발송 등)는
+  // 선언한 API가 모두 코드에 있을 때 관측으로 본다. 화면도 API도 없으면 주장(D)이다.
+  const observed = screenNodes.length > 0
+    ? screenNodes.every((n) => n.source === 'live')
+    : apiNodes.length > 0 && apiNodes.every((a) => !a.missing);
+  const covered = observed && testFiles.length > 0;
+  const verified = covered && (screenNodes.some((n) => testsPassedFresh(g, 'screen', n.path)) || apiNodes.some((a) => !a.missing && testsPassedFresh(g, 'api', a.path)) || functionNodes.some((f) => testsPassedFresh(g, 'function', f.name)));
+  const grade = st.status !== 'live' ? null : verified ? 'A' : covered ? 'B' : observed ? 'C' : 'D';
+  if (grade === 'D') warnings.push('동작 주장에 관측 근거 없음');
+  // 신선도: 장면 확인일보다 화면 파일이 나중에 바뀌었으면 확인 필요
+  const changedAfter = st.reviewedAt ? screenNodes.filter((n) => n.last && n.last.date > st.reviewedAt).map((n) => n.path) : [];
+  if (changedAfter.length) warnings.push(`확인 필요: ${st.reviewedAt} 뒤 화면 변경 ${changedAfter.join(', ')}`);
+  const recentCommits = [...new Map(screenNodes.flatMap((n) => g.in('screen', n.path, 'changes')).map((c) => [c.id, c])).values()].sort((a, b) => b.props.date.localeCompare(a.props.date)).slice(0, 5).map((c) => ({ sha: c.id, date: c.props.date, subject: c.label }));
+  const captureFile = ctx.captureExists(st.capture);
+  for (const n of screenNodes) if (byPath[n.path]) screenStep(n.path, { journey: j.id, step: st.id, label: `${j.title} › ${st.label}` });
+  return { ...st, actor, screenNodes, apiNodes, functionNodes, testFiles, refNodes, taskNames, warnings, grade, captureFile, recentCommits };
+}
+
+// 여정 해석. 그래프에 새로 적을 issue(같은 code·subject·message는 한 번만)와 화면에 덧붙일 장면 목록은 돌려주기만 한다
+function journeySlice(g, sem, cfg, captureExists, { screenView, apiView, fnView }, decisions, specDefs) {
+  const byPath = Object.fromEntries(screenView.map((s) => [s.path, s]));
+  const apiByPath = Object.fromEntries(apiView.map((a) => [a.path, a]));
+  const decisionBySlug = Object.fromEntries(decisions.map((d) => [d.id, d]));
   const seenIssue = new Set(g.issues.map((i) => `${i.code}|${i.subject?.id}|${i.message}`));
+  const issues = [], screenSteps = [];
+  const issue = (code, args) => { const key = `${code}|${args[3].subject.id}|${args[2]}`; if (seenIssue.has(key)) return; seenIssue.add(key); issues.push(args); };
+  const screenStep = (path, step) => screenSteps.push([path, step]);
   // 관측한 화면 호출(calls 엣지). 고아 API와 journey.api-not-observed는 이것만 센다
   const observedApis = new Set(screenView.flatMap((s) => s.apis));
+  const ctx = { g, cfg, captureExists, byPath, apiByPath, decisionBySlug, ...refResolver(g, specDefs), fnView, observedApis, issue, screenStep };
   const journeys = (sem.journeys || []).map((j) => {
-    const steps = j.steps.map((st) => {
-      const actor = st.actor || j.actor;
-      const screenNodes = (st.screens || []).map((p) => byPath[p] ? { path: p, source: byPath[p].source, file: byPath[p].file, tests: byPath[p].tests, last: byPath[p].last, mockVia: byPath[p].mockVia, fixedVia: byPath[p].fixedVia } : { path: p, source: 'missing' });
-      const apiSet = new Set(st.apis || []);
-      for (const a of st.apis || []) {
-        if (observedApis.has(a)) continue;
-        const message = `${j.title} › ${st.label}: 여정 apis ${a}를 부르는 화면이 관측되지 않음`;
-        const subject = { kind: 'step', id: `${j.id}/${st.id}` };
-        const key = `journey.api-not-observed|${subject.id}|${message}`;
-        if (seenIssue.has(key)) continue;
-        seenIssue.add(key);
-        g.issue('warn', '여정 API', message, { code: 'journey.api-not-observed', subject, anchors: cfg.semantic ? [{ file: cfg.semantic }] : [] });
-      }
-      for (const p of st.screens || []) for (const a of byPath[p]?.apis || []) apiSet.add(a);
-      const apiNodes = [...apiSet].map((p) => apiByPath[p] ? { path: p, method: apiByPath[p].method, calls: apiByPath[p].calls, tests: apiByPath[p].tests } : { path: p, method: '?', calls: [], tests: [], missing: true });
-      const fnNames = [...new Set(apiNodes.flatMap((a) => a.calls.filter((c) => !c.startsWith('auth:'))))];
-      const functionNodes = fnNames.map((n) => ({ name: n, tables: fnView.find((f) => f.name === n)?.tables || [], tests: testsOf('function', n) }));
-      const testFiles = [...new Set([...screenNodes.flatMap((x) => x.tests || []), ...apiNodes.flatMap((x) => x.tests || []), ...functionNodes.flatMap((x) => x.tests || [])])];
-      const refNodes = (st.refs || []).map((r) => { const { qualified, id, ambiguous, ...hit } = resolveRef(r) || {}; return { ref: r, ...hit, wiki: decisionBySlug[r] ? { title: decisionBySlug[r].label, file: decisionBySlug[r].props.file, status: decisionBySlug[r].props.status } : null, _q: qualified, _id: id, _amb: ambiguous }; });
-      const taskNames = [...new Set(refNodes.map((r) => r.task).filter(Boolean))];
-      const warnings = [];
-      for (const n of screenNodes) {
-        if (n.source === 'missing') warnings.push(`라우트 없음: ${n.path}`);
-        else if (st.status === 'live' && n.source !== 'live') warnings.push(`장면은 동작인데 화면은 ${n.source}: ${n.path}`);
-        else if ((st.status === 'planned' || st.status === 'next') && n.source === 'live') warnings.push(`장면은 ${st.status}인데 화면은 동작: ${n.path}`);
-      }
-      for (const r of refNodes) {
-        if ((/^(DEC|PN|P\d)-/i.test(r.ref) || r._q) && !r.task) warnings.push(`참조 미해결: ${r.ref}`);
-        // 1.1.1이 인식하지 않던 접두어는 풀리지 않아도 경고(1.x 종료 코드 보호)
-        else if (r._id && !r.task) warnings.push(`번호 참조 대상 없음: ${r.ref}`);
-        if (r._amb) {
-          const d = defNode[r._amb];
-          const message = `${j.title} › ${st.label}: ${r._amb}을 정의한 작업 ${r.definers.length}개, 폴더 이름 순 첫 작업 ${r.task}로 이음`;
-          const subject = { kind: 'step', id: `${j.id}/${st.id}` };
-          const key = `tasks.ambiguous-ref|${subject.id}|${message}`;
-          if (!seenIssue.has(key)) {
-            seenIssue.add(key);
-            g.issue('warn', '여정 참조', message, { code: 'tasks.ambiguous-ref', subject, anchors: (d.props.definedAt || []).map((x) => ({ file: x.file, line: x.line })) });
-          }
-        }
-        delete r._q; delete r._id; delete r._amb;
-      }
-      // 등급: D 주장 / C 관측 / B 검사 존재 / A 최신 커밋에서 통과
-      // 관측 근거: 화면이 있으면 그 화면이 모두 실데이터일 때. 화면 없이 API로만 도는 단계(알림 발송 등)는
-      // 선언한 API가 모두 코드에 있을 때 관측으로 본다. 화면도 API도 없으면 주장(D)이다.
-      const observed = screenNodes.length > 0
-        ? screenNodes.every((n) => n.source === 'live')
-        : apiNodes.length > 0 && apiNodes.every((a) => !a.missing);
-      const covered = observed && testFiles.length > 0;
-      const verified = covered && (screenNodes.some((n) => testsPassedFresh('screen', n.path)) || apiNodes.some((a) => !a.missing && testsPassedFresh('api', a.path)) || functionNodes.some((f) => testsPassedFresh('function', f.name)));
-      const grade = st.status !== 'live' ? null : verified ? 'A' : covered ? 'B' : observed ? 'C' : 'D';
-      if (grade === 'D') warnings.push('동작 주장에 관측 근거 없음');
-      // 신선도: 장면 확인일보다 화면 파일이 나중에 바뀌었으면 확인 필요
-      const changedAfter = st.reviewedAt ? screenNodes.filter((n) => n.last && n.last.date > st.reviewedAt).map((n) => n.path) : [];
-      if (changedAfter.length) warnings.push(`확인 필요: ${st.reviewedAt} 뒤 화면 변경 ${changedAfter.join(', ')}`);
-      const recentCommits = [...new Map(screenNodes.flatMap((n) => g.in('screen', n.path, 'changes')).map((c) => [c.id, c])).values()].sort((a, b) => b.props.date.localeCompare(a.props.date)).slice(0, 5).map((c) => ({ sha: c.id, date: c.props.date, subject: c.label }));
-      const captureFile = captureExists(st.capture);
-      for (const n of screenNodes) if (byPath[n.path]) byPath[n.path].steps.push({ journey: j.id, step: st.id, label: `${j.title} › ${st.label}` });
-      return { ...st, actor, screenNodes, apiNodes, functionNodes, testFiles, refNodes, taskNames, warnings, grade, captureFile, recentCommits };
-    });
+    const steps = j.steps.map((st) => deriveStep(ctx, j, st));
     const sts = steps.map((s) => s.status);
     const status = sts.every((s) => s === 'live') ? 'live' : sts.some((s) => s === 'live') ? 'partial' : sts.slice().sort((a, b) => RANK[a] - RANK[b])[0];
     const counts = Object.fromEntries(['live', 'mock', 'planned', 'next'].map((k) => [k, sts.filter((s) => s === k).length]));
     return { ...j, steps, status, counts, taskNames: [...new Set(steps.flatMap((s) => s.taskNames))], warnings: steps.reduce((n, s) => n + s.warnings.length, 0) };
   });
+  return { journeys, observedApis, issues, screenSteps };
+}
 
-  // ---- 고아·커버리지 ----
+// 고아·커버리지
+function orphanSlice(g, { screenView, apiView, fnView, testView }, journeys, observedApis) {
   const inJourney = new Set(journeys.flatMap((j) => j.steps.flatMap((s) => s.screens || [])));
   const orphans = {
     screens: screenView.filter((s) => !inJourney.has(s.path)).map((s) => s.path),
@@ -203,8 +210,12 @@ export function derive(g, sem, cfg, { captureExists }) {
     tests: testView.filter((t) => !g.out('test', t.file, 'covers').length).map((t) => t.label),
   };
   const coverage = { screens: { inJourney: screenView.length - orphans.screens.length, total: screenView.length } };
+  return { orphans, coverage };
+}
 
-  // ---- 커밋 영향 ----
+// 커밋 영향. 화면의 steps(여정 조각이 채운 뒤)를 읽으므로 derive()가 장면을 덧붙인 다음 부른다
+function commitSlice(g, commits, screenView) {
+  const byPath = Object.fromEntries(screenView.map((s) => [s.path, s]));
   const commitView = commits.map((c) => {
     const routes = g.out('commit', c.id, 'changes').filter((n) => n.kind === 'screen').map((n) => n.id);
     const js = [...new Map(routes.flatMap((p) => byPath[p]?.steps || []).map((x) => [x.journey + '/' + x.step, x])).values()];
@@ -212,12 +223,19 @@ export function derive(g, sem, cfg, { captureExists }) {
   });
   const areaCounts = {};
   for (const c of commitView) for (const a of c.areas) areaCounts[a] = (areaCounts[a] || 0) + 1;
+  return { commitView, areaCounts };
+}
 
-  // ---- 작업·장부·결정 ----
+// 작업·장부·결정
+function workSlice(g, tasks, decisions, journeys) {
   const taskView = tasks.map((t) => ({ name: t.id, title: t.label, ...t.props, readLines: undefined, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {}, journeys: journeys.filter((j) => j.taskNames.includes(t.id)).map((j) => ({ id: j.id, title: j.title, status: j.status, steps: j.steps.filter((s) => s.taskNames.includes(t.id)).map((s) => s.label) })) })).sort((a, b) => b.name.localeCompare(a.name));
   const ledger = { running: g.of('ledger').filter((l) => l.props.state === 'running').map((l) => ({ work: l.label, owner: l.props.owner, done: l.props.done })), waiting: g.of('ledger').filter((l) => l.props.state !== 'running').map((l) => ({ work: l.label, state: l.props.status, resume: l.props.resume, done: l.props.state === 'done' })) };
   const decisionView = decisions.map((d) => ({ slug: d.id, title: d.label, file: d.props.file, status: d.props.status, summary: d.props.summary, refs: journeys.reduce((n, j) => n + j.steps.filter((s) => s.refNodes.some((r) => r.wiki && r.wiki.file === d.props.file)).length, 0) }));
-  // ---- 로드맵: 항목 순서대로 장면 상태·작업 단계를 붙인다. 해석 실패는 check가 오류로 막는다 ----
+  return { taskView, ledger, decisionView };
+}
+
+// 로드맵: 항목 순서대로 장면 상태·작업 단계를 붙인다. 해석 실패는 check가 오류로 막는다
+function roadmapSlice(g, journeys, taskView) {
   const stepByRef = Object.fromEntries(journeys.flatMap((j) => j.steps.map((s) => [`${j.id}/${s.id}`, { journey: j.id, step: s.id, label: `${j.title} › ${s.label}`, status: s.status, grade: s.grade, fixed: s.screenNodes.some((n) => (n.fixedVia || []).length) }])));
   const milestones = g.of('milestone').sort((a, b) => a.props.order - b.props.order);
   const milestoneIds = new Set(milestones.map((m) => m.id));
@@ -243,11 +261,13 @@ export function derive(g, sem, cfg, { captureExists }) {
     return { id: m.id, order: p.order, title: m.label, status: p.status, mode: p.mode, goal: p.goal, waitingOn: p.waitingOn, done: p.done, deps, scenes, tasks: trackedTasks, progress: { live, total: scenes.length, fixed: scenes.filter((s) => s.fixed).length }, problems, src: m.src,
       milestone: p.milestone ?? null, completedAt: p.completedAt ?? null, waitingSince: p.waitingSince ?? null, waitingWho: waiting.who, waitingWhat: waiting.what, blockedBy };
   });
-  for (const t of taskView) t.roadmapItems = roadmap.filter((m) => m.tasks.some((x) => x.name === t.name)).map((m) => m.id);
+  return { roadmap, releases };
+}
 
-  // ---- 마일스톤(release 노드): 소속 항목·진척·막힘. problems·warnings는 check가 그대로 싣는 완성 문장이다 ----
+// 마일스톤(release 노드): 소속 항목·진척·막힘. problems·warnings는 check가 그대로 싣는 완성 문장이다
+function milestoneSlice(releases, roadmap) {
   const itemIds = new Set(roadmap.map((m) => m.id));
-  const milestoneView = releases.map((r) => {
+  return releases.map((r) => {
     const p = r.props;
     const items = roadmap.filter((m) => m.milestone === r.id);
     const sceneRefs = new Map(items.flatMap((m) => m.scenes.filter((s) => !s.missing)).map((s) => [s.ref, s]));
@@ -273,10 +293,11 @@ export function derive(g, sem, cfg, { captureExists }) {
       blocked: !!p.waitingOn || open.some((m) => m.blockedBy.length > 0), problems, warnings, src: r.src,
     };
   });
+}
 
-  const plans = taskView.filter((t) => t.pnDone + t.pnOpen > 0).map((t) => ({ task: t.name, title: t.title, done: t.pnDone, open: t.pnOpen, oq: t.oq }));
-
-  const summary = {
+// 요약 수치
+function summarySlice(g, { screenView, apiView, fnView, testView }, journeys, orphans, commitView, taskView, plans) {
+  return {
     routes: screenView.length, liveRoutes: screenView.filter((s) => s.source === 'live').length, mockRoutes: screenView.filter((s) => s.source === 'mock' || s.source === 'mixed').length, fixedRoutes: screenView.filter((s) => s.fixedVia.length).length,
     apis: apiView.length, dbFunctions: fnView.length, dbTables: g.of('table').length, tests: testView.reduce((n, t) => n + t.count, 0), e2e: testView.filter((t) => t.kind === 'e2e').reduce((n, t) => n + t.count, 0),
     pnDone: plans.reduce((n, p) => n + p.done, 0), pnOpen: plans.reduce((n, p) => n + p.open, 0), oq: plans.reduce((n, p) => n + p.oq, 0),
@@ -286,6 +307,29 @@ export function derive(g, sem, cfg, { captureExists }) {
     stepsLive: journeys.reduce((n, j) => n + j.counts.live, 0), stepsTotal: journeys.reduce((n, j) => n + j.steps.length, 0),
     grades: Object.fromEntries(['A', 'B', 'C', 'D'].map((k) => [k, journeys.reduce((n, j) => n + j.steps.filter((s) => s.grade === k).length, 0)])),
   };
+}
+
+// 조각을 순서대로 부르고 합친다. 순서가 뜻을 가진다: 여정 → 화면 steps 덧붙임 → 커밋 영향, 작업 → 로드맵 → 작업의 roadmapItems
+export function derive(g, sem, cfg, { captureExists }) {
+  const commits = g.of('commit').sort((a, b) => b.props.date.localeCompare(a.props.date));
+  const tasks = g.of('task'), decisions = g.of('decision').filter((d) => d.props.kind === 'wiki'), specDefs = g.of('decision').filter((d) => d.props.kind !== 'wiki');
+  const head = g.get('deploy', 'head')?.props || null;
+  const homelab = g.get('deploy', 'homelab')?.props || null;
+  const report = g.get('testreport', 'last')?.props || null;
+
+  const views = codeViews(g);
+  const { journeys, observedApis, issues, screenSteps } = journeySlice(g, sem, cfg, captureExists, views, decisions, specDefs);
+  for (const args of issues) g.issue(...args);
+  const byPath = Object.fromEntries(views.screenView.map((s) => [s.path, s]));
+  for (const [path, step] of screenSteps) byPath[path].steps.push(step);
+  const { orphans, coverage } = orphanSlice(g, views, journeys, observedApis);
+  const { commitView, areaCounts } = commitSlice(g, commits, views.screenView);
+  const { taskView, ledger, decisionView } = workSlice(g, tasks, decisions, journeys);
+  const { roadmap, releases } = roadmapSlice(g, journeys, taskView);
+  for (const t of taskView) t.roadmapItems = roadmap.filter((m) => m.tasks.some((x) => x.name === t.name)).map((m) => m.id);
+  const milestoneView = milestoneSlice(releases, roadmap);
+  const plans = taskView.filter((t) => t.pnDone + t.pnOpen > 0).map((t) => ({ task: t.name, title: t.title, done: t.pnDone, open: t.pnOpen, oq: t.oq }));
+  const summary = summarySlice(g, views, journeys, orphans, commitView, taskView, plans);
 
   return {
     schemaVersion: 1, generatedAt: new Date().toISOString(), project: sem.project || cfg.project, head, deploy: homelab, testreport: report,
@@ -293,7 +337,7 @@ export function derive(g, sem, cfg, { captureExists }) {
     testRuns: report?.runs || [],
     adapters: g.toJSON().adapters, badges: g.badges.map((b) => ({ ...b })), semantic: { actors: sem.actors || {}, statusLegend: sem.statusLegend || {}, roles: sem.roles || [], readEmpty: sem.readEmpty || null, journeys },
     summary, orphans, coverage, tasks: taskView, roadmap, ledger, decisions: decisionView, plans, commits: commitView, areaCounts,
-    screens: screenView, apis: apiView, functions: fnView, migrations: migView, tests: testView,
+    screens: views.screenView, apis: views.apiView, functions: views.fnView, migrations: views.migView, tests: views.testView,
     milestones: milestoneView, issues: g.issues.map((i) => ({ ...i })), sources: { semantic: cfg.semantic, roadmap: cfg.roadmap?.file ?? null },
     // 읽기 상태 건수: 노드에 적힌 상태만 값별·필드별로 센다(적지 않은 필드는 rule로 보지만 세지 않는다)
     readings: countReadings([...g.nodes.values()]),
