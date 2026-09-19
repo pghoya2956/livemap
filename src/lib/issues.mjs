@@ -90,6 +90,7 @@ export const ISSUE_CODES = {
   'architecture.graph-schema': code('error', '설정', ['engine', 'config']),
   'architecture.bridge-unmatched': code('warn', '설정', ['code', 'config']),
   'architecture.table-unreached': code('warn', '설정', ['code', 'config']),
+  'architecture.graph-missing': code('warn', '설정', ['config']),
 };
 export const NEW_CODES = new Set(Object.keys(ISSUE_CODES).filter((c) => ISSUE_CODES[c].isNew));
 
