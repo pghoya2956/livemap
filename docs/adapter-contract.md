@@ -110,6 +110,10 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 | testreport | `last` | testreport |
 | milestone | 로드맵 항목 id(1.x 이름) | roadmap |
 | release | 마일스톤 id(1.x 임시 이름, 1.1.0부터) | roadmap |
+| module | 저장소 기준 파일 경로. 외부 패키지·문서 참조는 Graphify 라벨이고 `props.external`이 참(2.1.0) | graphify |
+| symbol | `<파일>:<이름>`. 같은 파일에 같은 이름이 둘이면 `@<위치>`를 붙인다. 정의 자리 없는 SQL 라벨은 라벨 그대로이고 `props.external`·`props.sql`이 참(2.1.0) | graphify |
+| container | 선언한 부품 id(2.1.0) | architecture 단계(선언 파일 `map/architecture/`) |
+| flow | 선언한 흐름 id(2.1.0) | architecture 단계 |
 
 로드맵 항목과 마일스톤의 노드 종류 이름은 1.x 동안 `milestone`·`release`이고, 2.0.0에서 `roadmapItem`·`milestone`으로 바꾼다(어댑터 계약 변경이라 major).
 
@@ -124,7 +128,9 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 
 역행·순환 문장은 어댑터가 아니라 엔진(`src/derive.mjs`)이 `roadmap[].problems`에 싣고 `check`가 경고로 낸다. 역행 문장 틀은 `마일스톤 순서 역행: {선행 id}({마일스톤}) → {항목 id}({마일스톤})`, 순환은 `선행 순환: {id} → {id} → …`다(코드는 `issue-codes.md` 「1.3.0 새 코드」).
 
-엣지: `shows`(step→screen, 파생이 만든다), `calls`(screen→api), `invokes`(api→function), `touches`(function→table), `covers`(test→screen|api|function), `changes`(commit→screen|api|migration), `defines`(task→decision), `contains`(migration→table|function, release→milestone), `tracks`(milestone→task). 새 종류가 필요하면 엔진 저장소의 `src/lib/graph.mjs` 목록에 더한다(minor 릴리스). 화면이 그 종류를 그리려면 `src/derive.mjs`와 화면 원본 `ui/`도 손봐야 하므로, 먼저 기존 종류로 표현할 수 없는지 본다.
+엣지: `shows`(step→screen, 파생이 만든다), `calls`(screen→api, 2.1.0부터 symbol→symbol·module→symbol 도), `invokes`(api→function, 2.1.0부터 api→로그인 노드도), `touches`(function→table), `covers`(test→screen|api|function), `changes`(commit→screen|api|migration), `defines`(task→decision), `contains`(migration→table|function, release→milestone, 2.1.0부터 module→symbol·symbol→symbol·container→module·flow→좌표 노드도), `tracks`(milestone→task). 새 종류가 필요하면 엔진 저장소의 `src/lib/graph.mjs` 목록에 더한다(minor 릴리스). 화면이 그 종류를 그리려면 `src/derive.mjs`와 화면 원본 `ui/`도 손봐야 하므로, 먼저 기존 종류로 표현할 수 없는지 본다.
+
+2.1.0(minor)이 더한 노드 종류는 위 표의 `module`·`symbol`·`container`·`flow` 넷, 엣지는 `imports`(module→module), `renders`(screen→module, 다리), `defined_in`(api→module, 다리), `depends`(container→container), `reads`(module→module, symbol→symbol, function→table|symbol), `inherits`(symbol→symbol) 여섯이다(스펙 DEC-24. `contains`는 2.0.2에 이미 있어 그대로 쓴다). 2.0.2 엣지 모양 `{ from, to, kind }`는 그대로고 Graphify·다리가 만든 엣지만 `props`를 더 가진다: `confidence`(`EXTRACTED`|`INFERRED`), 참일 때만 실리는 `typeOnly`·`deferred`, 원 relation 이 종류 이름과 다를 때의 `via`(`method`·`indexes`·`cites`), 다리가 만든 엣지의 `bridge: true`. `g.link`의 여섯째 인자로 넣고, 같은 (from, kind, to)가 이미 있으면 돌려받은 엣지의 props 를 부르는 쪽이 합친다.
 
 ## 순서
 

@@ -1,11 +1,12 @@
 // 그래프 모델. 어댑터는 노드·엣지만 넣고, 화면은 파생 뷰만 읽는다.
-// 노드: { kind, id, label, props, src: { file, line, rule } }  엣지: { from, to, kind }
+// 노드: { kind, id, label, props, src: { file, line, rule } }  엣지: { from, to, kind } — Graphify·다리 엣지만 props(confidence·typeOnly·deferred·via·bridge)를 더 가진다(2.1.0)
 // 문제: { level: 'error'|'warn', label, message, adapter } — 어댑터가 g.issue로 낸 오류·경고. check가 줄로 출력한다.
 //   넷째 인자를 주면 code·subject·anchors·resolutions(이슈 계약, src/lib/issues.mjs)를 더 싣는다. 세 인자 호출은 1.1.0 모양 그대로다.
 import { issueDetail } from './issues.mjs';
 
-export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'table', 'migration', 'test', 'commit', 'decision', 'task', 'ledger', 'deploy', 'testreport', 'milestone', 'release'];
-export const EDGE_KINDS = ['has_step', 'shows', 'uses', 'calls', 'invokes', 'touches', 'covers', 'changes', 'refs', 'defines', 'contains', 'tracks'];
+// 2.1.0(minor): 구조 지도가 container·module·symbol·flow 노드와 imports·renders·defined_in·depends·reads·inherits 엣지를 더했다(스펙 DEC-24). contains 는 2.0.2에 이미 있다
+export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'table', 'migration', 'test', 'commit', 'decision', 'task', 'ledger', 'deploy', 'testreport', 'milestone', 'release', 'container', 'module', 'symbol', 'flow'];
+export const EDGE_KINDS = ['has_step', 'shows', 'uses', 'calls', 'invokes', 'touches', 'covers', 'changes', 'refs', 'defines', 'contains', 'tracks', 'imports', 'renders', 'defined_in', 'depends', 'reads', 'inherits'];
 
 export class Graph {
   constructor() { this.nodes = new Map(); this.edges = []; this.edgeIndex = new Map(); this.adapters = []; this.issues = []; this.badges = []; this.adapter = null; }
@@ -19,14 +20,15 @@ export class Graph {
     this.nodes.set(k, node);
     return node;
   }
-  // 같은 (from, kind, to)는 한 번만 넣고 그 엣지를 돌려준다. 엣지 키 색인(Map)으로 찾는다: 엣지가 수천이면 배열 전체 훑기가 수천만 번 비교가 된다
-  link(fromKind, fromId, kind, toKind, toId) {
+  // 같은 (from, kind, to)는 한 번만 넣고 그 엣지를 돌려준다. 엣지 키 색인(Map)으로 찾는다: 엣지가 수천이면 배열 전체 훑기가 수천만 번 비교가 된다.
+  // props 를 주면(비어 있지 않은 객체) 새 엣지에 props 를 싣는다. 이미 있는 엣지의 props 는 부르는 쪽이 돌려받은 엣지에서 합친다. 2.0.2 호출(다섯 인자)의 엣지 모양은 그대로다
+  link(fromKind, fromId, kind, toKind, toId, props = null) {
     if (!EDGE_KINDS.includes(kind)) throw new Error(`unknown edge kind ${kind}`);
     const from = this.key(fromKind, fromId), to = this.key(toKind, toId);
     const k = `${from}\u0000${kind}\u0000${to}`;
     const found = this.edgeIndex.get(k);
     if (found) return found;
-    const edge = { from, to, kind };
+    const edge = props && typeof props === 'object' && Object.keys(props).length ? { from, to, kind, props } : { from, to, kind };
     this.edgeIndex.set(k, edge);
     this.edges.push(edge);
     return edge;
