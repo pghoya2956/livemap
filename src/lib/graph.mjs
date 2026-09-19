@@ -9,7 +9,8 @@ export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'tabl
 export const EDGE_KINDS = ['has_step', 'shows', 'uses', 'calls', 'invokes', 'touches', 'covers', 'changes', 'refs', 'defines', 'contains', 'tracks', 'imports', 'renders', 'defined_in', 'depends', 'reads', 'inherits'];
 
 export class Graph {
-  constructor() { this.nodes = new Map(); this.edges = []; this.edgeIndex = new Map(); this.adapters = []; this.issues = []; this.badges = []; this.adapter = null; }
+  // architecture: graphify 어댑터와 다리 단계가 남기는 구조 통계(graph.json 에는 싣지 않고 파생이 data.json 에 싣는다). 어댑터가 돌지 않으면 null
+  constructor() { this.nodes = new Map(); this.edges = []; this.edgeIndex = new Map(); this.adapters = []; this.issues = []; this.badges = []; this.adapter = null; this.architecture = null; }
   key(kind, id) { return `${kind}:${id}`; }
   add(kind, id, label, props = {}, src = null) {
     if (!NODE_KINDS.includes(kind)) throw new Error(`unknown node kind ${kind}`);

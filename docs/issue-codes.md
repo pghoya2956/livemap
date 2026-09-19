@@ -80,6 +80,14 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 - `subject`·`anchors`·`resolutions`를 빼면 `null`·`[]`·표의 처리 값이 들어간다. 표에 없는 프로젝트 코드는 처리 기본값이 `[]`다.
 - 넷째 인자를 준 문제만 `graph.json`·`data.json` `issues[]`에 `code`·`subject`·`anchors`·`resolutions`(있으면 `judgmentDraft`)가 더해진다.
 
+## 2.1.0 새 코드
+
+구조 지도(Graphify 어댑터·다리·선언 대조)의 코드다. 1.2.0 새 코드처럼 6건 이상을 한 줄로 묶지 않는다. 대상이 `설정`인 코드의 `subject`는 설정 키(`{ kind: 'config', id: 'architecture.graph' }`)이거나, 다리가 짝을 못 찾은 노드(`{ kind: 'table', id }`)다.
+
+| 코드 | 수준 | 대상 | 처리 | 뜻 |
+|---|---|---|---|---|
+| `architecture.graph-schema` | error | 설정 | engine·config | `graph.json` 최상위 키 여섯(`directed`·`multigraph`·`graph`·`nodes`·`links`·`hyperedges`)이나 반드시 있는 노드 필드 여섯(`id`·`label`·`community`·`community_name`·`file_type`·`source_file`)·링크 필드 여덟(`source`·`target`·`relation`·`confidence`·`confidence_score`·`source_file`·`source_location`·`weight`)이 없다. 반쯤 읽은 그래프로 노드를 싣지 않는다 |
+
 ## 1.2.0 새 코드
 
 | 코드 | 수준 | 대상 | 처리 | 뜻 |

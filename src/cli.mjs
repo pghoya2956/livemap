@@ -29,8 +29,9 @@ export const CONFIG = 'map/config.json';
 export const MIGRATE_DOC = 'node_modules/@pghoya2956/livemap/docs/migrate.md';
 
 // 기본 어댑터 순서. 순서가 의미 있다: tests·git은 screen·api 노드가 있어야 엣지를 잇고, testreport는 git이 만든 head를 본다.
+// graphify(2.1.0)는 migrations 가 만든 function·table 노드에 Graphify 증거를 덧붙이므로 그 바로 뒤다.
 // config.json의 "adapters" 배열로 바꾼다(프로젝트마다 어댑터 파일을 map/adapters/<name>.mjs 에 둔다).
-const DEFAULT_ADAPTERS = ['router', 'bff', 'migrations', 'tests', 'wiki', 'tasks', 'git', 'deploy', 'testreport'];
+const DEFAULT_ADAPTERS = ['router', 'bff', 'migrations', 'graphify', 'tests', 'wiki', 'tasks', 'git', 'deploy', 'testreport'];
 const adapterCache = new Map();
 // 어댑터는 프로젝트(map/adapters/<name>.mjs)가 우선이고, 없으면 엔진에 딸린 참조 어댑터(src/adapters/)를 쓴다.
 async function loadAdapter(root, name) {
