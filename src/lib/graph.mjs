@@ -8,7 +8,7 @@ export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'tabl
 export const EDGE_KINDS = ['has_step', 'shows', 'uses', 'calls', 'invokes', 'touches', 'covers', 'changes', 'refs', 'defines', 'contains', 'tracks'];
 
 export class Graph {
-  constructor() { this.nodes = new Map(); this.edges = []; this.adapters = []; this.issues = []; this.badges = []; this.adapter = null; }
+  constructor() { this.nodes = new Map(); this.edges = []; this.edgeIndex = new Map(); this.adapters = []; this.issues = []; this.badges = []; this.adapter = null; }
   key(kind, id) { return `${kind}:${id}`; }
   add(kind, id, label, props = {}, src = null) {
     if (!NODE_KINDS.includes(kind)) throw new Error(`unknown node kind ${kind}`);
@@ -19,10 +19,17 @@ export class Graph {
     this.nodes.set(k, node);
     return node;
   }
+  // 같은 (from, kind, to)는 한 번만 넣고 그 엣지를 돌려준다. 엣지 키 색인(Map)으로 찾는다: 엣지가 수천이면 배열 전체 훑기가 수천만 번 비교가 된다
   link(fromKind, fromId, kind, toKind, toId) {
     if (!EDGE_KINDS.includes(kind)) throw new Error(`unknown edge kind ${kind}`);
     const from = this.key(fromKind, fromId), to = this.key(toKind, toId);
-    if (!this.edges.some((e) => e.from === from && e.to === to && e.kind === kind)) this.edges.push({ from, to, kind });
+    const k = `${from}\u0000${kind}\u0000${to}`;
+    const found = this.edgeIndex.get(k);
+    if (found) return found;
+    const edge = { from, to, kind };
+    this.edgeIndex.set(k, edge);
+    this.edges.push(edge);
+    return edge;
   }
   get(kind, id) { return this.nodes.get(this.key(kind, id)) || null; }
   of(kind) { return [...this.nodes.values()].filter((n) => n.kind === kind); }
