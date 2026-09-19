@@ -19,6 +19,7 @@ import { derive, overviewSlice } from './derive.mjs';
 import { execFileSync } from 'node:child_process';
 import { checkProblems, stagedTargets, stagedProblems, stagedText } from './check.mjs';
 import { linkScreenApis } from './link.mjs';
+import { bridgeArchitecture } from './bridge.mjs';
 import { applyStrict, problemsJson, sortProblems, textLines } from './lib/issues.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -77,6 +78,8 @@ export async function buildGraph(root = process.cwd(), { semantic = null } = {})
   }
   // 연결 단계: 모든 어댑터 뒤에 화면 리터럴을 API 노드에 잇는다. adapters[]에 들지 않고, 실패하면 오류 이슈로 남긴다
   try { linkScreenApis(g, fs, cfg); } catch (e) { g.issue('error', '연결 단계', String(e?.message || e)); }
+  // 다리 단계(2.1.0): 연결 단계가 만든 calls 를 읽기만 하고 화면·API 를 Graphify 파일 노드와 로그인 노드에 잇는다(DEC-42). graphify 어댑터가 없으면 아무것도 하지 않는다
+  try { bridgeArchitecture(g, fs, cfg); } catch (e) { g.issue('error', '다리 단계', String(e?.message || e)); }
   // 여정 정본: 디렉터리면 역할별 md(2.0.0), .json이면 한 파일(1.x 호환). 설정에 semantic 키가 없으면 여정 입력이 없다
   const sem = readSemantic(fs, cfg);
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);

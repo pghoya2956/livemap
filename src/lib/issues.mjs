@@ -88,6 +88,8 @@ export const ISSUE_CODES = {
   'deploy.behind-unknown': code('warn', '배포', ['config']),
   // 2.1.0 구조 지도(docs/issue-codes.md 「2.1.0 새 코드」). 묶음 줄 대상은 아니다
   'architecture.graph-schema': code('error', '설정', ['engine', 'config']),
+  'architecture.bridge-unmatched': code('warn', '설정', ['code', 'config']),
+  'architecture.table-unreached': code('warn', '설정', ['code', 'config']),
 };
 export const NEW_CODES = new Set(Object.keys(ISSUE_CODES).filter((c) => ISSUE_CODES[c].isNew));
 
