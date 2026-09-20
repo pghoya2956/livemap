@@ -318,3 +318,193 @@ test.describe('캡처 패널', () => {
     await expect(page.locator('.capture .cnt')).toHaveText(new RegExp(`^1/${count(o, b.id)}$`));
   });
 });
+
+// ---- 구조 화면(2.1.0, DEC-12): 로드맵과 같은 취급이다. 개요 임계값(스크롤 0·패널 8·행 6)을 물려받지 않고 개수 상한 없이 성질만 잰다.
+// 기대값은 data.json 에서 이 파일 안에서 계산한다(팩에 ui/ 가 없어 화면 모듈을 부르지 못한다). 규칙은 ui/lib/arch.js 와 같다:
+//   보이는 층 = lanes[].visible !== false, 보이는 묶음 = communities[].visible !== false 에서 검사 묶음(zone == null) 을 뺀 것,
+//   묶음 개요의 선 = 그 보이는 묶음끼리 이어지는 communityLinks 를 무방향 짝으로 모은 수(그린 선 + 상한에 걸려 감춘 선).
+// data.architecture 가 없으면(graphify 어댑터 미설정) 절 전체를 건너뛴다 ----
+const openArch = async (page, hash = '#/architecture') => {
+  await page.goto(`/map/${hash}`);
+  await page.waitForSelector('[data-screen="architecture"]', { timeout: 10_000 });
+  await page.evaluate(() => document.fonts.ready);
+  return loadData(page);
+};
+function archModel(d) {
+  const a = d.architecture || {};
+  const lanes = (a.lanes || []).filter((l) => l.visible !== false);
+  const vis = (a.communities || []).filter((c) => c.visible !== false && c.zone != null);
+  const shown = new Set(vis.map((c) => c.id));
+  const pairs = new Set();
+  for (const e of a.communityLinks || []) if (shown.has(e.from) && shown.has(e.to)) pairs.add([Math.min(e.from, e.to), Math.max(e.from, e.to)].join('|'));
+  return { a, lanes, vis, pairs, containers: a.containers || [] };
+}
+
+test.describe('구조 화면', () => {
+  test('구조: CSP 아래 오류 없이 부품 상자 수가 자료의 부품 수와 같다', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e.message)));
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+    await page.addInitScript(() => document.addEventListener('securitypolicyviolation', (e) => console.error(`CSP ${e.violatedDirective} ${e.blockedURI}`)));
+    const d = await openArch(page);
+    test.skip(!d.architecture, '구조 자료가 없다');
+    const M = archModel(d);
+    await page.waitForSelector('.am-sys .am-box');
+    expect(await page.locator('.am-sys .am-box').count(), '부품 상자 수').toBe(M.containers.length);
+    // 상자 글자에 파일 경로·import 수가 없다(SC-5)
+    const text = await page.locator('.am-sys').innerText();
+    expect(text, `시스템 그림에 파일 경로: ${text}`).not.toMatch(/\.tsx\b|\.mjs\b|\.sql\b|\bweb\/src\b/);
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  test('구조: 층 상자 수가 보이는 층 수와 같고 층 사이 선이 자료의 층 짝과 같다', async ({ page }) => {
+    const d = await openArch(page);
+    test.skip(!d.architecture, '구조 자료가 없다');
+    const M = archModel(d);
+    await page.waitForSelector('.am-lanes .am-box');
+    expect(await page.locator('.am-lanes .am-box').count(), '층 상자 수').toBe(M.lanes.length);
+    const ids = new Set(M.lanes.map((l) => l.id));
+    const want = (M.a.laneLinks || []).filter((e) => ids.has(e.from) && ids.has(e.to)).map((e) => `${e.from}>${e.to}`);
+    expect((await page.$$eval('.am-lanes .am-edge', (es) => es.map((e) => e.dataset.edge))).sort(), '층 사이 선').toEqual([...want].sort());
+  });
+
+  test('구조: 묶음 상자 수가 보이는 묶음 수와 같고 선 수가 집계한 묶음 짝 수와 같다', async ({ page }) => {
+    const d = await openArch(page, '#/architecture?split=code');
+    test.skip(!d.architecture, '구조 자료가 없다');
+    const M = archModel(d);
+    test.skip(!M.vis.length, '보이는 묶음이 없다');
+    await page.waitForSelector('.am-comm .am-box');
+    expect(await page.locator('.am-comm .am-box').count(), '묶음 상자 수').toBe(M.vis.length);
+    // 그린 선과 상한에 걸려 감춘 선의 합이 집계한 묶음 짝 수와 같다(감춘 선은 바닥 칩에 수로 남는다)
+    const n = await page.locator('.am-comm').evaluate((e) => [Number(e.dataset.lines), Number(e.dataset.hiddenLines), Number(e.dataset.pairs)]);
+    expect(await page.locator('.am-comm .am-edge').count(), '그린 선 수').toBe(n[0]);
+    expect(n[0] + n[1], '그린 선 + 감춘 선').toBe(n[2]);
+    expect(n[2], '집계한 묶음 짝 수').toBe(M.pairs.size);
+    // 숨긴 묶음으로 가는 선은 그리지 않고 상자 라벨의 수로만 보인다
+    const edgeIds = new Set(await page.$$eval('.am-comm .am-edge', (es) => es.map((e) => e.dataset.edge)));
+    const shown = new Set(M.vis.map((c) => c.id));
+    for (const e of edgeIds) for (const side of e.split('>')) expect(shown.has(Number(side)), `숨긴 묶음으로 가는 선 ${e}`).toBe(true);
+  });
+
+  test('구조: 묶음을 고르면 그 묶음에 닿는 선만 진해진다(OQ-11 결정 focus)', async ({ page }) => {
+    const d = await openArch(page, '#/architecture?split=code');
+    test.skip(!d.architecture, '구조 자료가 없다');
+    const M = archModel(d);
+    test.skip(!M.vis.length, '보이는 묶음이 없다');
+    await page.waitForSelector('.am-comm .am-edge');
+    // 초점이 없으면 진한 선도 흐린 선도 없다(모두 옅은 한 상태)
+    expect(await page.locator('.am-comm .am-edge.on').count(), '초점 없을 때 진한 선').toBe(0);
+    expect(await page.locator('.am-comm .am-edge.dim').count(), '초점 없을 때 흐린 선').toBe(0);
+    // 선이 가장 많이 닿는 묶음을 고른다
+    const touch = (id) => [...M.pairs].filter((k) => k.split('|').includes(String(id))).length;
+    const pick = [...M.vis].sort((a, b) => touch(b.id) - touch(a.id))[0];
+    test.skip(!touch(pick.id), '어느 묶음에도 선이 닿지 않는다');
+    await page.locator(`.am-cbox[data-id="${pick.id}"]`).click();
+    await page.waitForFunction((id) => location.hash.includes(`community%3A${id}`), pick.id);
+    await expect(page.locator(`.am-cbox.sel[data-id="${pick.id}"]`)).toHaveCount(1);
+    const on = (await page.$$eval('.am-comm .am-edge.on', (es) => es.map((e) => e.dataset.edge))).sort();
+    const want = [...M.pairs].filter((k) => k.split('|').includes(String(pick.id))).map((k) => k.split('|').join('>')).sort();
+    expect(on, '진한 선 = 그 묶음에 닿는 선').toEqual(want);
+    const all = await page.locator('.am-comm .am-edge').count();
+    expect(await page.locator('.am-comm .am-edge.dim').count(), '나머지는 흐리게').toBe(all - on.length);
+  });
+
+  test('구조: 드문 선 숨김 토글은 기본이 꺼짐이고 켜면 숨긴 수가 바닥 칩 문구와 같다(OQ-11 결정 focus)', async ({ page }) => {
+    const d = await openArch(page, '#/architecture?split=code');
+    test.skip(!d.architecture, '구조 자료가 없다');
+    test.skip(!archModel(d).vis.length, '보이는 묶음이 없다');
+    await page.waitForSelector('.am-comm .am-edge');
+    const toggle = page.locator('.am-toggles button.chip', { hasText: '드문 선 숨김' });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(await page.locator('.am-comm').evaluate((e) => Number(e.dataset.hiddenLines)), '기본은 하나도 숨기지 않는다').toBe(0);
+    await toggle.click();
+    await expect(page.locator('.am-toggles button.chip', { hasText: '드문 선 숨김' })).toHaveAttribute('aria-pressed', 'true');
+    const n = await page.locator('.am-comm').evaluate((e) => [Number(e.dataset.lines), Number(e.dataset.hiddenLines), Number(e.dataset.pairs), Number(e.dataset.cut)]);
+    expect(await page.locator('.am-comm .am-edge').count(), '그린 선').toBe(n[0]);
+    expect(n[0] + n[1], '그린 선 + 숨긴 선').toBe(n[2]);
+    if (n[1] > 0) expect(await page.locator('.am-comm .am-linechip').innerText(), '바닥 칩 문구').toContain(`건수 ${n[3]} 미만 ${n[1]} 숨김`);
+  });
+
+  test('구조: 부품·묶음을 골라도 scrollY 가 움직이지 않는다(SC-10)', async ({ page }) => {
+    const d = await openArch(page);
+    test.skip(!d.architecture, '구조 자료가 없다');
+    await page.waitForSelector('.am-sys .am-box');
+    await page.evaluate(() => window.scrollTo(0, Math.min(120, document.documentElement.scrollHeight)));
+    const before = await page.evaluate(() => window.scrollY);
+    await page.locator('.am-sys .am-box').first().click();
+    await page.waitForFunction(() => location.hash.startsWith('#/architecture/'));
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.scrollY), '부품 선택 전후 scrollY').toBe(before);
+    await page.goto('/map/#/architecture?split=code');
+    await page.waitForSelector('.am-comm .am-box');
+    await page.evaluate(() => window.scrollTo(0, Math.min(120, document.documentElement.scrollHeight)));
+    const before2 = await page.evaluate(() => window.scrollY);
+    await page.locator('.am-comm .am-box').first().click();
+    await page.waitForFunction(() => location.hash.includes('community'));
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.scrollY), '묶음 선택 전후 scrollY').toBe(before2);
+  });
+
+  test('구조: 위반 선이 점선이고 접근 가능한 이름에 대상이 있다', async ({ page }) => {
+    const d = await openArch(page);
+    test.skip(!d.architecture, '구조 자료가 없다');
+    const bad = (d.architecture.modules || []).find((m) => (m.violations || []).length);
+    test.skip(!bad, '규칙 위반이 0건이다');
+    await page.goto(`/map/#/architecture/${encodeURIComponent(bad.id)}`);
+    await page.waitForSelector('.am-nodes .am-box');
+    const node = page.locator(`.am-nbox[data-id="${bad.id.replace(/"/g, '\\"')}"]`);
+    await expect(node).toHaveClass(/bad/);
+    expect(await node.getAttribute('aria-label')).toContain('규칙 위반');
+    const dashed = await page.$$eval('.am-node-edge.is-bad', (es) => es.map((e) => getComputedStyle(e).strokeDasharray));
+    for (const x of dashed) expect(x, '위반 선 점선').not.toBe('none');
+    // 영향 패널 규칙 절에 파일·줄 좌표
+    await expect(page.locator('.am-rules.bad .am-vio .at')).toHaveCount(bad.violations.length);
+  });
+
+  test('구조: 세로 숨은 스크롤이 없다', async ({ page }) => {
+    const d = await openArch(page);
+    test.skip(!d.architecture, '구조 자료가 없다');
+    await page.waitForSelector('.am-sys .am-box');
+    // 개요·로드맵과 같은 식: 계산값이 auto·scroll 이어도 실제 넘침이 1px 이하면 숨은 스크롤이 아니다.
+    // 그림 상자(.am-wrap)는 스스로 스크롤하는 자리라 뺀다(로드맵의 .rt-box 와 같은 취급)
+    const hidden = await page.evaluate(() => {
+      const set = new Set(document.querySelectorAll('[data-screen="architecture"] .panel'));
+      document.querySelectorAll('[data-screen="architecture"] .panel *').forEach((e) => { const o = getComputedStyle(e).overflowY; if (o === 'auto' || o === 'scroll') set.add(e); });
+      return [...set].filter((e) => !e.classList.contains('am-wrap') && !e.classList.contains('am-list'))
+        .filter((e) => { const c = getComputedStyle(e).webkitLineClamp; return !c || c === 'none'; })
+        .filter((e) => e.scrollHeight - e.clientHeight > 1).map((e) => `${e.className} +${e.scrollHeight - e.clientHeight}px`);
+    });
+    expect(hidden, hidden.join('\n')).toEqual([]);
+  });
+
+  test('구조: Tab 으로 첫 노드에 닿고 화살표로 노드를 옮긴다', async ({ page }) => {
+    const d = await openArch(page);
+    test.skip(!d.architecture, '구조 자료가 없다');
+    const part = (d.architecture.containers || []).find((c) => c.kind === 'ours' && (c.counts?.files ?? 0) > 1);
+    test.skip(!part, '파일이 둘 이상인 부품이 없다');
+    await page.goto(`/map/#/architecture/${encodeURIComponent(`part:${part.id}`)}`);
+    await page.waitForSelector('.am-nodes .am-nbox');
+    const first = await page.locator('.am-nodes .am-nbox').first().getAttribute('data-id');
+    let reached = null;
+    for (let i = 0; i < 120 && !reached; i += 1) { await page.keyboard.press('Tab'); reached = await page.evaluate(() => document.activeElement?.closest('.am-nbox')?.dataset.id || null); }
+    expect(reached, 'Tab 으로 노드에 닿지 않는다').toBe(first);
+    await page.keyboard.press('ArrowDown');
+    const down = await page.evaluate(() => document.activeElement?.closest('.am-nbox')?.dataset.id || null);
+    expect(down, '↓ 로 같은 열 이웃').not.toBe(first);
+    await page.keyboard.press('ArrowUp');
+    expect(await page.evaluate(() => document.activeElement?.closest('.am-nbox')?.dataset.id || null), '↑ 로 되돌아온다').toBe(first);
+    await page.keyboard.press('ArrowRight');
+    expect(await page.evaluate(() => document.activeElement?.closest('.am-nbox')?.dataset.id || null), '→ 로 뒤 열').not.toBe(first);
+  });
+
+  test.describe('모션 줄임', () => {
+    test.use({ reducedMotion: 'reduce' });
+    test('구조: 모션 줄임에서 애니메이션이 없다', async ({ page }) => {
+      const d = await openArch(page);
+      test.skip(!d.architecture, '구조 자료가 없다');
+      await page.waitForTimeout(500);
+      const names = await page.evaluate(() => document.getAnimations().map((a) => a.animationName || a.constructor.name));
+      expect(names, names.join(', ')).toEqual([]);
+    });
+  });
+});

@@ -84,6 +84,13 @@ export function Architecture({ ov, data, params }) {
     );
   }
 
+  // 뷰 고르는 규칙(스펙 「화면 모델」 뷰 표 + OQ-11 결정 focus):
+  //  초점 sys · 기능 없음이면 나눔이 층 요약(사람이 그린 것)과 묶음 개요(코드가 보이는 것)를 가른다.
+  //  묶음을 골랐을 때도 나눔이 「코드가 보이는 것」이면 묶음 개요에 머문다 — 결정이 "상자를 고르면 그 묶음에 닿는 선만 진하게"라
+  //  그림이 사라지면 강조를 볼 자리가 없다. 그 묶음의 층 배치는 나눔을 「사람이 그린 것」으로 바꿔 본다. 그 밖은 모두 층 배치다
+  const isSys = focus === 'sys' && !flow;
+  const inCommunityMap = split === 'code' && !flow && (focus === 'sys' || focus.startsWith('community:'));
+  const view = inCommunityMap ? 'community' : isSys ? 'lanes' : 'nodes';
   const hiddenLanes = show.includes('lanes') ? [] : (arch.lanes || []).filter((l) => l.visible === false).map((l) => l.id);
   const mockLanes = show.includes('nomock') ? (arch.lanes || []).filter((l) => l.id === 'mock' || l.kind === 'mock').map((l) => l.id) : [];
   const hidden = [...hiddenLanes, ...mockLanes];
@@ -94,8 +101,7 @@ export function Architecture({ ov, data, params }) {
     return new Set([...n.in, ...n.out]);
   }, [arch, focus]);
 
-  const isSys = focus === 'sys' && !flow;
-  const view = isSys ? (split === 'code' ? 'community' : 'lanes') : 'nodes';
+
   const viewWord = { lanes: '층 요약', community: '묶음 개요', nodes: '층 배치' }[view];
   const lanesVisible = (arch.lanes || []).filter((l) => !hidden.includes(l.id) && l.visible !== false).length;
   const sub = `부품 ${(arch.containers || []).length} · 층 ${lanesVisible} · 묶음 ${(arch.communities || []).length} · 파일 ${(arch.modules || []).length} · 기능 ${(arch.flows || []).length} · 어긋남 ${(arch.violations || []).length}`;
@@ -119,6 +125,7 @@ export function Architecture({ ov, data, params }) {
             <Chip on={show.includes('tests')} onClick={() => toggleShow('tests')}>검사</Chip>
             <Chip on={show.includes('lanes')} onClick={() => toggleShow('lanes')}>숨긴 층</Chip>
             <Chip on={!show.includes('nomock')} onClick={() => toggleShow('nomock')}>목업</Chip>
+            {view === 'community' && <Chip on={show.includes('thin')} onClick={() => toggleShow('thin')}>드문 선 숨김</Chip>}
           </span>
           {flow && <Chip on onClick={() => onFlow(null)}>기능 <Proj>{fp?.name ?? flow}</Proj> ✕</Chip>}
         </div>
@@ -131,9 +138,9 @@ export function Architecture({ ov, data, params }) {
           <Panel icon={Icons.map} title="시스템 그림" sub="경계 안 부품과 실측 연결" budget="archmap" className="am-p">
             <SystemMap arch={arch} actors={Object.values(data.semantic?.actors || {})} flow={fp} focus={focus} onFocus={onFocus} />
           </Panel>
-          <Panel icon={Icons.table} title={viewWord} sub={view === 'nodes' ? '열이 층 순서 · 상자를 누르면 더 내려간다' : view === 'community' ? '구역 안 묶음 · 상자를 누르면 그 묶음으로' : '층마다 상자 하나 · 「열기」로 그 층 안으로'} budget="archmap" className="am-p">
+          <Panel icon={Icons.table} title={viewWord} sub={view === 'nodes' ? '열이 층 순서 · 상자를 누르면 더 내려간다' : view === 'community' ? '구역 안 묶음 · 상자를 누르면 닿는 선이 진해진다. 그 묶음의 층 배치는 나눔을 바꿔 본다' : '층마다 상자 하나 · 「열기」로 그 층 안으로'} budget="archmap" className="am-p">
             {view === 'lanes' && <LaneSummary arch={arch} hidden={hidden} focus={focus} onFocus={onFocus} />}
-            {view === 'community' && <CommunityMap arch={arch} focus={focus} onFocus={onFocus} hideTests={!show.includes('tests')} />}
+            {view === 'community' && <CommunityMap arch={arch} focus={focus} onFocus={onFocus} hideTests={!show.includes('tests')} thin={show.includes('thin')} />}
             {view === 'nodes' && (
               <LaneMap arch={arch} focus={focus} flow={flow} hidden={hidden} hubMin={HUB_MIN} neighbourIds={near}
                 onFocus={(id) => { const l = id && String(id); if (l) onFocus(l); }} />

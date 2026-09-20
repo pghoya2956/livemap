@@ -670,6 +670,22 @@ test('SC-22 communityLayout 집계: 검사 묶음을 숨기면 그 선은 그리
   assert.deepEqual(pair.lines.map((l) => [l.from, l.to, l.n, l.both]), [[1, 2, 4, true], [2, 3, 2, false], [3, 5, 4, false]]);
 });
 
+test('SC-22 communityLayout 드문 선 숨김(OQ-11 결정 focus): 기본은 끄고, 켜면 문턱이 짝별 건수의 중위값이며 숨긴 수가 남는다', () => {
+  // 기본값: 선을 하나도 감추지 않는다. 무엇을 감출지는 보는 사람이 정한다
+  const off = communityLayout(ARCH, { hideTests: true, edges: 'pair' });
+  assert.deepEqual([off.cut, off.thinHidden, off.lines.length, off.allLines.length], [0, 0, 3, 3]);
+  // 켜면 문턱은 중위값이다. 건수 [2, 4, 4] 의 중위는 4 라 2건짜리 한 선이 숨는다
+  const on = communityLayout(ARCH, { hideTests: true, edges: 'pair', thin: true });
+  assert.equal(on.cut, 4);
+  assert.deepEqual(on.lines.map((l) => [l.from, l.to, l.n]), [[1, 2, 4], [3, 5, 4]]);
+  assert.equal(on.thinHidden, 1);
+  assert.equal(on.lines.length + on.thinHidden, on.allLines.length);
+  // 문턱은 자료가 정한다. 건수가 다른 자료면 문턱도 달라진다
+  const other = clone(ARCH);
+  other.communityLinks = [{ from: 1, to: 2, n: 1, kinds: {} }, { from: 2, to: 3, n: 9, kinds: {} }, { from: 3, to: 5, n: 30, kinds: {} }];
+  assert.equal(communityLayout(other, { hideTests: true, edges: 'pair', thin: true }).cut, 9);
+});
+
 test('SC-8 foldByCommunity: 노드를 묶음 단위로 접고 묶음 id 순, 묶음 없는 노드는 마지막 한 묶음이다', () => {
   const folded = foldByCommunity([
     { id: 'b', community: 2, communityName: 'api.ts' }, { id: 'a', community: 1, communityName: 'A.tsx' },

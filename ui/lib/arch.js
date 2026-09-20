@@ -241,8 +241,9 @@ export function laneLayout(arch, opts = {}) {
 
 /**
  * 묶음 상자를 구역 안에 격자로 둔다. 구역은 부품 선언 순서, 구역 안은 묶음 id 순이다(힘 배치를 쓰지 않는다).
- * opts: { hideTests(기본 거짓), hidden(묶음 id), edges: 'directed'|'pair', width }
- * 기본값은 자료가 보이라고 한 묶음(visible)을 모두 그린다. 검사 묶음 기본 숨김은 화면이 hideTests 로 건다(스펙 「화면 모델」)
+ * opts: { hideTests(기본 거짓), hidden(묶음 id), edges: 'directed'|'pair', thin(드문 선 숨김), width }
+ * 기본값은 자료가 보이라고 한 묶음(visible)을 모두 그린다. 검사 묶음 기본 숨김은 화면이 hideTests 로 건다(스펙 「화면 모델」).
+ * thin 은 짝별 건수의 중위값을 문턱으로 그보다 드문 선을 숨긴다(OQ-11 결정 focus). 문턱은 자료가 정하고 코드에 고정하지 않는다
  * 반환 { zones, boxes, lines, hidden, W, H }
  */
 export function communityLayout(arch, opts = {}) {
@@ -308,8 +309,16 @@ export function communityLayout(arch, opts = {}) {
     lines = kept.map((e) => ({ from: e.from, to: e.to, n: e.n, kinds: e.kinds || {}, both: false })).sort(byKey((e) => [e.from, e.to]));
   }
 
+  // 드문 선 숨김: 문턱은 짝별 건수의 중위값이다. 숨긴 수는 바닥 칩이 적는다
+  const ns = lines.map((l) => l.n).sort((a, b) => a - b);
+  const cut = opts.thin && ns.length ? ns[Math.floor(ns.length / 2)] : 0;
+  const shownLines = cut ? lines.filter((l) => l.n >= cut) : lines;
+
   const W = Math.max(width, ...zones.map((z) => z.x + z.w + Z.pad));
-  return { zones, boxes, lines, hidden: hidden.map((c) => c.id).sort((a, b) => a - b), W, H: Math.max(Z.pad * 2, y - Z.gapY + Z.pad) };
+  return {
+    zones, boxes, lines: shownLines, allLines: lines, cut, thinHidden: lines.length - shownLines.length,
+    hidden: hidden.map((c) => c.id).sort((a, b) => a - b), W, H: Math.max(Z.pad * 2, y - Z.gapY + Z.pad),
+  };
 }
 
 /** 선 교차 수: 상자 가운데를 잇는 선분끼리 실제로 엇갈리는 짝을 센다(그림이 읽히는지 재는 값) */

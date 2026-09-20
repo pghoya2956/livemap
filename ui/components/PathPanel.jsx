@@ -77,10 +77,11 @@ export function PathPanel({ arch, flow, onFlow, onFocus, journeys = [] }) {
         {!f.chain.length && <span className="dim">좌표 사슬이 한 칸이라 선이 없다</span>}
       </div>
       <div className="am-sec">층별 노드 {f.nodes.length}</div>
-      {f.byLane.map((g) => (
-        <div key={g.lane || '-'} className="am-lanegrp">
-          <div className="am-lanename"><Proj>{g.name}</Proj> <span className="n">{g.nodes.length}</span></div>
-          <div className="am-list">
+      {/* 층 묶음을 한 목록 안에 둔다. 기능마다 노드 수가 달라도 패널 높이가 그대로라 고르기로 스크롤이 튀지 않는다(SC-10) */}
+      <div className="am-list am-flowlist">
+        {f.byLane.map((g) => (
+          <div key={g.lane || '-'} className="am-lanegrp">
+            <div className="am-lanename"><Proj>{g.name}</Proj> <span className="n">{g.nodes.length}</span></div>
             {g.nodes.map((x) => (
               <button key={x.id} type="button" className="am-row am-link" onClick={() => onFocus?.(x.id)}>
                 <span className="dim">{KIND_WORD[x.kind] ?? x.kind}</span> <Proj>{x.kind === 'module' || x.kind === 'symbol' ? x.id.split('/').pop() : x.id}</Proj>
@@ -88,8 +89,8 @@ export function PathPanel({ arch, flow, onFlow, onFocus, journeys = [] }) {
               </button>
             ))}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </Panel>
   );
 }

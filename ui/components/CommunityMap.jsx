@@ -1,6 +1,13 @@
 // 묶음 개요: 코드가 보이는 나눔. 시스템 그림의 구역 안에 묶음 상자를 두고 묶음 사이 호출·import 건수를 선으로 잇는다.
 // 배치는 ui/lib/arch.js communityLayout 이 계산한다 — 구역은 부품 선언 순서, 구역 안은 묶음 id 순이고 힘 배치를 쓰지 않는다(DEC-36).
 // 상자를 누르면 초점이 community:<id> 로 간다. 검사 묶음은 기본 숨김이고 그쪽으로 가는 선은 상자 라벨의 수로만 보인다.
+//
+// 선 밀도(OQ-11 결정 focus): 선은 전부 두고 초점에서 강조한다.
+//  1. 두 방향(A→B, B→A)을 한 선으로 합친다. 같은 자리에 두 번 긋는 것이라 정보 손실이 없다
+//  2. 남은 선에 굵기 구간 셋을 입힌다(중위 미만 · 중위~상위10% · 상위10%)
+//  3. 평소에는 모두 옅게, 묶음을 고르면 그 묶음에 닿는 선만 진하게 나머지는 흐리게
+//  4. 드문 선 숨기기는 토글이고 기본은 꺼짐이다. 켜면 문턱은 짝별 건수의 중위값이고 바닥 칩이 숨긴 수를 적는다
+// 까닭: 이 뷰는 무엇이 무엇에 기대는지를 보는 것이고 드물게 한 번 부르는 연결이 오히려 이상 신호다. 무엇을 감출지는 보는 사람이 정한다.
 import React from 'react';
 import { communityLayout } from '../lib/arch.js';
 
@@ -16,26 +23,22 @@ function edgePath(a, b) {
 
 /**
  * arch: data.json 의 architecture 절
- * focus: 지금 초점, onFocus: 초점 바꾸기, hideTests: 검사 묶음 숨김(기본 참)
- * edges: 'directed'(방향마다 한 선) | 'pair'(두 방향을 한 선으로), weight: 굵기 구간을 쓸지, floor: 하위 몇 %를 숨길지(0이면 전부)
+ * focus: 지금 초점, onFocus: 초점 바꾸기, hideTests: 검사 묶음 숨김(기본 참), thin: 드문 선 숨김(기본 거짓)
  */
-export function CommunityMap({ arch, focus, onFocus, hideTests = true, edges = 'directed', weight = false, floor = 0, width = 940 }) {
-  const L = React.useMemo(() => communityLayout(arch, { hideTests, edges, width }), [arch, hideTests, edges, width]);
+export function CommunityMap({ arch, focus, onFocus, hideTests = true, thin = false, width = 940 }) {
+  const L = React.useMemo(() => communityLayout(arch, { hideTests, edges: 'pair', thin, width }), [arch, hideTests, thin, width]);
   const at = React.useMemo(() => new Map(L.boxes.map((b) => [b.id, b])), [L]);
   const sel = focus?.startsWith('community:') ? Number(focus.slice(10)) : null;
-  // 상한: 건수가 작은 선부터 감추고 그 수를 바닥 칩에 적는다. 문턱은 남은 선이 모두 문턱 이상이 되게 잡는다
-  const ns = React.useMemo(() => L.lines.map((l) => l.n).sort((a, b) => a - b), [L]);
-  const cut = floor > 0 && ns.length ? ns[Math.min(ns.length - 1, Math.floor(ns.length * (floor / 100)))] : 0;
-  const shown = L.lines.filter((l) => l.n >= cut);
-  const max = Math.max(1, ...L.lines.map((l) => l.n));
-  // 굵기 구간 셋: 중위 미만 · 중위~상위10% · 상위10%
-  const band = (n) => (n >= (ns[Math.floor(ns.length * 0.9)] ?? max) ? 3 : n >= (ns[Math.floor(ns.length * 0.5)] ?? 1) ? 2 : 1);
+  // 굵기 구간 셋: 중위 미만 · 중위~상위10% · 상위10%. 구간 경계는 자료가 정한다
+  const ns = React.useMemo(() => L.allLines.map((l) => l.n).sort((a, b) => a - b), [L]);
+  const mid = ns[Math.floor(ns.length * 0.5)] ?? 1, top = ns[Math.floor(ns.length * 0.9)] ?? mid;
+  const width3 = (n) => (n >= top ? 2.6 : n >= mid ? 1.4 : 0.7);
 
-  if (!L.boxes.length) return <p className="empty">보이는 묶음이 없습니다. 보이기 토글에서 검사 묶음을 켜면 보입니다.</p>;
+  if (!L.boxes.length) return <p className="empty">보이는 묶음이 없습니다. 보이기 토글에서 검사를 켜면 보입니다.</p>;
   return (
-    <div className="am-wrap am-comm">
+    <div className="am-wrap am-comm" data-lines={L.lines.length} data-hidden-lines={L.thinHidden} data-pairs={L.allLines.length} data-cut={L.cut}>
       <svg className="am-svg" width={L.W} height={L.H} viewBox={`0 0 ${L.W} ${L.H}`} role="img"
-        aria-label={`묶음 개요. 구역 ${L.zones.length}개, 묶음 상자 ${L.boxes.length}개, 묶음 사이 선 ${shown.length}개`}>
+        aria-label={`묶음 개요. 구역 ${L.zones.length}개, 묶음 상자 ${L.boxes.length}개, 묶음 사이 선 ${L.lines.length}개`}>
         {L.zones.map((z) => (
           <g key={z.id || '-'}>
             <rect className="am-zone" x={z.x} y={z.y} width={z.w} height={z.h} rx="12" />
@@ -43,14 +46,14 @@ export function CommunityMap({ arch, focus, onFocus, hideTests = true, edges = '
           </g>
         ))}
         <g className="am-edges" aria-hidden="true">
-          {shown.map((l) => {
+          {L.lines.map((l) => {
             const a = at.get(l.from), b = at.get(l.to);
             if (!a || !b) return null;
             const on = sel != null && (l.from === sel || l.to === sel);
             return (
-              <path key={`${l.from}>${l.to}`} data-edge={`${l.from}>${l.to}`} className={`am-edge${on ? ' on' : ''}${sel != null && !on ? ' dim' : ''}`}
-                d={edgePath(a, b)} strokeWidth={weight ? [0, 0.7, 1.4, 2.6][band(l.n)] : 1}
-                strokeOpacity={(0.2 + Math.min(l.n, max) / max * 0.5).toFixed(2)}>
+              <path key={`${l.from}>${l.to}`} data-edge={`${l.from}>${l.to}`} data-n={l.n}
+                className={`am-edge${on ? ' on' : ''}${sel != null && !on ? ' dim' : ''}`}
+                d={edgePath(a, b)} strokeWidth={width3(l.n)}>
                 <title>{`${a.name} ${l.both ? '↔' : '→'} ${b.name} · ${l.n}건${Object.keys(l.kinds || {}).length ? ` (${Object.entries(l.kinds).map(([k, v]) => `${k} ${v}`).join(' · ')})` : ''}`}</title>
               </path>
             );
@@ -70,8 +73,9 @@ export function CommunityMap({ arch, focus, onFocus, hideTests = true, edges = '
       </svg>
       <div className="am-bar">
         <span className="chip">상자 {L.boxes.length}{L.hidden.length ? ` · 숨긴 묶음 ${L.hidden.length}` : ''}</span>
-        <span className="chip">선 {shown.length}{shown.length < L.lines.length ? ` · 건수 ${cut} 미만 ${L.lines.length - shown.length} 숨김` : ''}</span>
-        <span className="chip">상자 이름 = 허브 파일</span>
+        <span className="chip am-linechip">선 {L.lines.length}{L.thinHidden ? ` · 건수 ${L.cut} 미만 ${L.thinHidden} 숨김` : ''}</span>
+        <span className="chip">굵기 = 건수 구간 셋 · 두 방향은 한 선</span>
+        <span className="chip">{sel == null ? '상자를 고르면 닿는 선만 진해진다' : '고른 묶음에 닿는 선'}</span>
       </div>
     </div>
   );

@@ -544,7 +544,8 @@ button.am-link:hover{color:#fff;text-decoration:underline}
 .am-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start}
 .am-col-l,.am-col-r{display:flex;flex-direction:column;gap:12px;min-width:0}
 .am-p{min-width:0}
-.am-wrap{position:relative;overflow:auto;max-height:420px;padding:8px}
+/* 그림 상자는 높이를 고정한다. 초점이 바뀌어 안의 그림이 커지거나 작아져도 페이지 높이가 그대로라 스크롤이 튀지 않는다(SC-10) */
+.am-wrap{position:relative;overflow:auto;height:400px;padding:8px}
 .am-svg{display:block}
 .am-zone{fill:var(--panel2);stroke:var(--line2)}
 .am-zone-t{fill:var(--muted);font-size:11px}
@@ -614,8 +615,9 @@ button.am-row:hover{color:#fff}
 .am-story{margin:6px 12px 2px;font-size:12px;color:var(--ink);line-height:1.5}
 .am-intent{margin:0 12px 6px;font-size:11px;color:var(--muted)}
 .am-sum{margin:0;padding:0 12px;font-size:11.5px;color:var(--ink);font-family:var(--mono)}
+.am-flowlist{max-height:300px}
 .am-lanegrp{padding-top:4px}
-.am-lanename{display:flex;padding:4px 12px 2px;font-size:11px;color:var(--muted)}
+.am-lanename{display:flex;padding:4px 0 2px;font-size:11px;color:var(--muted)}
 .am-lanename .n{margin-left:auto;font-family:var(--mono)}
 .am-into,.am-expand,.am-clear{margin:8px 12px 0;cursor:pointer}
 .am-into[disabled]{opacity:.4;cursor:default}
