@@ -95,7 +95,7 @@ test('SC-18 when 판정: 구조 조건은 data.json 의 구조 절에서 읽는�
   assert.equal(whenHolds('architecture >= 1', whenFacts(served, null)), false);
 });
 
-test('SC-18 구조 표: 열여섯 행이 모두 판정되고 실패가 없다', async () => {
+test('SC-18 구조 표: 모든 행이 판정되고 실패가 없다', async () => {
   // 이 파일의 기본 page 는 data.json 응답을 늦추는 route 가 걸려 있다. 구조 표는 늦춤 없는 새 창에서 잰다
   const { ctx: bctx2, page: p2, log: log2 } = await openCrawlContext(browser, { generatedAt: served.generatedAt });
   const spec = targets.screens.architecture;
@@ -113,5 +113,7 @@ test('SC-18 구조 표: 열여섯 행이 모두 판정되고 실패가 없다', 
   assert.equal(byName['묶음 개요 묶음 상자'].pass, true, JSON.stringify(byName['묶음 개요 묶음 상자']));
   assert.equal(byName['길 패널 기능 목록'].pass, true, JSON.stringify(byName['길 패널 기능 목록']));
   assert.equal(byName['층 배치 노드 상자'].pass, true, JSON.stringify(byName['층 배치 노드 상자']));
+  // 초점 여섯째 단계(함수)가 표에서 실제로 밟힌다
+  assert.equal(byName['층 배치 심볼 상자'].pass, true, JSON.stringify(byName['층 배치 심볼 상자']));
   assert.ok(rows.filter((r) => r.pass === true).length >= 10, `통과 행 ${rows.filter((r) => r.pass === true).length}`);
 });

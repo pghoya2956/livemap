@@ -130,9 +130,22 @@ export function flowEdges(arch, flowId) {
   return (Array.isArray(f?.edges) ? f.edges : []).filter((e) => e?.from && e?.to);
 }
 
-/** 초점이 고르는 노드 집합. 초점은 sys · part:<부품> · community:<id> · group:<층> · 노드 id 여섯 단계다.
- *  모듈(파일)과 층이 실은 노드를 함께 센다 */
-export function focusScope(arch, focus, L) {
+/** 심볼의 1홉 이웃. 심볼은 `arch.modules[].deps`(파일 사이 import)에 없으므로 심볼 사이 엣지에서 찾는다.
+ *  `architecture.json` 의 `edges[]` 는 끝점에 `symbol:` 접두가 붙고 `symbols[].id` 에는 안 붙는다 */
+export function symbolNeighbors(fn, symbolId) {
+  const into = [], out = [];
+  for (const e of Array.isArray(fn?.edges) ? fn.edges : []) {
+    const a = bareSymbol(e?.from), b = bareSymbol(e?.to);
+    if (b === symbolId && a !== symbolId) into.push(a);
+    if (a === symbolId && b !== symbolId) out.push(b);
+  }
+  return { in: [...new Set(into)].sort(cmp), out: [...new Set(out)].sort(cmp) };
+}
+
+/** 초점이 고르는 노드 집합. 초점은 sys · part:<부품> · community:<id> · group:<층> · 파일 · 함수 여섯 단계다.
+ *  모듈(파일)과 층이 실은 노드를 함께 센다. 여섯째 단계(함수)는 fn 을 받았을 때만 서고,
+ *  fn 이 없으면 앞 다섯 단계가 한 글자도 바뀌지 않는다 */
+export function focusScope(arch, focus, L, fn = null) {
   const laneById = L.byId;
   const mods = (arch?.modules || []).filter((m) => moduleLane(m, laneById) !== null || m.container);
   const mem = [...laneMembers(arch).values()].filter((x) => laneById.has(x.lane));
@@ -142,9 +155,17 @@ export function focusScope(arch, focus, L) {
   if (f.startsWith('community:')) { const id = Number(f.slice(10)); return [...mods.filter((m) => m.community === id).map((m) => m.id), ...mem.filter((x) => x.community === id).map((x) => x.id)]; }
   if (f.startsWith('group:')) { const id = f.slice(6); return [...mods.filter((m) => moduleLane(m, laneById) === id).map((m) => m.id), ...mem.filter((x) => x.lane === id).map((x) => x.id)]; }
   const id = bare(f);
+  // 여섯째 단계: 심볼 초점. 파일 초점과 같은 모양으로 [자기, 들어오는 것, 나가는 것] 을 돌려준다
+  if (isSymbolId(fn, id)) {
+    const n = symbolNeighbors(fn, id);
+    return [id, ...n.in, ...n.out];
+  }
   const n = neighbors(arch, id);
   return [id, ...n.in, ...n.out];
 }
+
+/** 그 id 가 함수 수준 자료에 있는 심볼인가 */
+export const isSymbolId = (fn, id) => (Array.isArray(fn?.symbols) ? fn.symbols : []).some((sy) => sy?.id === id);
 
 // ---- 층 배치 ----
 
@@ -182,7 +203,7 @@ export function laneLayout(arch, opts = {}) {
   let ids;
   if (flow && (!opts.focus || opts.focus === 'sys')) ids = flow.nodes.map(bare);
   else {
-    ids = focusScope(arch, opts.focus, L);
+    ids = focusScope(arch, opts.focus, L, opts.fn || null);
     if (flowSet) ids = ids.filter((x) => flowSet.has(x)); // 기능이 있으면 교집합만(스펙 「화면 모델」)
   }
   ids = [...new Set(ids)].sort(cmp);
@@ -370,8 +391,10 @@ export function laneLayout(arch, opts = {}) {
       onFlow: flowSet ? flowSet.has(id) || (sy ? flowSet.has(sy.module) : false) : false, ...pos,
     });
   }));
+  // 심볼 초점인데 이웃이 하나도 없는 자리. 상자 하나가 맞는 답이지만 화면이 까닭을 적어야 막다른 길로 안 보인다
+  const lonelySymbol = isSymbolId(opts.fn, bare(String(opts.focus || ''))) && boxes.length === 1 && !drawn.length;
   return {
-    mode: 'nodes', level, boxes, lines: drawn, columns, sweeps, hiddenN, folded,
+    mode: 'nodes', level, boxes, lines: drawn, columns, sweeps, hiddenN, folded, lonelySymbol,
     W: N.pad * 2 + columns.length * N.w + Math.max(0, columns.length - 1) * N.gapX,
     H: N.head + N.pad * 2 + rows * N.h + Math.max(0, rows - 1) * N.gapY,
   };
@@ -512,9 +535,23 @@ export function flowPath(arch, flowId) {
 
 /** 노드의 1홉 이웃: 들어오는 호출과 나가는 호출, 층·부품·묶음·위반·지나는 기능.
  *  파일은 modules[].deps 로, 그 밖의 노드는 기능의 실측 선(flows[].edges)으로 이웃을 찾는다 */
-export function neighbors(arch, nodeId) {
+export function neighbors(arch, nodeId, fn = null) {
   const id = bare(nodeId);
   const mods = arch?.modules || [];
+  // 여섯째 단계(함수): 심볼의 이웃은 심볼 사이 엣지에서 읽는다. 층·부품·묶음은 그 심볼이 속한 파일에서 온다.
+  // 그림과 같은 자료를 봐야 패널이 "호출 0" 이라고 말하면서 그림이 선을 긋는 어긋남이 안 생긴다
+  if (isSymbolId(fn, id)) {
+    const sy = fn.symbols.find((x) => x.id === id);
+    const om = mods.find((x) => x.id === sy.module) || null;
+    const sn = symbolNeighbors(fn, id);
+    return {
+      id, symbol: true, module: sy.module, line: sy.line ?? null,
+      lane: om?.lane ?? null, container: om?.container ?? null,
+      community: sy.community ?? om?.community ?? null, communityName: om?.communityName ?? null,
+      in: sn.in, out: sn.out, violations: [],
+      flows: (arch?.flows || []).filter((f) => (f.nodes || []).some((x) => bare(x) === sy.module)).map((f) => f.id),
+    };
+  }
   const m = mods.find((x) => x.id === id) || null;
   const flows = (arch?.flows || []).filter((f) => (f.nodes || []).some((x) => bare(x) === id)).map((f) => f.id);
   const mem = laneMembers(arch).get(id) || null;

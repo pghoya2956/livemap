@@ -56,7 +56,7 @@ function Names({ ids, max = 8, onPick }) {
  * arch: architecture 절, focus: 초점, bundle: 고른 묶은 선(없으면 null)
  * flows: architecture.flows, onFlow: 기능 고르기, onFocus: 초점 바꾸기, expanded/onExpand: 「이웃 펼치기」
  */
-export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expanded = false, onExpand }) {
+export function ImpactPanel({ arch, focus, bundle = null, fn = null, onFocus, onFlow, expanded = false, onExpand }) {
   const dir = arch.declaration?.dir;
   const flows = arch.flows || [];
   const at = `기능 ${flows.length}개 기준`;
@@ -161,10 +161,10 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
   }
 
   // 노드 초점. 파일이 아닌 노드(화면 경로·API·로그인·DB 함수·테이블)는 층이 실은 목록에서 이름을 얻는다
-  const n = neighbors(arch, focus);
+  const n = neighbors(arch, focus, fn);
   const m = (arch.modules || []).find((x) => x.id === n.id);
-  const mem = m ? null : laneMembers(arch).get(n.id) || null;
-  const kindWord = { screen: '화면 경로', api: 'API', auth: '로그인', function: 'DB 함수', table: '테이블' }[mem?.kind ?? ''] ?? '노드';
+  const mem = m || n.symbol ? null : laneMembers(arch).get(n.id) || null;
+  const kindWord = n.symbol ? '함수' : { screen: '화면 경로', api: 'API', auth: '로그인', function: 'DB 함수', table: '테이블' }[mem?.kind ?? ''] ?? '노드';
   const passing = flows.filter((f) => (f.nodes || []).some((x) => x.replace(/^module:/, '') === n.id));
   return (
     <Panel icon={Icons.alert} title="영향" sub={<Proj>{m ? n.id.split('/').pop() : mem?.label ?? n.id}</Proj>} at={at} className="am-panel">
@@ -172,7 +172,8 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
       <Row k="묶음">{n.communityName ? <button type="button" className="am-link" onClick={() => onFocus?.(`community:${n.community}`)}><Proj>{n.communityName}</Proj></button> : <span className="dim">묶음 없음</span>}</Row>
       <Row k="층·부품">{n.lane ? nameOfLane(arch, n.lane) : <span className="dim">층 없음</span>} · {n.container ?? <span className="dim">미배정</span>}</Row>
       <Row k="지나는 기능">{passing.length}/{flows.length}{passing.length > 0 && <> · {passing.map((f) => <button key={f.id} type="button" className="am-link" onClick={() => onFlow?.(f.id)}><Proj>{f.name}</Proj></button>)}</>}</Row>
-      {!m && <p className="am-note">이 노드의 이웃은 기능의 실측 선에서 읽는다. 기능을 고르면 그 길 위에서 함께 선다</p>}
+      {!m && !n.symbol && <p className="am-note">이 노드의 이웃은 기능의 실측 선에서 읽는다. 기능을 고르면 그 길 위에서 함께 선다</p>}
+      {n.symbol && !n.in.length && !n.out.length && <p className="am-note">이 함수를 부르는 곳도, 이 함수가 부르는 곳도 없다</p>}
       <div className="am-sec">나가는 호출 {n.out.length}</div>
       <div className="am-list"><Names ids={n.out} onPick={onFocus} /></div>
       <div className="am-sec">들어오는 호출 {n.in.length}</div>
