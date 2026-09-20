@@ -11,6 +11,9 @@ export const INIT_FILES = [
   ['templates/journeys.json', 'map/semantic/journeys.json'],
   ['templates/README.md', 'map/README.md'],
   ['templates/captures-README.md', 'map/captures/README.md'],
+  // 구조 지도(2.1.0): 시스템 그림·부품 표 틀과 부품 파일 틀. 초안을 채우는 일은 하네스 map 스킬의 에이전트 절차가 맡는다
+  ['templates/architecture/README.md', 'map/architecture/README.md'],
+  ['templates/architecture/web.md', 'map/architecture/web.md'],
 ];
 export const IGNORE_LINE = 'map/.out/';
 export const BUDGET_SCRIPT = 'playwright test --config node_modules/@pghoya2956/livemap/budget/playwright.config.mjs';

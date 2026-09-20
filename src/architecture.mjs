@@ -31,9 +31,11 @@ function pick(path, owners) {
 }
 
 export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
+  const dir = cfg?.architecture?.dir;
+  // graphify 어댑터가 돌지 않았고 선언 폴더 설정도 없는 프로젝트는 구조 지도가 꺼진 것이다: g.architecture 를 만들지 않아 data.json 절·산출물이 없다(2.0.2 그대로)
+  if (!dir && !g.architecture) return empty('partial', '설정 architecture.dir 없음: 선언 폴더(map/architecture)를 두면 구조를 대조한다');
   g.architecture ??= { graphify: null, graphMissing: null };
   const done = (r) => { g.architecture.stage = r; return r; };
-  const dir = cfg?.architecture?.dir;
   if (!dir) return done(empty('partial', '설정 architecture.dir 없음: 선언 폴더(map/architecture)를 두면 구조를 대조한다'));
   const readme = `${dir}/README.md`;
   if (!fs.has(readme)) return done(empty('partial', `선언 폴더 없음: ${dir} (README.md 가 없다)`));
@@ -114,7 +116,7 @@ export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
     return kindLane[n.kind] ?? null;
   };
   for (const c of ours) {
-    if (c.lanes.length) for (const l of c.lanes) lanes.push({ id: l.id, name: l.name, container: c.id, kind: 'code', nodes: laneCount.get(`${c.id}/${l.id}`) || 0, visible: true });
+    if (c.lanes.length) for (const l of c.lanes) lanes.push({ id: l.id, name: l.name, container: c.id, kind: 'code', nodes: laneCount.get(`${c.id}/${l.id}`) || 0, visible: true, allow: l.allow ?? null });
     else lanes.push({ id: c.id, name: c.name, container: c.id, kind: 'code', nodes: c.counts.files, visible: true });
     const has = (nodes) => nodes.filter((n) => nodeContainer.get(key(n)) === c.id).length;
     for (const [kind, list] of [['screen', screens], ['api', apis], ['function', fns], ['table', tables]]) { const n = has(list); if (n) lanes.push({ id: kind, name: kind, container: c.id, kind, nodes: n, visible: true }); }

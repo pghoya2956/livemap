@@ -88,7 +88,8 @@ test('export: 배치 표의 파일이 생기고, 이전 export의 옛 파일은 
   assert.equal(existsSync(join(target, 'captures/stale.jpg')), false);
   // 대상이 --out 안이어도 자기 자신을 복사하지 않는다
   assert.equal(existsSync(join(target, 'site')), false);
-  assert.deepEqual(readdirSync(join(target, 'data')).sort(), ['data.json', 'graph.json', 'overview.json']);
+  // 2.1.0: 구조 지도가 켜진 프로젝트(mini)는 architecture.md·architecture.json 도 data 폴더에 담는다
+  assert.deepEqual(readdirSync(join(target, 'data')).sort(), ['architecture.json', 'architecture.md', 'data.json', 'graph.json', 'overview.json']);
 });
 
 test('export: 비어 있지 않은 다른 폴더는 지우지 않고 exit 2', () => {

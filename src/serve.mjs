@@ -9,9 +9,11 @@ import { existsSync, mkdirSync, readdirSync, rmSync, statSync, copyFileSync, wri
 import { join, extname, resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 export const SITE = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'site');
 export const DATA_FILES = ['data.json', 'overview.json', 'graph.json'];
+// 구조 지도(2.1.0)의 두 파일. graphify 어댑터가 없는 프로젝트에는 없으므로 선택 파일이다: 있으면 서빙·내보내기에 담고 없어도 실패하지 않는다
+export const OPTIONAL_DATA_FILES = ['architecture.md', 'architecture.json'];
 export const EXPORT_MARK = '.livemap-export';
 export const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 
@@ -97,6 +99,7 @@ export function exportSite({ out, captures, target }) {
     ...listFiles(SITE).map((rel) => [join(SITE, rel), join(dst.site, rel)]),
     ...listFiles(captures).filter((f) => !f.includes('/') && f.endsWith('.jpg')).map((f) => [join(captures, f), join(dst.captures, f)]),
     ...DATA_FILES.map((f) => [join(out, f), join(dst.data, f)]),
+    ...OPTIONAL_DATA_FILES.filter((f) => existsSync(join(out, f))).map((f) => [join(out, f), join(dst.data, f)]),
   ];
   for (const [from, to] of copies) { mkdirSync(dirname(to), { recursive: true }); copyFileSync(from, to); }
   writeFileSync(join(target, EXPORT_MARK), 'livemap export\n');
