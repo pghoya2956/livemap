@@ -606,16 +606,17 @@ test('SC-7 laneLayout 기능 교집합: 초점과 기능이 함께면 초점 범
 
 test('SC-11 neighbors 1홉: 들어오는 호출과 나가는 호출이 관계 방향으로 갈리고 없는 노드는 빈 목록이다', () => {
   const n = neighbors(ARCH, 'web/src/lib/util.ts');
-  assert.deepEqual(n.in.sort(), ['app/server.mjs', 'tests/a.test.mjs', 'web/src/lib/api.ts', 'web/src/pages/A.tsx', 'web/src/pages/B.tsx']);
+  assert.deepEqual(n.in.sort(), ['tests/a.test.mjs', 'web/src/lib/api.ts', 'web/src/pages/A.tsx', 'web/src/pages/B.tsx']);
   assert.deepEqual(n.out, []);
   assert.deepEqual([n.lane, n.container, n.community, n.communityName], ['lib', 'web', 2, 'api.ts']);
   assert.deepEqual(neighbors(ARCH, 'module:web/src/pages/A.tsx').out.sort(), ['web/src/lib/api.ts', 'web/src/lib/util.ts']);
   assert.deepEqual(neighbors(ARCH, '없는 노드'), { id: '없는 노드', lane: null, container: null, community: null, communityName: null, in: [], out: [], violations: [], flows: [] });
   assert.deepEqual(neighbors(ARCH, 'web/src/pages/A.tsx').flows, ['f1']);
+  assert.deepEqual(neighbors(ARCH, 'app/server.mjs').violations.map((v) => [v.code, v.at.line]), [['architecture.layer-violation', 4]]);
 });
 
 test('SC-22·SC-24 communityLayout 구역 배치: 구역은 부품 순서, 구역 안은 묶음 id 순, 입력 순서를 뒤집어도 같다', () => {
-  const a = communityLayout(ARCH, {});
+  const a = communityLayout(ARCH, { hideTests: true });
   assert.deepEqual(a.zones.map((z) => z.id), ['web', 'bff', 'db']);
   assert.deepEqual(a.boxes.map((b) => b.id), [1, 2, 3, 5]);
   // 같은 구역 상자는 그 구역 상자 안에 든다
@@ -625,24 +626,27 @@ test('SC-22·SC-24 communityLayout 구역 배치: 구역은 부품 순서, 구�
   }
   const rev = clone(ARCH);
   rev.communities.reverse(); rev.communityLinks.reverse();
-  assert.deepEqual(communityLayout(rev, {}), a);
-  assert.deepEqual(communityLayout(ARCH, {}), a);
+  assert.deepEqual(communityLayout(rev, { hideTests: true }), a);
+  assert.deepEqual(communityLayout(ARCH, { hideTests: true }), a);
+  // 기본값은 자료가 보이라고 한 묶음을 모두 그린다(부모 재현이 이 값을 묶음 수와 맞춘다)
+  assert.equal(communityLayout(ARCH, {}).boxes.length, ARCH.communities.filter((c) => c.visible).length);
+  assert.deepEqual(communityLayout(rev, {}), communityLayout(ARCH, {}));
 });
 
-test('SC-22 communityLayout 집계: 검사 묶음은 기본 숨김이고 숨긴 묶음으로 가는 선은 그리지 않고 상자 라벨 수로 남는다', () => {
-  const a = communityLayout(ARCH, {});
+test('SC-22 communityLayout 집계: 검사 묶음을 숨기면 그 선은 그리지 않고 상자 라벨 수로만 남는다', () => {
+  const a = communityLayout(ARCH, { hideTests: true });
   assert.equal(a.hidden.length, 1);
   assert.deepEqual(a.lines.map((l) => [l.from, l.to, l.n]), [[1, 2, 3], [2, 1, 1], [2, 3, 2], [3, 5, 4]]);
   assert.equal(a.boxes.find((b) => b.id === 1).hiddenN, 6);
   assert.equal(a.boxes.find((b) => b.id === 2).hiddenN, 1);
   assert.equal(a.boxes.find((b) => b.id === 3).hiddenN, 0);
   // 검사 묶음을 켜면 상자 다섯과 구역 「구역 없음」이 선다
-  const on = communityLayout(ARCH, { showTests: true });
+  const on = communityLayout(ARCH, {});
   assert.deepEqual(on.boxes.map((b) => b.id), [1, 2, 3, 5, 4]);
   assert.equal(on.zones.length, 4);
   assert.equal(on.lines.length, 6);
   // 짝 집계는 두 방향을 한 선으로 합친다
-  const pair = communityLayout(ARCH, { edges: 'pair' });
+  const pair = communityLayout(ARCH, { hideTests: true, edges: 'pair' });
   assert.deepEqual(pair.lines.map((l) => [l.from, l.to, l.n, l.both]), [[1, 2, 4, true], [2, 3, 2, false], [3, 5, 4, false]]);
 });
 
