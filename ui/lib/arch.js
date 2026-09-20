@@ -108,6 +108,22 @@ export function laneMembers(arch) {
   return out;
 }
 
+/** 함수 수준 자료(`map/.out/architecture.json`)의 심볼을 파일별로 모은다.
+ *  `symbols[].module` 이 파일 수준 노드 id 와 같은 공간이고 그것이 두 수준을 잇는 열쇠다.
+ *  자료가 없거나 심볼이 0개면 빈 Map 이라 부르는 쪽이 파일 수준에 머문다 */
+export function symbolsByModule(fn) {
+  const out = new Map();
+  for (const sy of Array.isArray(fn?.symbols) ? fn.symbols : []) {
+    if (!sy?.id || !sy.module) continue;
+    if (!out.has(sy.module)) out.set(sy.module, []);
+    out.get(sy.module).push({ id: sy.id, module: sy.module, line: sy.line ?? null, callable: sy.callable !== false, community: sy.community ?? null });
+  }
+  for (const list of out.values()) list.sort(byKey((x) => [x.line ?? 0, x.id]));
+  return out;
+}
+/** 심볼 엣지의 끝점에는 `symbol:` 접두가 붙어 있고 `symbols[].id` 에는 없다(엔진 실측). 접두를 떼어 맞춘다 */
+const bareSymbol = (id) => (typeof id === 'string' && id.startsWith('symbol:') ? id.slice(7) : id);
+
 /** 기능의 실측 선(2.1.0 `flows[].edges`). 없는 자료에서는 빈 목록이고 선언 좌표 사슬만 그린다 */
 export function flowEdges(arch, flowId) {
   const f = (arch?.flows || []).find((x) => x.id === flowId);
@@ -172,14 +188,33 @@ export function laneLayout(arch, opts = {}) {
   ids = [...new Set(ids)].sort(cmp);
 
   // 층: 파일은 선언한 층, 층이 실은 노드는 그 층, 그 밖은 종류가 같은 층
+  // 함수 수준(P5-15b, SC-8): 보이는 파일을 그 파일의 심볼로 펼친다. 심볼이 없는 파일은 파일 상자 그대로 둔다.
+  // fn 을 주지 않으면 아래 pieces 가 비어 파일 수준 배치가 한 글자도 바뀌지 않는다
+  const symByMod = opts.fn ? symbolsByModule(opts.fn) : new Map();
+  const symById = new Map();
+  for (const list of symByMod.values()) for (const sy of list) symById.set(sy.id, sy);
+  const level = symById.size ? 'fn' : 'file';
+
   const laneOf = (id) => {
     const m = modById.get(id);
     if (m) return moduleLane(m, laneById);
+    const sy = symById.get(id);
+    if (sy) { const om = modById.get(sy.module); if (om) return moduleLane(om, laneById); }
     const x = memById.get(id);
     if (x && laneById.has(x.lane)) return x.lane;
     return nodeLane(id, L);
   };
-  const shown = ids.filter((id) => { const l = laneOf(id); return l === null ? !!modById.get(id) : laneById.has(l); });
+  let shown = ids.filter((id) => { const l = laneOf(id); return l === null ? !!modById.get(id) : laneById.has(l); });
+  // 파일 → 심볼 펼치기. 어느 파일이 어떤 심볼로 갈렸는지 남겨 두어 선을 옮길 때 쓴다
+  const expandedOf = new Map();
+  if (level === 'fn') {
+    shown = shown.flatMap((id) => {
+      const list = modById.get(id) ? symByMod.get(id) : null;
+      if (!list || !list.length) return [id];
+      expandedOf.set(id, list.map((sy) => sy.id));
+      return list.map((sy) => sy.id);
+    });
+  }
   const colOf = new Map();
   const colIndex = (lane) => (lane === null ? L.columns.length : L.columns.findIndex((c) => c.lanes.includes(lane)));
   for (const id of shown) colOf.set(id, colIndex(laneOf(id)));
@@ -200,8 +235,26 @@ export function laneLayout(arch, opts = {}) {
     if (!m) continue;
     for (const d of m.deps || []) if (inScope.has(d) && d !== id) edges.push({ from: id, to: d, n: 1, kind: 'imports' });
   }
+  // 함수 수준의 선은 심볼 사이 엣지다. 양 끝이 지금 보이는 집합 안에 있는 것만 그린다
+  if (level === 'fn') {
+    for (const e of Array.isArray(opts.fn?.edges) ? opts.fn.edges : []) {
+      const a = bareSymbol(e?.from), b = bareSymbol(e?.to);
+      if (!inScope.has(a) || !inScope.has(b) || a === b) continue;
+      edges.push({ from: a, to: b, n: 1, kind: 'symbol', relation: e.kind ?? null, confidence: e.confidence ?? null });
+    }
+  }
   // 기능의 선언 좌표 사슬. 파일 수준에서는 심볼 좌표를 그 파일로 접어 사슬이 끊기지 않게 한다
-  const onCanvas = (id) => (inScope.has(bare(id)) ? bare(id) : inScope.has(moduleOfSymbol(id)) ? moduleOfSymbol(id) : null);
+  //   화폭에 있는 그대로 → (함수 수준이면) 그 파일이 갈린 첫 심볼 → 심볼 좌표를 그 파일로 접기
+  const onCanvas = (id) => {
+    const b = bare(id);
+    if (inScope.has(b)) return b;
+    const first = expandedOf.get(b);
+    if (first?.length) return first[0];
+    const om = moduleOfSymbol(id);
+    if (inScope.has(om)) return om;
+    const om2 = expandedOf.get(om);
+    return om2?.length ? om2[0] : null;
+  };
   if (flow) for (const e of flowPath(arch, flow.id).chain) {
     const a = onCanvas(e.from), b = onCanvas(e.to);
     if (a && b && a !== b) edges.push({ from: a, to: b, n: 1, kind: 'flow', declared: true, broken: e.broken });
@@ -254,7 +307,7 @@ export function laneLayout(arch, opts = {}) {
   // 묶음 단위 접기: 한 열이 foldMax 를 넘으면 그 열을 묶음 상자로 접는다(DEC-33 접기 규칙).
   // 접은 상자를 누르면 그 묶음으로 가고, 무엇이 접혔는지는 members 와 화면 칩이 적는다
   const foldMax = opts.foldMax ?? 40;
-  const communityOf = (id) => modById.get(id)?.community ?? memById.get(id)?.community ?? null;
+  const communityOf = (id) => modById.get(id)?.community ?? symById.get(id)?.community ?? memById.get(id)?.community ?? null;
   const communityNameOf = (id) => modById.get(id)?.communityName ?? (communityOf(id) == null ? null : (arch?.communities || []).find((c) => c.id === communityOf(id))?.name ?? String(communityOf(id)));
   const foldedIn = new Map(); // 접힌 노드 id → 접은 상자 id
   let folded = 0;
@@ -304,18 +357,21 @@ export function laneLayout(arch, opts = {}) {
       });
       return;
     }
+    const sy = m ? null : symById.get(id);
+    const syMod = sy ? modById.get(sy.module) : null;
     boxes.push({
-      id, row, column: c.index, lane: laneOf(id), kind: m ? 'module' : x ? x.kind : kindOf(id), folded: false,
-      name: m ? id.split('/').pop() : x ? x.label : String(id).slice(String(id).indexOf(':') + 1),
-      community: m ? m.community : x ? x.community : null,
-      communityName: m ? m.communityName : x ? communityNameOf(id) : null,
-      container: m ? m.container ?? null : x ? x.part : null,
+      id, row, column: c.index, lane: laneOf(id), kind: m ? 'module' : sy ? 'symbol' : x ? x.kind : kindOf(id), folded: false,
+      name: m ? id.split('/').pop() : sy ? sy.id.slice(sy.module.length + 1) : x ? x.label : String(id).slice(String(id).indexOf(':') + 1),
+      community: m ? m.community : sy ? sy.community : x ? x.community : null,
+      communityName: m ? m.communityName : sy ? syMod?.communityName ?? communityNameOf(id) : x ? communityNameOf(id) : null,
+      container: m ? m.container ?? null : sy ? syMod?.container ?? null : x ? x.part : null,
+      ...(sy ? { module: sy.module, line: sy.line } : {}),
       symbols: m ? m.symbols : null, violations: m ? m.violations || [] : [],
-      onFlow: flowSet ? flowSet.has(id) : false, ...pos,
+      onFlow: flowSet ? flowSet.has(id) || (sy ? flowSet.has(sy.module) : false) : false, ...pos,
     });
   }));
   return {
-    mode: 'nodes', boxes, lines: drawn, columns, sweeps, hiddenN, folded,
+    mode: 'nodes', level, boxes, lines: drawn, columns, sweeps, hiddenN, folded,
     W: N.pad * 2 + columns.length * N.w + Math.max(0, columns.length - 1) * N.gapX,
     H: N.head + N.pad * 2 + rows * N.h + Math.max(0, rows - 1) * N.gapY,
   };
