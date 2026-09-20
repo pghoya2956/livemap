@@ -468,6 +468,10 @@ export function overviewSlice(d, opts = {}) {
       adapters: d.adapters.some((a) => a.status === 'failed') ? 'fail' : d.adapters.some((a) => a.status === 'partial') ? 'partial' : 'ok', adapterNotes: d.adapters.filter((a) => a.status !== 'ok').map((a) => `${a.name}: ${a.error}`),
       warnings: d.summary.warnings, orphans: d.summary.orphans, gated: d.tests.filter((t) => t.gated).reduce((n, t) => n + t.count, 0),
       deployBehindAll: d.deploy?.behind ?? null,
+      // 구조 어긋남(2.1.0, DEC-19): 선언한 경계를 넘은 엣지 수. 개요에는 숫자 하나만 싣는다 —
+      // 묶음 이름과 파일 경로는 개요 식별자 검사(.tsx·.mjs·.sql·web/src)에 걸리므로 개요로 보내지 않는다.
+      // 구조 절이 없는 프로젝트(graphify 어댑터 미설정)는 null 이고 전광판·특보에 줄이 서지 않는다
+      boundaryViolations: d.architecture ? d.summary.boundaryViolations ?? 0 : null,
     },
     counts: { stepsLive: d.summary.stepsLive, stepsTotal: d.summary.stepsTotal, screensLive: d.summary.liveRoutes, screensFixed: d.summary.fixedRoutes, screens: d.summary.routes, apis: d.summary.apis, functions: d.summary.dbFunctions, tests: d.summary.tests, pnDone: d.summary.pnDone, pnTotal: d.summary.pnDone + d.summary.pnOpen, oq: d.summary.oq, openQuestions: d.summary.openQuestions, decisions: d.decisions.filter((x) => x.status === 'current').length, proposed: d.decisions.filter((x) => x.status === 'proposed').length, grades: d.summary.grades,
       steps: stepCounts, journeys: nJourneys, journeysLive: d.semantic.journeys.filter((j) => j.status === 'live').length, tasksRunning: d.tasks.filter((t) => t.status === '진행').length,
