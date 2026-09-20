@@ -14,7 +14,8 @@
 //   code, 그 밖                      → symbol(id <파일>:<이름>, 같은 파일에 같은 이름이 둘이면 @<위치>)
 //   source_file 이 비고 들어오는 엣지 없음 → 조각 노드, 버린다
 // relation 대응(DEC-24·DEC-28): imports·imports_from·re_exports → imports(끝점을 module 로 올린다), contains·method → contains, calls·indirect_call → calls,
-//   reads_from·references·indexes·cites → reads, inherits → inherits. 엣지 props 에 confidence 와 참일 때만 typeOnly·deferred, 원 relation 이 다르면 via.
+//   reads_from·references·indexes·cites → reads, inherits → inherits. 엣지 props 에 confidence 와 참일 때만 typeOnly·deferred, 원 relation 이 다르면 via,
+//   imports 는 기여 링크 중 가장 앞선 source_location 줄 line(층 위반 좌표의 근거).
 // 순서: migrations 뒤에 둔다. livemap 이 만든 function·table 노드에 Graphify 증거를 덧붙이기 때문이다(먼저 돌아도 노드는 만들어지고 src 만 Graphify 자리가 된다).
 export const DEFAULT_GRAPH = 'graphify-out/graph.json';
 export const REQUIRED_TOP = ['directed', 'multigraph', 'graph', 'nodes', 'links', 'hyperedges'];
@@ -177,7 +178,8 @@ export default function graphify(g, fs, cfg) {
     }
     if (!from || !to || (from[0] === to[0] && from[1] === to[1])) { droppedEdges += 1; continue; }
     const k = `${from.join(':')}\u0000${kind}\u0000${to.join(':')}`;
-    const a = agg.get(k) || { from, to, kind, extracted: false, typeOnly: true, deferred: true, via: new Set() };
+    const a = agg.get(k) || { from, to, kind, extracted: false, typeOnly: true, deferred: true, via: new Set(), line: null };
+    if (MODULE_LEVEL.has(l.relation)) { const ln = lineOf(l.source_location); if (ln !== null && (a.line === null || ln < a.line)) a.line = ln; }
     a.extracted ||= l.confidence !== 'INFERRED';
     a.typeOnly &&= l.type_only === true;
     a.deferred &&= l.deferred === true;
@@ -190,6 +192,7 @@ export default function graphify(g, fs, cfg) {
     if (a.deferred) props.deferred = true;
     const via = [...a.via].filter(Boolean);
     if (via.length && !a.via.has(null)) props.via = via.sort().join('|');
+    if (a.kind === 'imports' && a.line !== null) props.line = a.line; // 파일 의존의 import 줄(P5-15a). 다른 종류는 싣지 않는다
     g.link(a.from[0], a.from[1], a.kind, a.to[0], a.to[1], props);
   }
 

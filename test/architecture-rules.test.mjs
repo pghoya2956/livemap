@@ -50,7 +50,7 @@ function graph({ typeOnly = false, deferred = false, inferredOnly = false } = {}
   imp('web/src/App.tsx', 'web/src/pages/Live.tsx'); imp('web/src/App.tsx', 'web/src/pages/Mocked.tsx'); imp('web/src/App.tsx', 'react');
   imp('web/src/pages/Live.tsx', 'web/src/lib/queries.ts'); imp('web/src/pages/Mocked.tsx', 'web/src/mock/index.ts');
   // 규칙 위반 후보: lib → pages(허용 목록 —). typeOnly 면 위반이 아니고 deferred 는 결정 전 취급
-  imp('web/src/lib/queries.ts', 'web/src/pages/Live.tsx', { confidence: 'EXTRACTED', ...(typeOnly ? { typeOnly: true } : {}), ...(deferred ? { deferred: true } : {}) });
+  imp('web/src/lib/queries.ts', 'web/src/pages/Live.tsx', { confidence: 'EXTRACTED', line: 7, ...(typeOnly ? { typeOnly: true } : {}), ...(deferred ? { deferred: true } : {}) });
   g.link('symbol', 'web/src/pages/Live.tsx:Live', 'calls', 'symbol', 'web/src/lib/queries.ts:useResorts', { confidence: inferredOnly ? 'INFERRED' : 'EXTRACTED' });
   // livemap 노드와 다리
   g.add('screen', '/live', '/live', { file: 'web/src/pages/Live.tsx', source: 'live' }, { file: 'web/src/App.tsx', line: 6, rule: 'router:<Route path>' });
@@ -117,7 +117,11 @@ test('SC-12 층 위반: 허용 목록에 없는 층에서 가져오면 architect
   assert.deepEqual(r.violations.map((v) => [v.from, v.to, v.fromLane, v.toLane]), [['web/src/lib/queries.ts', 'web/src/pages/Live.tsx', 'lib', 'pages']]);
   const issues = codes(g, 'architecture.layer-violation');
   assert.equal(issues.length, 1);
-  assert.deepEqual([issues[0].level, issues[0].subject, issues[0].anchors], ['warn', { kind: 'module', id: 'web/src/lib/queries.ts' }, [{ file: 'web/src/lib/queries.ts', line: null }]]);
+  // P5-15a(SC-12): 줄 번호는 Graphify 링크의 source_location 에서 온 엣지 props.line 이다. 근거 줄과 at.line 에 채운다
+  assert.deepEqual([issues[0].level, issues[0].subject, issues[0].anchors], ['warn', { kind: 'module', id: 'web/src/lib/queries.ts' }, [{ file: 'web/src/lib/queries.ts', line: 7 }]]);
+  assert.deepEqual(r.violations[0].at, { file: 'web/src/lib/queries.ts', line: 7 });
+  // modules[].violations 는 최상위 violations 와 같은 모양의 객체 { code, to, at }(화면이 층 배치의 점선과 영향 패널을 이것으로 그린다)
+  assert.deepEqual(r.modules.find((m) => m.id === 'web/src/lib/queries.ts').violations, [{ code: 'architecture.layer-violation', to: 'web/src/pages/Live.tsx', at: { file: 'web/src/lib/queries.ts', line: 7 } }]);
   assert.match(issues[0].message, /lib.*pages/);
   const t = graph({ typeOnly: true });
   run(DECL, t);
@@ -141,7 +145,7 @@ test('SC-12 허용 목록을 모두 비우면 층 사이 import 마다 위반이
   const g = graph({ typeOnly: true }); // lib → pages 는 타입 전용이라 빠진다
   const r = run({ ...DECL, [`${DIR}/web.md`]: WEB('—') }, g);
   assert.deepEqual(r.violations.map((v) => `${v.fromLane} → ${v.toLane}`), ['pages → lib', 'pages → mock']);
-  assert.deepEqual(r.modules.find((m) => m.id === 'web/src/pages/Live.tsx').violations, ['web/src/lib/queries.ts']);
+  assert.deepEqual(r.modules.find((m) => m.id === 'web/src/pages/Live.tsx').violations, [{ code: 'architecture.layer-violation', to: 'web/src/lib/queries.ts', at: { file: 'web/src/pages/Live.tsx', line: null } }], '줄을 못 구한 엣지는 line null');
   assert.deepEqual(r.laneLinks.filter((l) => ['pages', 'lib', 'mock'].includes(l.from)).map((l) => `${l.from}→${l.to}:${l.n}`).sort(), ['lib→pages:1', 'pages→lib:1', 'pages→mock:1']);
 });
 

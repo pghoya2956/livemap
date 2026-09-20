@@ -143,10 +143,10 @@ sequenceDiagram 을 넣는 기능은 현재 마일스톤(진행, 없으면 다�
 | `lanes[]` | 층: `id`·`name`·`container`·`kind`(`code`, 종류 층 `screen`·`api`·`function`·`table`·`auth`)·`visible`·`allow`(선언 층의 허용 목록)·`nodes`(그 층의 노드 수)·**`members`**. **`members` 는 그 층에 선 노드 목록**이고 항목은 `{ id, kind, label, community, part }` 만이다(`part` 는 부품 id. 파일 경로 같은 큰 값은 없다). 화면이 층 배치의 상자를 이것으로 그린다. `nodes` 는 수 그대로다(타입을 바꾸면 읽는 쪽이 조용히 깨진다) |
 | `laneLinks[]` | 층 사이 선 `{ from, to, n }`(imports·calls·invokes·touches) |
 | `communities[]`·`communityLinks[]` | 묶음(`id`·`name`·`zone`·`nodes`(파일 수)·`lanes`·`visible`·`inherited`)과 묶음 사이 선 `{ from, to, n, kinds }` |
-| `modules[]` | 파일: `id`(경로)·`container`·`lane`·`symbols`·`community`·`communityName`·`deps`·`violations` |
+| `modules[]` | 파일: `id`(경로)·`container`·`lane`·`symbols`·`community`·`communityName`·`deps`·`violations`. **`violations` 는 최상위 `violations` 와 같은 모양의 객체 `{ code, to, at: { file, line } }`** 배열이다(그 파일이 출발점인 위반만. 화면이 층 배치의 점선과 노드 초점 영향 패널을 이것으로 그린다) |
 | `bridges` | 다리 통계(`made`·`moved`·`byKind`·`matched`·`unmatched`) |
 | `flows[]` | 기능: `id`·`name`·`container`·`step`·`status`·`nodes`(길 위 노드 `kind:id`)·**`edges`**·`counts`·`broken`·`path`·`story`. **`edges` 는 길 위 노드 사이의 실측 엣지 `{ from, to, kind }`** 이고 `from`·`to` 는 `nodes` 와 같은 `kind:id` 공간, `kind` 는 그래프 엣지 종류 그대로(calls·invokes·touches·renders·defined_in·imports·reads 등)다. 선언 좌표 사슬 `path` 와 겹쳐도 된다. 화면이 기능 길의 선을 이것으로 그린다 |
-| `violations[]` | 층 위반 `{ code, from, to, fromLane, toLane, at, deferred? }` |
+| `violations[]` | 층 위반 `{ code, from, to, fromLane, toLane, at: { file, line }, deferred? }`. `at.line` 은 Graphify 링크의 `source_location`(`"L24"`)에서 온 import 줄이고, 한 파일 짝에 링크가 여럿이면 가장 앞선 줄이다. 못 구하면 `null` 이고 그때 화면은 줄 없이 파일만 보인다 |
 | `graphify` | Graphify 통계(노드·엣지·relation·묶음·추정·typeOnly·deferred·unknownRelations·생성 시각) |
 
 함수 수준(심볼과 심볼 사이 엣지)은 이 절에 없고 `map/.out/architecture.json` 에 있다.
