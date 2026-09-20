@@ -3,13 +3,13 @@
 // data.json 응답을 늦춰 그 조건을 고정하고, 해시 방문(visitHash)과 개요 이동 요소 판정(checkOverviewTarget)이 화면이 그려진 뒤에 재는지 본다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from '../src/cli.mjs';
 import { execFileSync } from 'node:child_process';
-import { serve, DATA_FILES } from '../src/serve.mjs';
+import { serve, DATA_FILES, OPTIONAL_DATA_FILES } from '../src/serve.mjs';
 import { launchBrowser, openCrawlContext, fetchJson, buildRouteIndex, visitHash, checkOverviewTarget, KNOWN_EXPECT, whenHolds, whenFacts, openScreen } from '../scripts/route-crawl.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -27,7 +27,9 @@ test.before(async () => {
   const siteDir = join(dir, 'site');
   execFileSync(process.execPath, [join(HERE, '..', 'scripts', 'build-ui.mjs'), siteDir], { stdio: 'ignore' });
   mkdirSync(join(siteDir, 'data'), { recursive: true });
+  // 필수 셋과 있으면 쓰는 것(architecture.json·md)까지 옮긴다. 수준 토글이 architecture.json 을 받는다
   for (const f of DATA_FILES) cpSync(join(out, f), join(siteDir, 'data', f));
+  for (const f of OPTIONAL_DATA_FILES) if (existsSync(join(out, f))) cpSync(join(out, f), join(siteDir, 'data', f));
   const say = console.log; console.log = () => {};
   try { server = serve({ root, out, port: 0, captures: join(root, 'map/captures'), static: siteDir, build: async () => {} }); await new Promise((r) => server.once('listening', r)); } finally { console.log = say; }
   base = `http://127.0.0.1:${server.address().port}/map/`;

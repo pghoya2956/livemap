@@ -618,8 +618,12 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
         }
         if (x.growsList) { const list1 = await listSize(page, x.growsList); out.state.list = [list0, list1]; checks.growsList = list1 > list0; }
         if (x.chipText) {
+          // 화면이 자료를 더 받아 와야 바뀌는 칩이 있다(수준 토글이 architecture.json 을 처음 받는 자리).
+          // 한 번만 읽으면 받기 전 상태를 재므로 문구가 나올 때까지 잠깐 기다린다
           const re = chipRegex(x.chipText);
-          const texts = await page.locator('.am-bar .chip').evaluateAll((es) => es.map((e) => (e.textContent || '').replace(/\s+/g, ' ').trim()));
+          const read = () => page.locator('.am-bar .chip').evaluateAll((es) => es.map((e) => (e.textContent || '').replace(/\s+/g, ' ').trim()));
+          let texts = await read();
+          for (let k = 0; k < 12 && !texts.some((tx) => re.test(tx)); k++) { await page.waitForTimeout(300); texts = await read(); }
           out.state.chips = texts;
           checks.chipText = texts.some((tx) => re.test(tx));
         }
