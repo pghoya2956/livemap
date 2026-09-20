@@ -6,7 +6,7 @@
 // 규칙 절은 선언이 없으면 어디에 적으면 위반이 여기 뜨는지 말한다.
 import React from 'react';
 import { Panel, Icons, Proj } from './primitives.jsx';
-import { neighbors, laneName } from '../lib/arch.js';
+import { neighbors, laneName, laneMembers } from '../lib/arch.js';
 
 const Row = ({ k, children }) => <div className="am-kv"><span className="k">{k}</span><span className="v">{children}</span></div>;
 const nameOfLane = (arch, id) => laneName((arch.lanes || []).find((l) => l.id === id)) || id;
@@ -160,16 +160,19 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
     );
   }
 
-  // 노드 초점
+  // 노드 초점. 파일이 아닌 노드(화면 경로·API·로그인·DB 함수·테이블)는 층이 실은 목록에서 이름을 얻는다
   const n = neighbors(arch, focus);
   const m = (arch.modules || []).find((x) => x.id === n.id);
+  const mem = m ? null : laneMembers(arch).get(n.id) || null;
+  const kindWord = { screen: '화면 경로', api: 'API', auth: '로그인', function: 'DB 함수', table: '테이블' }[mem?.kind ?? ''] ?? '노드';
   const passing = flows.filter((f) => (f.nodes || []).some((x) => x.replace(/^module:/, '') === n.id));
   return (
-    <Panel icon={Icons.alert} title="영향" sub={<Proj>{n.id.split('/').pop()}</Proj>} at={at} className="am-panel">
-      <Row k="파일"><Proj>{n.id}</Proj></Row>
+    <Panel icon={Icons.alert} title="영향" sub={<Proj>{m ? n.id.split('/').pop() : mem?.label ?? n.id}</Proj>} at={at} className="am-panel">
+      <Row k={m ? '파일' : kindWord}><Proj>{m ? n.id : mem?.label ?? n.id}</Proj></Row>
       <Row k="묶음">{n.communityName ? <button type="button" className="am-link" onClick={() => onFocus?.(`community:${n.community}`)}><Proj>{n.communityName}</Proj></button> : <span className="dim">묶음 없음</span>}</Row>
       <Row k="층·부품">{n.lane ? nameOfLane(arch, n.lane) : <span className="dim">층 없음</span>} · {n.container ?? <span className="dim">미배정</span>}</Row>
       <Row k="지나는 기능">{passing.length}/{flows.length}{passing.length > 0 && <> · {passing.map((f) => <button key={f.id} type="button" className="am-link" onClick={() => onFlow?.(f.id)}><Proj>{f.name}</Proj></button>)}</>}</Row>
+      {!m && <p className="am-note">이 노드의 이웃은 기능의 실측 선에서 읽는다. 기능을 고르면 그 길 위에서 함께 선다</p>}
       <div className="am-sec">나가는 호출 {n.out.length}</div>
       <div className="am-list"><Names ids={n.out} onPick={onFocus} /></div>
       <div className="am-sec">들어오는 호출 {n.in.length}</div>

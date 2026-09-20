@@ -738,9 +738,10 @@ test('SC-7 laneLayout 기능 실측 선: flows[].edges 를 그리고 선언 좌�
   const g = laneLayout(A, { mode: 'nodes', focus: 'sys', flow: 'f1' });
   const measured = g.lines.filter((l) => l.kind === 'flowEdge');
   // 여섯 중 끝점이 화폭에 없는 한 줄(auth:없는노드)은 빼고 다섯이 선다
+  // 끝점의 module: 접두는 떼고 그린다(파일 노드의 화폭 id 는 경로 그대로다)
   assert.deepEqual(measured.map((l) => `${l.from}>${l.to}`).sort(), [
     'api:/api/pay>function:pay', 'function:pay>table:t.payments',
-    'module:web/src/lib/api.ts>api:/api/pay', 'screen:/pay>module:web/src/pages/A.tsx',
+    'screen:/pay>web/src/pages/A.tsx', 'web/src/lib/api.ts>api:/api/pay',
     'web/src/pages/A.tsx>web/src/lib/api.ts',
   ].sort());
   assert.deepEqual([...new Set(measured.map((l) => l.relation))].sort(), ['calls', 'imports', 'invokes', 'renders', 'touches']);
@@ -806,6 +807,13 @@ test('SC-6 laneLayout 묶음 단위 접기: 한 열이 foldMax 를 넘으면 묶
   // 접은 상자를 누르면 그 묶음으로 간다
   assert.equal(tight.boxes[0].focusTo, 'community:3');
   assert.deepEqual(laneLayout(A, { mode: 'nodes', focus: 'group:function', foldMax: 10 }), tight);
+  // 묶음이 하나뿐이면 접지 않는다. 상자 하나 뒤에 열 전체가 숨고 눌러도 같은 열이 다시 접혀 빠져나갈 자리가 없다
+  const one = clone(A);
+  for (const x of one.lanes.find((l) => l.id === 'function').members) x.community = 5;
+  const kept = laneLayout(one, { mode: 'nodes', focus: 'group:function', foldMax: 10 });
+  assert.equal(kept.folded, 0);
+  assert.equal(kept.boxes.length, 30);
+  assert.equal(kept.boxes.every((b) => !b.folded), true);
 });
 
 test('SC-7 neighbors: 층 노드와 기능 실측 선의 1홉 이웃도 낸다', () => {

@@ -5,6 +5,8 @@
 import React from 'react';
 import { laneLayout, laneName } from '../lib/arch.js';
 
+const KIND_WORD = { module: '파일', screen: '화면 경로', api: 'API', auth: '로그인', function: 'DB 함수', table: '테이블', symbol: '함수' };
+
 /** 열 머리 글자: 층이 여럿이면 둘까지 적고 나머지는 수로. 열 폭을 넘기면 옆 열과 겹친다 */
 function colLabel(c) {
   if (!c.names.length) return c.unassigned ? '미배정' : '층 없음';
@@ -139,13 +141,16 @@ export function LaneMap({ arch, focus, flow, hidden, hubMin, onFocus, neighbourI
             if (!a || !b) return null;
             const back = b.column < a.column;
             const bad = (a.violations || []).some((v) => v.to === l.to);
-            const cls = ['am-edge', 'am-node-edge', back && 'is-back', l.bundled && 'is-bundle', bad && 'is-bad', l.kind === 'flow' && 'is-flow', l.broken && 'is-broken'].filter(Boolean).join(' ');
+            // 선언 좌표 사슬(is-flow)과 기능의 실측 선(is-measured)을 갈라 그린다. 모양 규칙은 기존 그대로다
+            const cls = ['am-edge', 'am-node-edge', back && 'is-back', l.bundled && 'is-bundle', bad && 'is-bad',
+              l.kind === 'flow' && 'is-flow', l.kind === 'flowEdge' && 'is-measured', l.broken && 'is-broken'].filter(Boolean).join(' ');
             return (
               <path key={`${l.from}>${l.to}|${l.kind}`} data-edge={`${l.from}>${l.to}`} className={cls} d={nodePath(a, b)}
                 strokeWidth={l.bundled ? (1 + Math.min(l.n, 40) / 14).toFixed(2) : 1}
                 tabIndex={l.bundled ? 0 : undefined} role={l.bundled ? 'button' : undefined}
                 aria-label={l.bundled ? `묶은 선 ${l.n}가닥, ${a.name} 외 ${l.n - 1}개에서 ${b.name} 로. 눌러도 초점은 옮기지 않는다` : undefined}>
-                <title>{l.bundled ? `묶은 선 ${l.n}가닥 → ${b.name}\n${l.members.join('\n')}` : `${a.name} → ${b.name}${bad ? ' · 규칙 위반' : ''}${l.broken ? ' · 끊김' : ''}`}</title>
+                <title>{l.bundled ? `묶은 선 ${l.n}가닥 → ${b.name}\n${l.members.join('\n')}`
+                  : `${a.name} → ${b.name}${l.kind === 'flow' ? ' · 선언 좌표' : l.kind === 'flowEdge' ? ` · 실측${l.relation ? ` ${l.relation}` : ''}` : ''}${l.n > 1 ? ` · ${l.n}줄` : ''}${bad ? ' · 규칙 위반' : ''}${l.broken ? ' · 끊김' : ''}`}</title>
               </path>
             );
           })}
@@ -153,21 +158,29 @@ export function LaneMap({ arch, focus, flow, hidden, hubMin, onFocus, neighbourI
         {L.boxes.map((b) => {
           const near = neighbourIds.has(b.id) && b.id !== sel;
           const bad = (b.violations || []).length > 0;
+          const to = b.folded ? b.focusTo : b.id;
+          const label = b.folded
+            ? `묶음 ${b.name}, 접힌 노드 ${b.n}개${b.focusTo ? ', 누르면 그 묶음으로' : ''}`
+            : `${KIND_WORD[b.kind] ?? b.kind} ${b.name}${b.communityName ? `, 묶음 ${b.communityName}` : ''}${bad ? ', 규칙 위반' : ''}${near ? ', 1홉 이웃' : ''}`;
           return (
-            <g key={b.id} className={`am-box am-nbox k-${b.kind}${sel === b.id ? ' sel' : ''}${near ? ' near' : ''}${b.onFlow ? ' on' : ''}${bad ? ' bad' : ''}`}
-              tabIndex={0} role="button" data-id={b.id} onKeyDown={onKeyDown} onClick={() => onFocus?.(b.id)}
-              aria-label={`${b.kind === 'module' ? '파일' : b.kind} ${b.name}${b.communityName ? `, 묶음 ${b.communityName}` : ''}${bad ? ', 규칙 위반' : ''}${near ? ', 1홉 이웃' : ''}`}>
+            <g key={b.id} className={`am-box am-nbox k-${b.kind}${b.folded ? ' is-fold' : ''}${sel === b.id ? ' sel' : ''}${near ? ' near' : ''}${b.onFlow ? ' on' : ''}${bad ? ' bad' : ''}`}
+              tabIndex={0} role="button" data-id={b.id} onKeyDown={onKeyDown} onClick={() => to && onFocus?.(to)} aria-label={label}>
               <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="7" />
               <circle className="am-kind" cx={b.x + 12} cy={b.y + b.h / 2} r="4" />
               <text className="am-t" x={b.x + 23} y={b.y + 16}>{b.name.length > 22 ? `…${b.name.slice(-21)}` : b.name}</text>
-              <text className="am-m" x={b.x + 23} y={b.y + 30}>{b.communityName ? `묶음 ${b.communityName.length > 14 ? `${b.communityName.slice(0, 13)}…` : b.communityName}` : b.kind}{b.symbols ? ` · 함수 ${b.symbols}` : ''}</text>
+              <text className="am-m" x={b.x + 23} y={b.y + 30}>
+                {b.folded ? `묶음 · 접힌 노드 ${b.n}` : b.communityName ? `묶음 ${b.communityName.length > 14 ? `${b.communityName.slice(0, 13)}…` : b.communityName}` : KIND_WORD[b.kind] ?? b.kind}
+                {b.symbols ? ` · 함수 ${b.symbols}` : ''}
+              </text>
             </g>
           );
         })}
       </svg>
       <div className="am-bar">
         <span className="chip">노드 {L.boxes.length} · 선 {L.lines.length}</span>
+        {L.folded > 0 && <span className="chip am-foldchip">노드 {L.folded}개를 묶음 {L.boxes.filter((b) => b.folded).length}개로 접음 · 상자를 누르면 그 묶음으로</span>}
         {L.lines.some((l) => l.bundled) && <span className="chip">묶은 선 {L.lines.filter((l) => l.bundled).length}</span>}
+        {L.lines.some((l) => l.kind === 'flowEdge') && <span className="chip">기능 선 실측 {L.lines.filter((l) => l.kind === 'flowEdge').length} · 선언 {L.lines.filter((l) => l.kind === 'flow').length}</span>}
         <span className="chip">열 = 층 순서</span>
       </div>
     </div>
