@@ -1,7 +1,8 @@
 // architecture 단계(2.1.0, 스펙 PN-16, DEC-15·DEC-16·DEC-45): 다리 단계 뒤에 돌아 선언(map/architecture/)과 사실(그래프)을 대조한다.
 //   부품 소속: 선언한 폴더로 module 을 부품에 배정한다. 겹치면 가장 깊은 선언이 이기고 같은 깊이는 architecture.duplicate-id 오류. 어느 부품에도 없으면 architecture.module-unassigned
 //   층 배정: 부품 안 층 폴더로. 부품 폴더 안이지만 층 밖이면 층 없음(경고 아님). 노드 0 인 층은 architecture.lane-empty
-//   층 위반: imports 엣지(Graphify imports·imports_from·re_exports)로만 판정하고 typeOnly 는 뺀다(DEC-15). deferred 취급은 OQ-10 결정(cfg.architecture.deferred: count|ignore)
+//   층 위반: imports 엣지(Graphify imports·imports_from·re_exports)로만 판정하고 typeOnly 는 뺀다(DEC-15). deferred(동적 import)는 위반으로 세되 문구에
+//     '[동적 import]' 를 표시한다(OQ10_DECISION=C. 지연 import 도 런타임 의존이다). cfg.architecture.deferred 를 'ignore' 로 두면 타입 전용처럼 뺀다
 //   물려받기: 커뮤니티 없는 화면은 renders 대상 파일, API 는 defined_in 대상 파일의 묶음을 받는다(invokes 를 먼저 쓰지 않는다). 로그인·livemap 만 아는 테이블·바깥 상대는 묶음 없음
 //   바깥 상대: `- 스키마:` 를 선언한 부품이 그 스키마의 바깥 상대 SQL 노드를 담는다. 선언 없는 스키마는 architecture.external-undeclared
 //   흐름: 단계(여정/장면)와 좌표를 풀어 nodes·counts 를 만든다. 좌표가 없으면 architecture.flow-step-missing 오류, 이어진 좌표 사이에 엣지가 없거나 추정뿐이면 architecture.flow-broken
@@ -121,7 +122,7 @@ export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
   if (auths.length) lanes.push({ id: 'auth', name: 'auth', container: null, kind: 'auth', nodes: auths.length, visible: true });
 
   // 6. 층 위반·파일 의존·층 사이 선·부품 사이 실측
-  const deferredPolicy = cfg.architecture?.deferred ?? 'count';
+  const deferredPolicy = cfg.architecture?.deferred ?? 'count'; // OQ10_DECISION=C: 기본은 세되 표시
   const violations = [];
   const laneLinkCount = new Map(), measured = new Map();
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);

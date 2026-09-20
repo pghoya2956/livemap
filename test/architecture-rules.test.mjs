@@ -122,6 +122,15 @@ test('SC-12 층 위반: 허용 목록에 없는 층에서 가져오면 architect
   const t = graph({ typeOnly: true });
   run(DECL, t);
   assert.deepEqual(codes(t, 'architecture.layer-violation'), []);
+  // OQ10_DECISION=C: 동적 import(deferred)는 위반으로 세되 문구에 '동적 import' 를 표시하고 위반 항목에 deferred 가 남는다. 설정 deferred: 'ignore' 면 타입 전용처럼 뺀다
+  const d = graph({ deferred: true });
+  const rd = run(DECL, d);
+  assert.deepEqual(rd.violations.map((v) => [v.from, v.deferred]), [['web/src/lib/queries.ts', true]]);
+  assert.match(codes(d, 'architecture.layer-violation')[0].message, /\[동적 import\]/);
+  assert.equal(rd.deferredPolicy, 'count');
+  const di = graph({ deferred: true });
+  run(DECL, di, cfg({ deferred: 'ignore' }));
+  assert.deepEqual(codes(di, 'architecture.layer-violation'), []);
   // 같은 층 안 import 와 규칙 없는 층(allow null)은 판정하지 않는다
   const free = graph();
   run({ ...DECL, [`${DIR}/web.md`]: WEB().replace('- 가져올 수 있는 층: —', '') }, free);

@@ -86,7 +86,7 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 
 | 코드 | 수준 | 대상 | 처리 | 뜻 |
 |---|---|---|---|---|
-| `architecture.layer-violation` | warn | 모듈 | source·code | 파일 의존(`imports`)이 그 층의 `- 가져올 수 있는 층:` 허용 목록에 없다. 같은 부품 안에서 층이 둘 다 정해진 파일 사이만 판정하고 타입 전용(`typeOnly`) 링크는 뺀다. 문구 끝 `[동적 import]`는 `deferred` 링크다 |
+| `architecture.layer-violation` | warn | 모듈 | source·code | 파일 의존(`imports`)이 그 층의 `- 가져올 수 있는 층:` 허용 목록에 없다. 같은 부품 안에서 층이 둘 다 정해진 파일 사이만 판정하고 타입 전용(`typeOnly`) 링크는 뺀다. 동적 import(`deferred`)는 위반으로 세되 문구 끝에 `[동적 import]`를 붙인다(OQ-10 결정 C. 설정 `architecture.deferred: "ignore"`면 타입 전용처럼 뺀다) |
 | `architecture.module-unassigned` | warn | 모듈 | source | 파일이 어느 부품 폴더(`- 폴더:`)에도 들지 않았다. 부품 폴더 안이지만 층 폴더 밖인 파일은 층 없음일 뿐 경고가 아니다 |
 | `architecture.lane-empty` | warn | 설정 | source | 선언한 층의 폴더에 든 파일이 0건이다 |
 | `architecture.container-unanchored` | warn | 컨테이너 | source | 우리 코드 부품의 폴더 선언이 없거나 저장소에 없다. 부품 표가 가리키는 부품 파일이 없을 때도 난다 |
