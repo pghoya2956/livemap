@@ -143,9 +143,13 @@ export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
         const rule = byId.get(from.container).lanes.find((l) => l.id === from.lane);
         const skip = e.props?.typeOnly === true || (e.props?.deferred === true && deferredPolicy === 'ignore');
         if (rule?.allow && !rule.allow.includes(toI.lane) && !skip) {
-          violations.push({ code: 'architecture.layer-violation', from: from.id, to: to.id, fromLane: from.lane, toLane: toI.lane, at: { file: from.id, line: null }, ...(e.props?.deferred ? { deferred: true } : {}) });
-          from.violations.push(to.id);
-          issue('architecture.layer-violation', '구조 규칙', `architecture.layer-violation: ${from.id} → ${to.id}: 층 ${from.lane} 는 ${toI.lane} 를 가져올 수 없다(허용: ${rule.allow.join(', ') || '없음'})${e.props?.deferred ? ' [동적 import]' : ''}`, { kind: 'module', id: from.id }, at(from.id));
+          // 줄 번호는 Graphify 링크의 source_location(imports 엣지 props.line). 못 구하면 null 이고 화면은 파일만 보인다(P5-15a)
+          const line = Number.isInteger(e.props?.line) && e.props.line >= 1 ? e.props.line : null;
+          const where = { file: from.id, line };
+          violations.push({ code: 'architecture.layer-violation', from: from.id, to: to.id, fromLane: from.lane, toLane: toI.lane, at: where, ...(e.props?.deferred ? { deferred: true } : {}) });
+          // modules[].violations 는 최상위와 같은 모양의 객체(그 파일이 출발점인 것만). 화면이 층 배치 점선·영향 패널을 이것으로 그린다
+          from.violations.push({ code: 'architecture.layer-violation', to: to.id, at: { ...where } });
+          issue('architecture.layer-violation', '구조 규칙', `architecture.layer-violation: ${from.id} → ${to.id}: 층 ${from.lane} 는 ${toI.lane} 를 가져올 수 없다(허용: ${rule.allow.join(', ') || '없음'})${e.props?.deferred ? ' [동적 import]' : ''}`, { kind: 'module', id: from.id }, at(from.id, line));
         }
       }
     }
