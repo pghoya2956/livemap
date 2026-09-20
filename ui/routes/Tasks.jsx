@@ -171,7 +171,7 @@ export function Tasks({ ov, data, params }) {
 
   if (!T.length) {
     return (
-      <Screen ov={ov} screen="tasks" nav={3} title="작업">
+      <Screen ov={ov} screen="tasks" nav={4} title="작업">
         <Empty>작업 폴더가 없거나 항목이 없습니다.</Empty>
       </Screen>
     );
@@ -184,7 +184,7 @@ export function Tasks({ ov, data, params }) {
   const t = sel ? T.find((x) => x.name === sel) : null;
 
   return (
-    <Screen ov={ov} screen="tasks" nav={3} title="작업" sub="스펙 주도 작업의 단계와 상태. tasks/ 폴더에서 읽는다. ?는 읽지 못했거나 확인이 필요한 값">
+    <Screen ov={ov} screen="tasks" nav={4} title="작업" sub="스펙 주도 작업의 단계와 상태. tasks/ 폴더에서 읽는다. ?는 읽지 못했거나 확인이 필요한 값">
       <div className="chips tk-filter">
         <Chip on={filter === '진행·대기'} count={activeCount} onClick={() => setFilter('진행·대기')}>진행·대기</Chip>
         <Chip on={filter === '전체'} count={T.length} onClick={() => setFilter('전체')}>전체</Chip>

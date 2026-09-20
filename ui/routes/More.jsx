@@ -514,7 +514,7 @@ export function More({ ov, data, params }) {
   const tab = params.tab || 'decisions';
   const [title, sub] = HEAD[tab] || HEAD.decisions;
   return (
-    <Screen ov={ov} screen="more" nav={4} title={title} sub={sub}>
+    <Screen ov={ov} screen="more" nav={5} title={title} sub={sub}>
       <TabBar tab={tab} />
       {tab === 'changes' && <ChangesTab data={data} />}
       {tab === 'decisions' && <DecisionsTab data={data} />}

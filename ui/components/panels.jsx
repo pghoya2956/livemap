@@ -17,7 +17,9 @@ export function TopBar({ project, signals, generatedAt, current = 0 }) {
   React.useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
   const host = hostOf(project.host);
   const fresh = freshness(generatedAt, now.getTime());
-  const nav = [['개요', '#/overview'], ['기능', '#/journeys'], ['로드맵', '#/roadmap'], ['작업', '#/tasks'], ['더보기', '#/more']];
+  // 2.1.0 내비 여섯: 개요·기능·구조·로드맵·작업·더보기. 읽는 순서는 "지금 뭐가 동작하나, 무엇으로 되어 있나, 뭘 만들 차례인가, 누가 지금 뭘 하나"다.
+  // ui/lib/route.js NAV 와 순서가 같아야 한다(nav 순번이 그 배열의 자리다)
+  const nav = [['개요', '#/overview'], ['기능', '#/journeys'], ['구조', '#/architecture'], ['로드맵', '#/roadmap'], ['작업', '#/tasks'], ['더보기', '#/more']];
   return (
     <header className="top">
       <div className="brand">

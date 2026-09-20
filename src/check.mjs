@@ -4,8 +4,8 @@
 import { problem } from './lib/issues.mjs';
 
 // 엔진 내비 수의 정본(2.1.0, DEC-12). 팩 files 에 ui/ 가 없어 런타임에 ui/lib/route.js 를 읽을 수 없으므로 상수로 두고 test/nav-budget.test.mjs 가 NAV 길이와 같은지 묶는다.
-// Phase 3 이 NAV 를 6으로 올릴 때 이 값도 함께 올린다
-export const NAV_ITEMS = 5;
+// 2.1.0 에서 「구조」를 더해 여섯이 되었다(개요·기능·구조·로드맵·작업·더보기)
+export const NAV_ITEMS = 6;
 
 // derive가 만든 완성 문장을 코드로 가른다. 맞는 규칙이 없으면 마지막 대체 코드
 const STEP_WARNING = [[/^라우트 없음/, 'step.route-missing'], [/^참조 미해결/, 'step.ref-unresolved'], [/^장면은 동작인데/, 'step.screen-not-live'], [/^장면은 \S+인데 화면은 동작/, 'step.screen-live-early'], [/관측 근거 없음/, 'step.no-evidence'], [/^확인 필요/, 'step.review-stale']];

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { freshness, waitDays, hm, mdKo, kst, hostOf } from '../ui/lib/format.js';
 import { fitCount, mapJourneys } from '../ui/lib/fit.js';
 import { isNewer } from '../ui/lib/visit.js';
-import { parseRoute } from '../ui/lib/route.js';
+import { parseRoute, archHash, NAV } from '../ui/lib/route.js';
 import { buildTree, pathOf, geometry, crossings } from '../ui/lib/tree.js';
 import { visibleCaptures } from '../ui/lib/capture.js';
 import { LANE_ORDER, laneLayout, communityLayout, flowPath, neighbors, foldByCommunity } from '../ui/lib/arch.js';
@@ -96,15 +96,35 @@ test('parseRoute: 1.0.1 라우트 패턴과 알 수 없는 경로', () => {
   assert.deepEqual(r('#/journeys'), ['journeys', 1, { journey: null, step: null }]);
   assert.deepEqual(r('#/journeys/booking'), ['journeys', 1, { journey: 'booking', step: null }]);
   assert.deepEqual(r('#/journeys/booking/pay'), ['journeys', 1, { journey: 'booking', step: 'pay' }]);
-  assert.deepEqual(r('#/roadmap'), ['roadmap', 2, { id: null }]);
-  assert.deepEqual(r('#/roadmap/real-use-1'), ['roadmap', 2, { id: 'real-use-1' }]);
-  assert.deepEqual(r('#/tasks'), ['tasks', 3, { task: null }]);
-  assert.deepEqual(r('#/tasks/20260916-x'), ['tasks', 3, { task: '20260916-x' }]);
-  assert.deepEqual(r('#/changes'), ['more', 4, { tab: 'changes', detail: null }]);
-  assert.deepEqual(r('#/more'), ['more', 4, { tab: 'decisions', detail: null }]);
-  for (const t of ['changes', 'decisions', 'screens', 'backend', 'tests', 'about']) assert.deepEqual(r(`#/more/${t}`), ['more', 4, { tab: t, detail: null }]);
-  assert.deepEqual(r(`#/more/screens/${encodeURIComponent('/teams/:id')}`), ['more', 4, { tab: 'screens', detail: '/teams/:id' }]);
+  assert.deepEqual(r('#/roadmap'), ['roadmap', 3, { id: null }]);
+  assert.deepEqual(r('#/roadmap/real-use-1'), ['roadmap', 3, { id: 'real-use-1' }]);
+  assert.deepEqual(r('#/tasks'), ['tasks', 4, { task: null }]);
+  assert.deepEqual(r('#/tasks/20260916-x'), ['tasks', 4, { task: '20260916-x' }]);
+  assert.deepEqual(r('#/changes'), ['more', 5, { tab: 'changes', detail: null }]);
+  assert.deepEqual(r('#/more'), ['more', 5, { tab: 'decisions', detail: null }]);
+  for (const t of ['changes', 'decisions', 'screens', 'backend', 'tests', 'about']) assert.deepEqual(r(`#/more/${t}`), ['more', 5, { tab: t, detail: null }]);
+  assert.deepEqual(r(`#/more/screens/${encodeURIComponent('/teams/:id')}`), ['more', 5, { tab: 'screens', detail: '/teams/:id' }]);
   for (const h of ['#/no-such-route', '#/more/nope', '#/journeys/a/b/c', '#/%E0%A4%A']) assert.deepEqual(r(h), ['overview', -1, {}]);
+});
+
+test('SC-9 parseRoute 구조 화면: 초점 여섯 단계와 기능·수준·나눔·보이기가 모두 해시에 실리고 archHash 가 되돌린다', () => {
+  const r = (h) => { const x = parseRoute(h); return [x.screen, x.nav, x.params]; };
+  assert.deepEqual(NAV, ['overview', 'journeys', 'architecture', 'roadmap', 'tasks', 'more']);
+  const base = { focus: 'sys', flow: null, level: 'file', split: 'human', show: [] };
+  assert.deepEqual(r('#/architecture'), ['architecture', 2, base]);
+  assert.deepEqual(r('#/architecture/sys?split=code'), ['architecture', 2, { ...base, split: 'code' }]);
+  assert.deepEqual(r(`#/architecture/${encodeURIComponent('part:web')}`), ['architecture', 2, { ...base, focus: 'part:web' }]);
+  assert.deepEqual(r(`#/architecture/${encodeURIComponent('community:12')}/booking%2Fpay?level=fn`), ['architecture', 2, { ...base, focus: 'community:12', flow: 'booking/pay', level: 'fn' }]);
+  assert.deepEqual(r(`#/architecture/${encodeURIComponent('web/src/pages/Pay.tsx')}?show=tests,libs`), ['architecture', 2, { ...base, focus: 'web/src/pages/Pay.tsx', show: ['tests', 'libs'] }]);
+  // 모르는 값은 기본값으로 떨어지고 경로가 넷이면 알 수 없는 경로다
+  assert.deepEqual(r('#/architecture/sys?level=nope&split=nope'), ['architecture', 2, base]);
+  assert.deepEqual(r('#/architecture/a/b/c'), ['overview', -1, {}]);
+  assert.equal(archHash({}), '#/architecture');
+  assert.equal(archHash({ focus: 'sys', split: 'code' }), '#/architecture?split=code');
+  assert.equal(archHash({ focus: 'part:web', flow: 'booking/pay', level: 'fn', show: ['tests'] }), '#/architecture/part%3Aweb/booking%2Fpay?level=fn&show=tests');
+  for (const f of ['sys', 'part:web', 'community:12', 'group:api', 'web/src/pages/Pay.tsx', 'web/src/pages/Pay.tsx:Pay']) {
+    assert.equal(parseRoute(archHash({ focus: f })).params.focus, f);
+  }
 });
 
 // ---- 로드맵 트리 배치(ui/lib/tree.js): 열 모드, 층, 열 안 순서, 잠김, 더미, 순환, 미배정, 역행, 우회 차선, 조상·자손, 기하 ----

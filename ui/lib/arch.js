@@ -4,6 +4,10 @@
 
 // 같은 깊이·같은 부품의 층을 가르는 종류 순서. 층 id 는 프로젝트가 선언하므로 종류로 정한다
 export const LANE_ORDER = ['screen', 'code', 'api', 'auth', 'function', 'table'];
+// 종류 층은 엔진이 만든 것이라 이름이 id 와 같다. 화면에서는 사람 말로 읽는다
+const KIND_NAME = { screen: '화면', api: 'API', auth: '로그인', function: 'DB 함수', table: '테이블' };
+/** 층의 화면 이름. 선언한 층은 사람이 준 이름 그대로, 엔진이 만든 종류 층은 사람 말로 */
+export const laneName = (l) => (!l ? '' : l.name && l.name !== l.id ? l.name : KIND_NAME[l.kind] ?? l.name ?? l.id);
 
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const byKey = (k) => (a, b) => { const x = k(a), y = k(b); for (let i = 0; i < x.length; i++) { const d = typeof x[i] === 'number' ? x[i] - y[i] : cmp(x[i], y[i]); if (d) return d; } return 0; };
@@ -20,6 +24,12 @@ const Y = { w: 190, h: 78, gap: 18, pad: 16, head: 26, gapX: 34 };
 /** `module:web/x.ts` · `screen:/pay` 처럼 붙은 종류 접두를 뗀 알맹이. 접두가 없으면 그대로 */
 export const bare = (id) => (typeof id === 'string' && id.startsWith('module:') ? id.slice(7) : id);
 const kindOf = (id) => { const i = String(id).indexOf(':'); return i < 0 ? 'module' : String(id).slice(0, i); };
+/** 심볼 좌표(`symbol:<파일>:<이름>`)가 가리키는 파일. 파일 수준에서는 심볼을 그 파일로 접는다 */
+export const moduleOfSymbol = (id) => {
+  if (typeof id !== 'string' || !id.startsWith('symbol:')) return null;
+  const rest = id.slice(7), i = rest.lastIndexOf(':');
+  return i < 0 ? rest : rest.slice(0, i);
+};
 
 // ---- 층 순서 ----
 
@@ -115,7 +125,7 @@ export function laneLayout(arch, opts = {}) {
     const boxes = order.map((id, i) => {
       const l = L.byId.get(id);
       return {
-        id, name: l.name, kind: l.kind, container: l.container, n: l.nodes, hiddenN: hiddenN.get(id) || 0,
+        id, name: laneName(l), kind: l.kind, container: l.container, n: l.nodes, hiddenN: hiddenN.get(id) || 0,
         row: Math.floor(i / cols), col: i % cols,
         x: S.pad + (i % cols) * (S.w + S.gapX), y: S.pad + Math.floor(i / cols) * (S.h + S.gapY), w: S.w, h: S.h,
       };
@@ -146,9 +156,10 @@ export function laneLayout(arch, opts = {}) {
   for (const id of shown) colOf.set(id, colIndex(laneOf(id)));
 
   // 열 = 보이는 층 전부(노드가 없어도 자리를 지킨다) + 층 없는 노드의 마지막 열
-  const columns = L.columns.map((c) => ({ index: c.index, lanes: [...c.lanes], names: c.lanes.map((x) => laneById.get(x).name), ids: [] }));
+  const colX = (i) => N.pad + i * (N.w + N.gapX);
+  const columns = L.columns.map((c) => ({ index: c.index, lanes: [...c.lanes], names: c.lanes.map((x) => laneName(laneById.get(x))), ids: [], x: colX(c.index), w: N.w }));
   const loose = shown.filter((id) => colOf.get(id) === L.columns.length);
-  if (loose.length) columns.push({ index: L.columns.length, lanes: [], names: ['미배정'], unassigned: true, ids: [] });
+  if (loose.length) columns.push({ index: L.columns.length, lanes: [], names: ['미배정'], unassigned: true, ids: [], x: colX(L.columns.length), w: N.w });
   for (const id of shown) columns[colOf.get(id)].ids.push(id);
   for (const c of columns) c.ids.sort(cmp);
 
@@ -160,7 +171,12 @@ export function laneLayout(arch, opts = {}) {
     if (!m) continue;
     for (const d of m.deps || []) if (inScope.has(d) && d !== id) edges.push({ from: id, to: d, n: 1, kind: 'imports' });
   }
-  if (flow) for (const e of flowPath(arch, flow.id).chain) if (inScope.has(bare(e.from)) && inScope.has(bare(e.to))) edges.push({ from: bare(e.from), to: bare(e.to), n: 1, kind: 'flow', broken: e.broken });
+  // 기능의 선언 좌표 사슬. 파일 수준에서는 심볼 좌표를 그 파일로 접어 사슬이 끊기지 않게 한다
+  const onCanvas = (id) => (inScope.has(bare(id)) ? bare(id) : inScope.has(moduleOfSymbol(id)) ? moduleOfSymbol(id) : null);
+  if (flow) for (const e of flowPath(arch, flow.id).chain) {
+    const a = onCanvas(e.from), b = onCanvas(e.to);
+    if (a && b && a !== b) edges.push({ from: a, to: b, n: 1, kind: 'flow', broken: e.broken });
+  }
   edges.sort(byKey((e) => [e.from, e.to, e.kind]));
 
   // 열 안 순서: 앞 열 이웃 자리의 평균을 두 번 돌린다. 같은 값은 id 순
@@ -211,7 +227,7 @@ export function laneLayout(arch, opts = {}) {
       community: m ? m.community : null, communityName: m ? m.communityName : null,
       symbols: m ? m.symbols : null, violations: m ? m.violations || [] : [],
       onFlow: flowSet ? flowSet.has(id) : false,
-      x: N.pad + c.index * (N.w + N.gapX), y: N.head + N.pad + row * (N.h + N.gapY), w: N.w, h: N.h,
+      x: colX(c.index), y: N.head + N.pad + row * (N.h + N.gapY), w: N.w, h: N.h,
     });
   }));
   return {
@@ -327,7 +343,7 @@ export function flowPath(arch, flowId) {
     groups.get(lane).push({ id: bare(raw), raw, kind: kindOf(raw), module: modById.get(bare(raw)) || null });
   }
   const byLane = [...order, ''].filter((l) => groups.has(l)).map((lane) => ({
-    lane, name: L.byId.get(lane)?.name ?? '미배정', nodes: groups.get(lane).sort(byKey((x) => [x.id])),
+    lane, name: laneName(L.byId.get(lane)) || '미배정', nodes: groups.get(lane).sort(byKey((x) => [x.id])),
   }));
   const path = f.path || [];
   const isBroken = (i) => (f.broken || []).some((b) => b?.at === i || (b?.from === path[i]?.node && b?.to === path[i + 1]?.node) || b?.node === path[i + 1]?.node || b?.ref === path[i + 1]?.ref);
