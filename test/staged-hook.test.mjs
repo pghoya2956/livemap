@@ -204,12 +204,16 @@ test('SC-13 check --staged: 코드 파일만 스테이징이면 대상 없음, �
     const r = cli(dir, ['check', '--staged']);
     assert.equal(r.code, 1, `${f}: ${r.out}${r.err}`);
     const lines = r.out.trim().split('\n');
-    assert.equal(lines[0], '✗ architecture.layer-violation 구조 규칙: web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다', f);
+    assert.ok(lines.includes('✗ architecture.layer-violation 구조 규칙: web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다'), `${f}: ${r.out}`);
     assert.ok(lines.includes('  처리: source·code'), f);
     assert.equal(r.out.includes('tasks.stage-unknown'), false, f);
-    assert.match(lines.at(-1), /^map check --staged: 오류 1 /, f);
+    assert.match(lines.at(-1), /^map check --staged: 오류 \d+ /, f);
     const j = JSON.parse(cli(dir, ['check', '--staged', '--json']).out);
-    assert.deepEqual([j.errors, j.problems.map((p) => p.code)], [1, ['architecture.layer-violation']], f);
+    // skillFile 이 설정됐는데 사본이 없어 architecture.skill-stale 도 함께 오류다. architecture.* 만 세고 tasks.* 는 세지 않는다
+    assert.ok(j.problems.some((p) => p.code === 'architecture.layer-violation'), f);
+    assert.ok(j.problems.some((p) => p.code === 'architecture.skill-stale'), f);
+    assert.ok(j.problems.every((p) => p.code.startsWith('architecture.')), f);
+    assert.equal(j.errors, j.problems.length, f);
     git(dir, 'reset', '-q');
   }
 });
