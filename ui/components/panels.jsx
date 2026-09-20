@@ -17,7 +17,9 @@ export function TopBar({ project, signals, generatedAt, current = 0 }) {
   React.useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
   const host = hostOf(project.host);
   const fresh = freshness(generatedAt, now.getTime());
-  const nav = [['개요', '#/overview'], ['기능', '#/journeys'], ['로드맵', '#/roadmap'], ['작업', '#/tasks'], ['더보기', '#/more']];
+  // 2.1.0 내비 여섯: 개요·기능·구조·로드맵·작업·더보기. 읽는 순서는 "지금 뭐가 동작하나, 무엇으로 되어 있나, 뭘 만들 차례인가, 누가 지금 뭘 하나"다.
+  // ui/lib/route.js NAV 와 순서가 같아야 한다(nav 순번이 그 배열의 자리다)
+  const nav = [['개요', '#/overview'], ['기능', '#/journeys'], ['구조', '#/architecture'], ['로드맵', '#/roadmap'], ['작업', '#/tasks'], ['더보기', '#/more']];
   return (
     <header className="top">
       <div className="brand">
@@ -233,6 +235,8 @@ export function SignalsPanel({ roadmapItems, milestones, signals, generatedAt, a
   if (signals.warnings > 0) sig('warn', '경고', 'hot', `경고 ${signals.warnings}`, '상태와 코드가 어긋난 단계');
   if (signals.tests === 'fail') sig('tests', '검사', 'hot', `검사 실패 ${signals.lastRun?.failures ?? ''}`.trim(), '마지막 검사 리포트', '#/more/tests');
   if (signals.adapters === 'fail') sig('adapters', '자료', 'hot', '자료 일부 누락', '읽지 못한 자료가 있음');
+  // 구조 어긋남(2.1.0): 선언한 경계를 넘은 호출. 어디가 어긋났는지는 구조 화면 영향 패널에 있다(개요에는 수만 둔다)
+  if (signals.boundaryViolations > 0) sig('boundary', '구조', 'hot', `구조 어긋남 ${signals.boundaryViolations}`, '선언한 경계를 넘은 호출', '#/architecture');
   if (signals.deploy === 'ok' && signals.deployBehindAll > 0) sig('board', '뒤', '', `상황판 ${signals.deployBehindAll}커밋 뒤`, '제품 배포는 최신');
   [...milestones, ...roadmapItems].filter((r) => r.status !== '완료' && (r.waitingOn || r.waitingWhat)).forEach((r) => rows.push({
     key: `w-${r.id}`, cls: 'wait', mag: '대기', tone: 'warm', href: roadmapHref(r.id),

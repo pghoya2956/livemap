@@ -29,6 +29,7 @@ export function tickerItems(d) {
     { label: '제품 코드 변경', value: d.activity.runtime },
     { label: '실데이터 화면', value: `${c.screensLive}/${c.screens}` },
     { label: 'API', value: c.apis }, { label: 'DB 함수', value: c.functions }, readItem('자동 검사', c.tests, 'tests', c.reading),
+    ...(d.signals.boundaryViolations == null ? [] : [{ label: '구조 어긋남', value: d.signals.boundaryViolations }]),
     { label: '확정 결정', value: c.decisions }, readItem('열린 질문', c.openQuestions ?? c.oq, 'openQuestions', c.reading),
     ...d.journeys.map((j) => ({ label: j.title, project: true, value: `${j.counts.live}/${j.steps.length}`, extra: `변경 ${j.commits}` })),
   ];

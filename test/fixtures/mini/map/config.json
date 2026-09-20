@@ -165,7 +165,7 @@
     ],
     "maxPanels": 8,
     "maxRowsPerPanel": 6,
-    "navItems": 5
+    "navItems": 6
   },
   "roadmap": {
     "file": "tasks/roadmap.md"

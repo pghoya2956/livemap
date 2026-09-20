@@ -180,7 +180,7 @@ export function Roadmap({ ov, data, params }) {
 
   if (!R.length) {
     return (
-      <Screen ov={ov} screen="roadmap" nav={2} title="로드맵">
+      <Screen ov={ov} screen="roadmap" nav={3} title="로드맵">
         <Empty>로드맵 파일이 없거나 항목이 없습니다.</Empty>
       </Screen>
     );
@@ -228,7 +228,7 @@ export function Roadmap({ ov, data, params }) {
   const foot = [src.roadmap && `정본 ${src.roadmap}`, src.semantic && `단계 상태는 ${src.semantic}`].filter(Boolean).join(' · ');
 
   return (
-    <Screen ov={ov} screen="roadmap" nav={2} title="로드맵" sub={sub}>
+    <Screen ov={ov} screen="roadmap" nav={3} title="로드맵" sub={sub}>
       <div className="chips rm-filter">
         {['전체', ...keys].map((k) => (
           <Chip key={k} on={filter === k} count={k === '전체' ? R.length : counts[k]} onClick={() => setFilter(k)}>{k === '진행' ? '진행 중' : k}</Chip>

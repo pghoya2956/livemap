@@ -6,6 +6,11 @@
     { "pattern": "#/journeys", "screen": "journeys", "check": "기능 카드 수 = data.semantic.journeys 수" },
     { "pattern": "#/journeys/<journey>", "screen": "journeys", "params": { "journey": "semantic.journeys[].id" }, "check": ".scene 수 = 그 기능 단계 수" },
     { "pattern": "#/journeys/<journey>/<step>", "screen": "journeys", "params": { "journey": "semantic.journeys[].id", "step": "semantic.journeys[].steps[].id" }, "check": ".scene.on 1개, .detail 보임" },
+    { "pattern": "#/architecture", "screen": "architecture", "optional": true, "when": "architecture >= 1", "check": "초점 sys · 나눔 「사람이 그린 것」. 부품 상자 수 = architecture.containers 수, 층 상자 수 = 보이는 층 수" },
+    { "pattern": "#/architecture/<focus>", "screen": "architecture", "optional": true, "when": "architecture >= 1", "params": { "focus": "part:<containers[].id> · community:<communities[].id> · group:<lanes[].id> · modules[].id (encodeURIComponent)" }, "check": "빵부스러기 마지막 칸이 그 초점, 층 배치에 노드 상자" },
+    { "pattern": "#/architecture/<focus>/<flow>", "screen": "architecture", "optional": true, "when": "flows >= 1", "params": { "focus": "위와 같음", "flow": "architecture.flows[].id (encodeURIComponent)" }, "check": "길 패널에 이야기 한 줄, 층 배치는 초점과 기능의 교집합" },
+    { "pattern": "#/architecture?split=code", "screen": "architecture", "optional": true, "when": "communities >= 1", "check": "묶음 개요, 상자 수 = 보이는 묶음 수" },
+    { "pattern": "#/architecture?level=fn", "screen": "architecture", "optional": true, "when": "architecture >= 1", "check": "함수 수준. architecture.json 이 없으면 「함수 수준 자료 없음」과 파일 수준 유지" },
     { "pattern": "#/roadmap", "screen": "roadmap", "check": "항목 카드 수 = data.roadmap 수" },
     { "pattern": "#/roadmap/<item>", "screen": "roadmap", "params": { "item": "roadmap[].id" }, "check": "#rm-<id> 강조·뷰포트 안" },
     { "pattern": "#/roadmap/<milestone>", "optional": true, "when": "milestones >= 1", "screen": "roadmap", "params": { "milestone": "milestones[].id" }, "check": "그 마일스톤 details[open]" },
@@ -23,7 +28,7 @@
     { "pattern": "#/no-such-route", "screen": "overview", "check": "개요로 렌더, 내비 선택 없음, 콘솔 오류 0" }
   ],
   "overview": [
-    { "name": "상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/overview" }, "source": "spec" },
+    { "name": "상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/architecture", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/overview" }, "source": "spec" },
     { "name": "호스트 알약", "selector": "a.pill[target=_blank]", "kind": "external", "expect": { "hostFrom": "project.host", "rel": "noopener noreferrer" }, "source": "spec", "optional": true },
     { "name": "전광판 정지·재생", "selector": ".ticker .pause", "kind": "inplace", "expect": { "ariaPressedToggles": true, "stopsAnimation": ".ticker" }, "source": "spec" },
     { "name": "패널 머리 외 n", "selector": ".ph a.more", "kind": "route", "expect": { "hrefIn": ["#/roadmap", "#/more/changes", "#/journeys"] }, "source": "spec", "optional": true },
@@ -49,10 +54,32 @@
     { "name": "기능 현황 기능 화면", "selector": "a.open", "kind": "route", "expect": { "pattern": "#/journeys/<journey>", "visible": ".scene" }, "source": "spec" }
   ],
   "screens": {
+    "architecture": {
+      "hash": "#/architecture",
+      "when": "architecture >= 1",
+      "targets": [
+        { "name": "구조 상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/architecture", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/architecture" }, "source": "spec" },
+        { "name": "구조 호스트 알약", "selector": "a.pill[target=_blank]", "kind": "external", "expect": { "hostFrom": "project.host", "rel": "noopener noreferrer" }, "source": "spec", "optional": true },
+        { "name": "시스템 그림 부품 상자", "selector": ".am-sys .am-part", "kind": "inplace", "expect": { "setsFocus": "part:<container>", "keys": ["Enter", " "], "hashPattern": "#/architecture/<focus>", "scrollYUnchanged": true }, "source": "spec" },
+        { "name": "묶음 개요 묶음 상자", "selector": ".am-comm .am-cbox", "kind": "inplace", "expect": { "setsFocus": "community:<id>", "keys": ["Enter", " "], "highlightsTouchingEdges": ".am-comm .am-edge.on", "scrollYUnchanged": true }, "source": "spec", "optional": true, "when": "communities >= 1" },
+        { "name": "층 요약 「열기」", "selector": ".am-lanes button.am-openbtn", "kind": "inplace", "expect": { "setsFocus": "group:<lane>", "hashPattern": "#/architecture/<focus>" }, "source": "spec" },
+        { "name": "층 배치 노드 상자", "selector": ".am-nodes .am-nbox", "kind": "inplace", "expect": { "setsFocus": "<node id>", "keys": ["Enter", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"] }, "source": "spec" },
+        { "name": "층 배치 묶은 선", "selector": ".am-node-edge.is-bundle", "kind": "none", "expect": { "focusUnchanged": true, "title": true, "ariaLabel": true }, "source": "spec", "optional": true },
+        { "name": "빵부스러기", "selector": ".am-crumbs button.am-link", "kind": "inplace", "expect": { "movesFocusUp": true }, "source": "spec", "optional": true },
+        { "name": "수준 토글", "selector": ".am-toggles [aria-label=수준] button.chip", "kind": "inplace", "expect": { "ariaPressed": true, "queryParam": "level" }, "source": "spec" },
+        { "name": "나눔 토글", "selector": ".am-toggles [aria-label=나눔] button.chip", "kind": "inplace", "expect": { "ariaPressed": true, "queryParam": "split", "switchesView": [".am-lanes", ".am-comm"] }, "source": "spec" },
+        { "name": "보이기 토글", "selector": ".am-toggles [aria-label=보이기] button.chip", "kind": "inplace", "expect": { "ariaPressedToggles": true, "queryParam": "show" }, "source": "spec" },
+        { "name": "드문 선 숨김 토글", "selector": ".am-toggles button.chip:has-text('드문 선 숨김')", "kind": "inplace", "expect": { "ariaPressedToggles": true, "defaultOff": true, "chipText": "건수 N 미만 M 숨김" }, "source": "spec", "optional": true, "when": "communities >= 1" },
+        { "name": "길 패널 기능 목록", "selector": ".am-panel button.am-row.am-link", "kind": "inplace", "expect": { "setsFlow": true, "queryPath": "#/architecture/<focus>/<flow>" }, "source": "spec", "optional": true, "when": "flows >= 1" },
+        { "name": "영향 패널 「이웃 펼치기」", "selector": "button.am-expand", "kind": "inplace", "expect": { "ariaPressedToggles": true, "growsList": ".am-list" }, "source": "spec", "optional": true },
+        { "name": "영향 패널 「이 부품 안으로」", "selector": "button.am-into", "kind": "inplace", "expect": { "setsFocus": "group:<lane>" }, "source": "spec", "optional": true },
+        { "name": "영향 패널 이웃 링크", "selector": ".am-list button.am-link", "kind": "inplace", "expect": { "setsFocus": "<node id> 또는 community:<id>" }, "source": "spec", "optional": true }
+      ]
+    },
     "roadmap": {
       "hash": "#/roadmap",
       "targets": [
-        { "name": "로드맵 상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/roadmap" }, "source": "spec" },
+        { "name": "로드맵 상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/architecture", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/roadmap" }, "source": "spec" },
         { "name": "로드맵 호스트 알약", "selector": "a.pill[target=_blank]", "kind": "external", "expect": { "hostFrom": "project.host", "rel": "noopener noreferrer" }, "source": "spec", "optional": true },
         { "name": "로드맵 상태 필터 칩", "selector": ".rm-filter button.chip", "kind": "inplace", "expect": { "ariaPressed": true }, "source": "spec" },
         { "name": "트리 잠긴 항목 흐리게", "selector": "button.rt-lockdim", "kind": "inplace", "expect": { "ariaPressedToggles": true }, "source": "spec" },

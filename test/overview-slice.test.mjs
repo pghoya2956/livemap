@@ -174,6 +174,27 @@ test('SC-10 milestones·currentMilestone: 원소 키, 진행 → 다음 → null
   assert.deepEqual(byId.j1, [null, null]);
 });
 
+test('SC-11 signals.boundaryViolations: 구조 절이 있으면 어긋남 수 하나, 없으면 null. 개요에 묶음 이름·파일 경로는 싣지 않는다', () => {
+  // 구조 절이 없는 자료(graphify 어댑터 미설정): 전광판·특보에 줄이 서지 않게 null
+  const { architecture: _mini, ...noArch } = data;
+  assert.equal(overviewSlice(noArch).signals.boundaryViolations, null);
+  // mini 픽스처는 구조 절이 있고 어긋남 0이다
+  assert.equal(overviewSlice(data).signals.boundaryViolations, 0);
+  const vio = [{ code: 'architecture.layer-violation', from: 'a', to: 'b', at: { file: 'app/server.mjs', line: 4 } }];
+  const withArch = {
+    ...data,
+    summary: { ...data.summary, containers: 2, modules: 3, communities: 2, flows: 1, boundaryViolations: vio.length },
+    architecture: { status: 'ok', containers: [{ id: 'web', name: '웹' }], lanes: [], laneLinks: [], communities: [{ id: 1, name: 'Pay.tsx', zone: 'web', nodes: 2, visible: true }], communityLinks: [], modules: [{ id: 'web/src/pages/Pay.tsx' }], flows: [], violations: vio },
+  };
+  const o = overviewSlice(withArch);
+  assert.equal(o.signals.boundaryViolations, 1);
+  // 개요 조각 어디에도 묶음 이름·파일 경로가 없다(개요 식별자 검사가 .tsx·.mjs·.sql·web/src 를 찾는다)
+  const text = JSON.stringify(o);
+  for (const bad of ['Pay.tsx', 'web/src', 'app/server.mjs', 'architecture.layer-violation']) assert.equal(text.includes(bad), false, bad);
+  // 구조 절만 있고 어긋남이 0이면 0이다(null 이 아니다)
+  assert.equal(overviewSlice({ ...withArch, summary: { ...withArch.summary, boundaryViolations: 0 }, architecture: { ...withArch.architecture, violations: [] } }).signals.boundaryViolations, 0);
+});
+
 test('counts·signals 새 키와 1.0.1 키 유지, roadmap[] 원소 키는 1.0.1과 같다', () => {
   const o = overviewSlice(data);
   assert.deepEqual(o.counts.steps, { live: 1, mock: 1, planned: 1, next: 0 });

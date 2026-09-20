@@ -3,13 +3,14 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Overview } from './Overview.jsx';
 import { Journeys } from './routes/Journeys.jsx';
+import { Architecture } from './routes/Architecture.jsx';
 import { Roadmap } from './routes/Roadmap.jsx';
 import { Tasks } from './routes/Tasks.jsx';
 import { More } from './routes/More.jsx';
 import { parseRoute } from './lib/route.js';
 import { installVisitStamp } from './lib/visit.js';
 
-const SCREENS = { journeys: Journeys, roadmap: Roadmap, tasks: Tasks, more: More };
+const SCREENS = { journeys: Journeys, architecture: Architecture, roadmap: Roadmap, tasks: Tasks, more: More };
 const load = (name) => fetch(`data/${name}.json`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); });
 let overviewP = null, dataP = null;
 const getOverview = () => (overviewP ||= load('overview'));
@@ -22,9 +23,11 @@ function useHash() {
 }
 
 /** 경로 이동 뒤 스크롤: 로드맵 항목·마일스톤(details는 연다), 단계 상세는 가까이, 그 밖은 맨 위.
- *  로드맵은 가까이(nearest)만 옮긴다. 고른 항목 카드가 트리 바로 아래 상세 슬롯에 있어 맨 위로 맞추면 누른 트리가 화면 밖으로 밀린다. */
+ *  로드맵은 가까이(nearest)만 옮긴다. 고른 항목 카드가 트리 바로 아래 상세 슬롯에 있어 맨 위로 맞추면 누른 트리가 화면 밖으로 밀린다.
+ *  구조 화면은 초점·기능·수준·나눔이 모두 해시라 경로가 자주 바뀐다. 선택으로 스크롤을 옮기지 않는다(SC-10). */
 function scrollFor(route) {
   const { screen, params } = route;
+  if (screen === 'architecture') return;
   if (screen === 'roadmap' && params.id) {
     const el = document.getElementById(`rm-${params.id}`);
     if (el) {

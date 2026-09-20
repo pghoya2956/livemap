@@ -14,5 +14,5 @@
   "semantic": "map/semantic/journeys.json",
   "captures": { "site": "map/captures" },
   "floors": { "screen": 1, "api": 1 },
-  "budget": { "viewport": [1440, 900], "maxPanels": 8, "maxRowsPerPanel": 6, "navItems": 5 }
+  "budget": { "viewport": [1440, 900], "maxPanels": 8, "maxRowsPerPanel": 6, "navItems": 6 }
 }

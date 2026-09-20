@@ -1,5 +1,5 @@
 // 화면 순수 함수 검사(스펙 「테스트 계획」 화면 순수 함수): 신선도, 결정 대기 경과일, 시각 표기, 호스트 이름, 목록 맞춤,
-// 기능 지도 12개 고르기, 마지막 방문 비교, 해시 라우트, 로드맵 트리 배치, 캡처 패널 범위. JSX 없는 ui/lib 모듈만 import한다
+// 기능 지도 12개 고르기, 마지막 방문 비교, 해시 라우트, 로드맵 트리 배치, 캡처 패널 범위, 구조 화면 배치. JSX 없는 ui/lib 모듈만 import한다
 // (트리 검사의 픽스처 자료만 엔진 빌드로 만든다).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,9 +10,10 @@ import { fileURLToPath } from 'node:url';
 import { freshness, waitDays, hm, mdKo, kst, hostOf } from '../ui/lib/format.js';
 import { fitCount, mapJourneys } from '../ui/lib/fit.js';
 import { isNewer } from '../ui/lib/visit.js';
-import { parseRoute } from '../ui/lib/route.js';
+import { parseRoute, archHash, NAV } from '../ui/lib/route.js';
 import { buildTree, pathOf, geometry, crossings } from '../ui/lib/tree.js';
 import { visibleCaptures } from '../ui/lib/capture.js';
+import { LANE_ORDER, laneLayout, communityLayout, flowPath, neighbors, foldByCommunity } from '../ui/lib/arch.js';
 
 const G = '2026-09-16T17:29:52.070Z';
 const plus = (min) => Date.parse(G) + min * 60000;
@@ -95,15 +96,35 @@ test('parseRoute: 1.0.1 라우트 패턴과 알 수 없는 경로', () => {
   assert.deepEqual(r('#/journeys'), ['journeys', 1, { journey: null, step: null }]);
   assert.deepEqual(r('#/journeys/booking'), ['journeys', 1, { journey: 'booking', step: null }]);
   assert.deepEqual(r('#/journeys/booking/pay'), ['journeys', 1, { journey: 'booking', step: 'pay' }]);
-  assert.deepEqual(r('#/roadmap'), ['roadmap', 2, { id: null }]);
-  assert.deepEqual(r('#/roadmap/real-use-1'), ['roadmap', 2, { id: 'real-use-1' }]);
-  assert.deepEqual(r('#/tasks'), ['tasks', 3, { task: null }]);
-  assert.deepEqual(r('#/tasks/20260916-x'), ['tasks', 3, { task: '20260916-x' }]);
-  assert.deepEqual(r('#/changes'), ['more', 4, { tab: 'changes', detail: null }]);
-  assert.deepEqual(r('#/more'), ['more', 4, { tab: 'decisions', detail: null }]);
-  for (const t of ['changes', 'decisions', 'screens', 'backend', 'tests', 'about']) assert.deepEqual(r(`#/more/${t}`), ['more', 4, { tab: t, detail: null }]);
-  assert.deepEqual(r(`#/more/screens/${encodeURIComponent('/teams/:id')}`), ['more', 4, { tab: 'screens', detail: '/teams/:id' }]);
+  assert.deepEqual(r('#/roadmap'), ['roadmap', 3, { id: null }]);
+  assert.deepEqual(r('#/roadmap/real-use-1'), ['roadmap', 3, { id: 'real-use-1' }]);
+  assert.deepEqual(r('#/tasks'), ['tasks', 4, { task: null }]);
+  assert.deepEqual(r('#/tasks/20260916-x'), ['tasks', 4, { task: '20260916-x' }]);
+  assert.deepEqual(r('#/changes'), ['more', 5, { tab: 'changes', detail: null }]);
+  assert.deepEqual(r('#/more'), ['more', 5, { tab: 'decisions', detail: null }]);
+  for (const t of ['changes', 'decisions', 'screens', 'backend', 'tests', 'about']) assert.deepEqual(r(`#/more/${t}`), ['more', 5, { tab: t, detail: null }]);
+  assert.deepEqual(r(`#/more/screens/${encodeURIComponent('/teams/:id')}`), ['more', 5, { tab: 'screens', detail: '/teams/:id' }]);
   for (const h of ['#/no-such-route', '#/more/nope', '#/journeys/a/b/c', '#/%E0%A4%A']) assert.deepEqual(r(h), ['overview', -1, {}]);
+});
+
+test('SC-9 parseRoute 구조 화면: 초점 여섯 단계와 기능·수준·나눔·보이기가 모두 해시에 실리고 archHash 가 되돌린다', () => {
+  const r = (h) => { const x = parseRoute(h); return [x.screen, x.nav, x.params]; };
+  assert.deepEqual(NAV, ['overview', 'journeys', 'architecture', 'roadmap', 'tasks', 'more']);
+  const base = { focus: 'sys', flow: null, level: 'file', split: 'human', show: [] };
+  assert.deepEqual(r('#/architecture'), ['architecture', 2, base]);
+  assert.deepEqual(r('#/architecture/sys?split=code'), ['architecture', 2, { ...base, split: 'code' }]);
+  assert.deepEqual(r(`#/architecture/${encodeURIComponent('part:web')}`), ['architecture', 2, { ...base, focus: 'part:web' }]);
+  assert.deepEqual(r(`#/architecture/${encodeURIComponent('community:12')}/booking%2Fpay?level=fn`), ['architecture', 2, { ...base, focus: 'community:12', flow: 'booking/pay', level: 'fn' }]);
+  assert.deepEqual(r(`#/architecture/${encodeURIComponent('web/src/pages/Pay.tsx')}?show=tests,libs`), ['architecture', 2, { ...base, focus: 'web/src/pages/Pay.tsx', show: ['tests', 'libs'] }]);
+  // 모르는 값은 기본값으로 떨어지고 경로가 넷이면 알 수 없는 경로다
+  assert.deepEqual(r('#/architecture/sys?level=nope&split=nope'), ['architecture', 2, base]);
+  assert.deepEqual(r('#/architecture/a/b/c'), ['overview', -1, {}]);
+  assert.equal(archHash({}), '#/architecture');
+  assert.equal(archHash({ focus: 'sys', split: 'code' }), '#/architecture?split=code');
+  assert.equal(archHash({ focus: 'part:web', flow: 'booking/pay', level: 'fn', show: ['tests'] }), '#/architecture/part%3Aweb/booking%2Fpay?level=fn&show=tests');
+  for (const f of ['sys', 'part:web', 'community:12', 'group:api', 'web/src/pages/Pay.tsx', 'web/src/pages/Pay.tsx:Pay']) {
+    assert.equal(parseRoute(archHash({ focus: f })).params.focus, f);
+  }
 });
 
 // ---- 로드맵 트리 배치(ui/lib/tree.js): 열 모드, 층, 열 안 순서, 잠김, 더미, 순환, 미배정, 역행, 우회 차선, 조상·자손, 기하 ----
@@ -481,4 +502,208 @@ test('SC-8 visibleCaptures: 고른 기능에 캡처가 없으면 빈 목록이�
   const v = visibleCaptures(CAPS, { selected: 'notify', userPicked: true });
   assert.deepEqual([v.list.length, v.scoped, v.key], [0, true, 'notify']);
   assert.deepEqual(visibleCaptures([], { selected: 'd', userPicked: true }).list, []);
+});
+
+// ---- 구조 화면 배치(ui/lib/arch.js, 스펙 PN-21·PN-22 · 「화면 모델」): 층 순서와 두 줄 격자, barycenter 두 번,
+// 순환 층 사이 선, 허브 들어오는 선 묶기, 기능 교집합, 1홉 이웃, 묶음 구역 배치와 집계, 묶음 단위 접기.
+// 합성 자료로 기대 수를 정한다(표본 수치는 넣지 않는다). 좌표는 픽셀이고 같은 입력이면 같아야 한다(SC-11) ----
+const C = (id, name, zone, nodes, extra = {}) => ({ id, name, zone, nodes, lanes: [], visible: true, inherited: 0, ...extra });
+const M = (id, container, lane, community, communityName, deps = [], violations = []) => ({ id, container, lane, community, communityName, symbols: 1, deps, violations });
+const ARCH = {
+  status: 'ok', graphMissing: false, inherited: 3, deferred: 'count',
+  containers: [
+    { id: 'web', name: '웹 화면', kind: 'ours', boundary: 'browser', dirs: ['web/src'], schemas: [], counts: { screens: 1, files: 4, symbols: 9, mocks: 1 }, deps: ['bff'], flows: 1, externals: [], src: { file: 'map/architecture/web.md', line: 1 } },
+    { id: 'bff', name: 'BFF 서버', kind: 'ours', boundary: 'homelab', dirs: ['app'], schemas: [], counts: { screens: 0, files: 1, symbols: 3, mocks: 0 }, deps: ['db'], flows: 0, externals: [], src: { file: 'map/architecture/bff.md', line: 1 } },
+    { id: 'db', name: '데이터베이스', kind: 'ours', boundary: 'homelab', dirs: ['sql'], schemas: [], counts: { screens: 0, files: 0, symbols: 0, mocks: 0 }, deps: [], flows: 0, externals: [], src: { file: 'map/architecture/db.md', line: 1 } },
+    { id: 'mail', name: '메일', kind: 'external', boundary: 'outside', dirs: [], schemas: [], counts: { screens: 0, files: 0, symbols: 0, mocks: 0 }, deps: [], flows: 0, externals: [], src: { file: 'map/architecture/README.md', line: 9 } },
+  ],
+  lanes: [
+    { id: 'screen', name: '화면', container: 'web', kind: 'screen', nodes: 1, visible: true },
+    { id: 'pages', name: '화면 파일', container: 'web', kind: 'code', nodes: 2, visible: true },
+    { id: 'lib', name: '자료 받기', container: 'web', kind: 'code', nodes: 2, visible: true },
+    { id: 'api', name: 'api', container: 'bff', kind: 'api', nodes: 1, visible: true },
+    { id: 'function', name: 'function', container: 'db', kind: 'function', nodes: 1, visible: true },
+    { id: 'table', name: 'table', container: 'db', kind: 'table', nodes: 1, visible: true },
+    { id: 'tests', name: '검사', container: null, kind: 'code', nodes: 1, visible: false },
+  ],
+  // pages ↔ lib 가 서로를 부르는 순환이다
+  laneLinks: [
+    { from: 'screen', to: 'api', n: 5 }, { from: 'pages', to: 'lib', n: 4 }, { from: 'lib', to: 'pages', n: 1 },
+    { from: 'api', to: 'function', n: 3 }, { from: 'function', to: 'table', n: 7 }, { from: 'tests', to: 'lib', n: 2 },
+  ],
+  communities: [C(1, 'A.tsx', 'web', 2, { lanes: ['pages'], inherited: 1 }), C(2, 'api.ts', 'web', 2, { lanes: ['lib'] }), C(3, 'server.mjs', 'bff', 1, { inherited: 2 }), C(5, 'get_x', 'db', 3), C(4, 'a.test.mjs', null, 1)],
+  communityLinks: [
+    { from: 1, to: 2, n: 3, kinds: { imports: 3 } }, { from: 2, to: 1, n: 1, kinds: { imports: 1 } },
+    { from: 2, to: 3, n: 2, kinds: { calls: 2 } }, { from: 3, to: 5, n: 4, kinds: { invokes: 4 } },
+    { from: 1, to: 4, n: 6, kinds: { imports: 6 } }, { from: 4, to: 2, n: 1, kinds: { imports: 1 } },
+  ],
+  modules: [
+    M('web/src/pages/A.tsx', 'web', 'pages', 1, 'A.tsx', ['web/src/lib/api.ts', 'web/src/lib/util.ts']),
+    M('web/src/pages/B.tsx', 'web', 'pages', 1, 'A.tsx', ['web/src/lib/api.ts', 'web/src/lib/util.ts']),
+    M('web/src/lib/api.ts', 'web', 'lib', 2, 'api.ts', ['web/src/lib/util.ts']),
+    M('web/src/lib/util.ts', 'web', 'lib', 2, 'api.ts', []),
+    M('app/server.mjs', 'bff', null, 3, 'server.mjs', [], [{ code: 'architecture.layer-violation', to: 'web/src/lib/util.ts', at: { file: 'app/server.mjs', line: 4 } }]),
+    M('tests/a.test.mjs', null, 'tests', 4, 'a.test.mjs', ['web/src/lib/util.ts']),
+  ],
+  flows: [{
+    id: 'f1', name: '결제', status: 'live', container: 'web', step: 'j/s', counts: { screen: 1, file: 2, api: 1, auth: 0, fn: 1, table: 1 }, broken: [],
+    story: '화면 1개에서 API 1개를 부른다',
+    nodes: ['screen:/pay', 'module:web/src/pages/A.tsx', 'module:web/src/lib/api.ts', 'api:/api/pay', 'function:pay', 'table:t.payments'],
+    path: [{ kind: 'screen', ref: '/pay', node: 'screen:/pay' }, { kind: 'api', ref: 'POST /api/pay', node: 'api:/api/pay' }, { kind: 'function', ref: 'pay', node: 'function:pay' }, { kind: 'table', ref: 't.payments', node: 'table:t.payments' }],
+  }],
+  violations: [{ code: 'architecture.layer-violation', from: 'app/server.mjs', to: 'web/src/lib/util.ts', at: { file: 'app/server.mjs', line: 4 } }],
+  bridges: { made: 3, moved: 4, byKind: {}, matched: {}, unmatched: { livemapOnly: 0, unreached: 0 } },
+  graphify: { nodes: 20, edges: 24, relations: 4, communities: 5, inferred: 1, typeOnly: 0, deferred: 0, unknownRelations: {} },
+  declaration: { dir: 'map/architecture', diagram: { direction: 'LR', boundaries: [] }, problems: 0 },
+};
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+test('SC-11 laneLayout 층 요약: 보이는 층만 두 줄 격자에 상자 하나씩, 같은 입력이면 좌표가 같다', () => {
+  const a = laneLayout(ARCH, {});
+  assert.equal(a.mode, 'summary');
+  assert.deepEqual(a.boxes.map((b) => b.id), ['screen', 'pages', 'lib', 'api', 'function', 'table']);
+  assert.equal(a.boxes.length, ARCH.lanes.filter((l) => l.visible).length);
+  assert.deepEqual(a.boxes.map((b) => b.n), [1, 2, 2, 1, 1, 1]);
+  // 두 줄 격자: 행이 둘이고 같은 행은 y가 같다
+  const rows = [...new Set(a.boxes.map((b) => b.y))];
+  assert.equal(rows.length, 2);
+  assert.equal(new Set(a.boxes.filter((b) => b.y === rows[0]).map((b) => b.x)).size, a.boxes.filter((b) => b.y === rows[0]).length);
+  // 숨긴 층으로 가는 선은 그리지 않고 수만 남긴다(tests → lib 2건)
+  assert.deepEqual(a.lines.map((l) => [l.from, l.to, l.n]), [['screen', 'api', 5], ['pages', 'lib', 4], ['lib', 'pages', 1], ['api', 'function', 3], ['function', 'table', 7]]);
+  assert.equal(a.boxes.find((b) => b.id === 'lib').hiddenN, 2);
+  assert.deepEqual(laneLayout(ARCH, {}), a);
+  assert.deepEqual(laneLayout(clone(ARCH), {}), a);
+});
+
+test('SC-11 laneLayout 층 순서: 열이 층 사이 선의 깊이 순서이고 순환 층 사이 선은 되돌아가는 선으로 남는다', () => {
+  const a = laneLayout(ARCH, { mode: 'nodes', focus: 'sys' });
+  // pages(0) → lib(1) → pages 는 순환이다. 되돌아가는 선만 back 이고 열은 끝난다
+  const col = Object.fromEntries(a.columns.flatMap((c) => c.lanes.map((id) => [id, c.index])));
+  assert.ok(col.pages < col.lib, `pages ${col.pages} < lib ${col.lib}`);
+  assert.ok(col.screen < col.api && col.api < col.function && col.function < col.table);
+  // 같은 깊이·같은 부품의 층은 LANE_ORDER 종류 순서로 갈린다
+  assert.deepEqual(LANE_ORDER, ['screen', 'code', 'api', 'auth', 'function', 'table']);
+  const summary = laneLayout(ARCH, {});
+  const back = summary.lines.filter((l) => l.back).map((l) => `${l.from}>${l.to}`);
+  assert.deepEqual(back, ['lib>pages']);
+  assert.equal(summary.lines.filter((l) => !l.back).length, 4);
+});
+
+test('SC-11 laneLayout barycenter: 열 안 순서를 앞 열 이웃 자리의 평균으로 두 번 돌리고 같은 값은 id 순이다', () => {
+  const a = laneLayout(ARCH, { mode: 'nodes', focus: 'part:web' });
+  assert.equal(a.sweeps, 2);
+  // pages 열의 A·B 는 같은 이웃을 가져 id 순, lib 열은 A·B 의 평균 자리로 api.ts 가 util.ts 보다 위다
+  const rowOf = Object.fromEntries(a.boxes.map((b) => [b.id, b.row]));
+  assert.deepEqual([rowOf['web/src/pages/A.tsx'], rowOf['web/src/pages/B.tsx']], [0, 1]);
+  assert.ok(rowOf['web/src/lib/api.ts'] < rowOf['web/src/lib/util.ts']);
+  assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus: 'part:web' }), a);
+});
+
+test('SC-11 laneLayout 허브 묶기: 들어오는 선이 hubMin 이상인 노드는 앞 열마다 한 가닥으로 묶고 묶은 선은 초점을 옮기지 않는다', () => {
+  const a = laneLayout(ARCH, { mode: 'nodes', focus: 'sys', hidden: [], hubMin: 3 });
+  const hub = 'web/src/lib/util.ts';
+  const into = a.lines.filter((l) => l.to === hub);
+  assert.equal(into.length, 2, JSON.stringify(into));
+  const bundled = into.find((l) => l.bundled);
+  assert.ok(bundled, '묶은 선이 있어야 한다');
+  assert.deepEqual(bundled.members.sort(), ['web/src/pages/A.tsx', 'web/src/pages/B.tsx']);
+  assert.equal(bundled.n, 2);
+  assert.equal(bundled.focusable, false);
+  // hubMin 을 올리면 묶지 않는다
+  assert.equal(laneLayout(ARCH, { mode: 'nodes', focus: 'sys', hubMin: 9 }).lines.filter((l) => l.bundled).length, 0);
+});
+
+test('SC-7 laneLayout 기능 교집합: 초점과 기능이 함께면 초점 범위와 기능의 길이 겹치는 노드만 남는다', () => {
+  const all = laneLayout(ARCH, { mode: 'nodes', focus: 'part:web' });
+  assert.deepEqual(all.boxes.map((b) => b.id).sort(), ['web/src/lib/api.ts', 'web/src/lib/util.ts', 'web/src/pages/A.tsx', 'web/src/pages/B.tsx']);
+  const cut = laneLayout(ARCH, { mode: 'nodes', focus: 'part:web', flow: 'f1' });
+  assert.deepEqual(cut.boxes.map((b) => b.id).sort(), ['web/src/lib/api.ts', 'web/src/pages/A.tsx']);
+  // 기능만 고르면 기능의 길 전체가 선다(초점 sys)
+  const path = laneLayout(ARCH, { mode: 'nodes', focus: 'sys', flow: 'f1' });
+  assert.equal(path.boxes.length, 6);
+  assert.ok(path.boxes.every((b) => b.onFlow));
+});
+
+test('SC-11 neighbors 1홉: 들어오는 호출과 나가는 호출이 관계 방향으로 갈리고 없는 노드는 빈 목록이다', () => {
+  const n = neighbors(ARCH, 'web/src/lib/util.ts');
+  assert.deepEqual(n.in.sort(), ['tests/a.test.mjs', 'web/src/lib/api.ts', 'web/src/pages/A.tsx', 'web/src/pages/B.tsx']);
+  assert.deepEqual(n.out, []);
+  assert.deepEqual([n.lane, n.container, n.community, n.communityName], ['lib', 'web', 2, 'api.ts']);
+  assert.deepEqual(neighbors(ARCH, 'module:web/src/pages/A.tsx').out.sort(), ['web/src/lib/api.ts', 'web/src/lib/util.ts']);
+  assert.deepEqual(neighbors(ARCH, '없는 노드'), { id: '없는 노드', lane: null, container: null, community: null, communityName: null, in: [], out: [], violations: [], flows: [] });
+  assert.deepEqual(neighbors(ARCH, 'web/src/pages/A.tsx').flows, ['f1']);
+  assert.deepEqual(neighbors(ARCH, 'app/server.mjs').violations.map((v) => [v.code, v.at.line]), [['architecture.layer-violation', 4]]);
+});
+
+test('SC-22·SC-24 communityLayout 구역 배치: 구역은 부품 순서, 구역 안은 묶음 id 순, 입력 순서를 뒤집어도 같다', () => {
+  const a = communityLayout(ARCH, { hideTests: true });
+  assert.deepEqual(a.zones.map((z) => z.id), ['web', 'bff', 'db']);
+  assert.deepEqual(a.boxes.map((b) => b.id), [1, 2, 3, 5]);
+  // 같은 구역 상자는 그 구역 상자 안에 든다
+  for (const b of a.boxes) {
+    const z = a.zones.find((x) => x.id === b.zone);
+    assert.ok(b.x >= z.x && b.x + b.w <= z.x + z.w && b.y >= z.y && b.y + b.h <= z.y + z.h, `${b.id} 가 구역 ${z.id} 밖`);
+  }
+  const rev = clone(ARCH);
+  rev.communities.reverse(); rev.communityLinks.reverse();
+  assert.deepEqual(communityLayout(rev, { hideTests: true }), a);
+  assert.deepEqual(communityLayout(ARCH, { hideTests: true }), a);
+  // 기본값은 자료가 보이라고 한 묶음을 모두 그린다(부모 재현이 이 값을 묶음 수와 맞춘다)
+  assert.equal(communityLayout(ARCH, {}).boxes.length, ARCH.communities.filter((c) => c.visible).length);
+  assert.deepEqual(communityLayout(rev, {}), communityLayout(ARCH, {}));
+});
+
+test('SC-22 communityLayout 집계: 검사 묶음을 숨기면 그 선은 그리지 않고 상자 라벨 수로만 남는다', () => {
+  const a = communityLayout(ARCH, { hideTests: true });
+  assert.equal(a.hidden.length, 1);
+  assert.deepEqual(a.lines.map((l) => [l.from, l.to, l.n]), [[1, 2, 3], [2, 1, 1], [2, 3, 2], [3, 5, 4]]);
+  assert.equal(a.boxes.find((b) => b.id === 1).hiddenN, 6);
+  assert.equal(a.boxes.find((b) => b.id === 2).hiddenN, 1);
+  assert.equal(a.boxes.find((b) => b.id === 3).hiddenN, 0);
+  // 검사 묶음을 켜면 상자 다섯과 구역 「구역 없음」이 선다
+  const on = communityLayout(ARCH, {});
+  assert.deepEqual(on.boxes.map((b) => b.id), [1, 2, 3, 5, 4]);
+  assert.equal(on.zones.length, 4);
+  assert.equal(on.lines.length, 6);
+  // 짝 집계는 두 방향을 한 선으로 합친다
+  const pair = communityLayout(ARCH, { hideTests: true, edges: 'pair' });
+  assert.deepEqual(pair.lines.map((l) => [l.from, l.to, l.n, l.both]), [[1, 2, 4, true], [2, 3, 2, false], [3, 5, 4, false]]);
+});
+
+test('SC-22 communityLayout 드문 선 숨김(OQ-11 결정 focus): 기본은 끄고, 켜면 문턱이 짝별 건수의 중위값이며 숨긴 수가 남는다', () => {
+  // 기본값: 선을 하나도 감추지 않는다. 무엇을 감출지는 보는 사람이 정한다
+  const off = communityLayout(ARCH, { hideTests: true, edges: 'pair' });
+  assert.deepEqual([off.cut, off.thinHidden, off.lines.length, off.allLines.length], [0, 0, 3, 3]);
+  // 켜면 문턱은 중위값이다. 건수 [2, 4, 4] 의 중위는 4 라 2건짜리 한 선이 숨는다
+  const on = communityLayout(ARCH, { hideTests: true, edges: 'pair', thin: true });
+  assert.equal(on.cut, 4);
+  assert.deepEqual(on.lines.map((l) => [l.from, l.to, l.n]), [[1, 2, 4], [3, 5, 4]]);
+  assert.equal(on.thinHidden, 1);
+  assert.equal(on.lines.length + on.thinHidden, on.allLines.length);
+  // 문턱은 자료가 정한다. 건수가 다른 자료면 문턱도 달라진다
+  const other = clone(ARCH);
+  other.communityLinks = [{ from: 1, to: 2, n: 1, kinds: {} }, { from: 2, to: 3, n: 9, kinds: {} }, { from: 3, to: 5, n: 30, kinds: {} }];
+  assert.equal(communityLayout(other, { hideTests: true, edges: 'pair', thin: true }).cut, 9);
+});
+
+test('SC-8 foldByCommunity: 노드를 묶음 단위로 접고 묶음 id 순, 묶음 없는 노드는 마지막 한 묶음이다', () => {
+  const folded = foldByCommunity([
+    { id: 'b', community: 2, communityName: 'api.ts' }, { id: 'a', community: 1, communityName: 'A.tsx' },
+    { id: 'c', community: 2, communityName: 'api.ts' }, { id: 'd', community: null, communityName: null },
+  ]);
+  assert.deepEqual(folded.map((g) => [g.community, g.name, g.n, g.ids]), [
+    [1, 'A.tsx', 1, ['a']], [2, 'api.ts', 2, ['b', 'c']], [null, '묶음 없음', 1, ['d']],
+  ]);
+  assert.deepEqual(foldByCommunity([]), []);
+});
+
+test('SC-7·SC-14 flowPath: 길의 층별 노드와 선언 좌표 사슬, 끊긴 자리를 낸다', () => {
+  const f = flowPath(ARCH, 'f1');
+  assert.deepEqual([f.id, f.name, f.status, f.container], ['f1', '결제', 'live', 'web']);
+  assert.deepEqual(f.byLane.map((g) => [g.lane, g.nodes.length]), [['screen', 1], ['pages', 1], ['lib', 1], ['api', 1], ['function', 1], ['table', 1]]);
+  assert.deepEqual(f.chain.map((e) => [e.from, e.to, e.broken]), [['screen:/pay', 'api:/api/pay', false], ['api:/api/pay', 'function:pay', false], ['function:pay', 'table:t.payments', false]]);
+  assert.equal(flowPath(ARCH, '없는 기능'), null);
+  const broken = clone(ARCH);
+  broken.flows[0].broken = [{ at: 1, reason: '변수를 넘기는 호출' }];
+  assert.equal(flowPath(broken, 'f1').chain[1].broken, true);
 });
