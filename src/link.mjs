@@ -4,6 +4,7 @@
 //   router.hookapi-redundant hookApi 키가 쓰인 화면의 연결이 모두 리터럴로도 나옴(쓰는 화면이 없는 키 포함), 키마다 한 건
 //   router.hookapi-only      hookApi 키로만 나오는 연결이 있음, 키마다 한 건
 // 화면 apis 읽기 상태: 모든 리터럴이 API 노드에 맞고 hookApi로만 붙은 연결이 없으면 rule, 아니면 partial.
+// 순서(2.1.0): 이 단계 바로 뒤에 다리 단계(src/bridge.mjs)가 붙는다. 다리는 여기서 만든 화면 → API calls 를 읽기만 하고 다시 만들지 않는다(DEC-42).
 import { matchesApi } from './lib/literals.mjs';
 import { setReading } from './lib/reading.mjs';
 

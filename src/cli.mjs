@@ -19,6 +19,7 @@ import { derive, overviewSlice } from './derive.mjs';
 import { execFileSync } from 'node:child_process';
 import { checkProblems, stagedTargets, stagedProblems, stagedText } from './check.mjs';
 import { linkScreenApis } from './link.mjs';
+import { bridgeArchitecture } from './bridge.mjs';
 import { applyStrict, problemsJson, sortProblems, textLines } from './lib/issues.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,8 +30,9 @@ export const CONFIG = 'map/config.json';
 export const MIGRATE_DOC = 'node_modules/@pghoya2956/livemap/docs/migrate.md';
 
 // 기본 어댑터 순서. 순서가 의미 있다: tests·git은 screen·api 노드가 있어야 엣지를 잇고, testreport는 git이 만든 head를 본다.
+// graphify(2.1.0)는 migrations 가 만든 function·table 노드에 Graphify 증거를 덧붙이므로 그 바로 뒤다.
 // config.json의 "adapters" 배열로 바꾼다(프로젝트마다 어댑터 파일을 map/adapters/<name>.mjs 에 둔다).
-const DEFAULT_ADAPTERS = ['router', 'bff', 'migrations', 'tests', 'wiki', 'tasks', 'git', 'deploy', 'testreport'];
+const DEFAULT_ADAPTERS = ['router', 'bff', 'migrations', 'graphify', 'tests', 'wiki', 'tasks', 'git', 'deploy', 'testreport'];
 const adapterCache = new Map();
 // 어댑터는 프로젝트(map/adapters/<name>.mjs)가 우선이고, 없으면 엔진에 딸린 참조 어댑터(src/adapters/)를 쓴다.
 async function loadAdapter(root, name) {
@@ -76,6 +78,8 @@ export async function buildGraph(root = process.cwd(), { semantic = null } = {})
   }
   // 연결 단계: 모든 어댑터 뒤에 화면 리터럴을 API 노드에 잇는다. adapters[]에 들지 않고, 실패하면 오류 이슈로 남긴다
   try { linkScreenApis(g, fs, cfg); } catch (e) { g.issue('error', '연결 단계', String(e?.message || e)); }
+  // 다리 단계(2.1.0): 연결 단계가 만든 calls 를 읽기만 하고 화면·API 를 Graphify 파일 노드와 로그인 노드에 잇는다(DEC-42). graphify 어댑터가 없으면 아무것도 하지 않는다
+  try { bridgeArchitecture(g, fs, cfg); } catch (e) { g.issue('error', '다리 단계', String(e?.message || e)); }
   // 여정 정본: 디렉터리면 역할별 md(2.0.0), .json이면 한 파일(1.x 호환). 설정에 semantic 키가 없으면 여정 입력이 없다
   const sem = readSemantic(fs, cfg);
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);

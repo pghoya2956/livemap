@@ -80,6 +80,17 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 - `subject`·`anchors`·`resolutions`를 빼면 `null`·`[]`·표의 처리 값이 들어간다. 표에 없는 프로젝트 코드는 처리 기본값이 `[]`다.
 - 넷째 인자를 준 문제만 `graph.json`·`data.json` `issues[]`에 `code`·`subject`·`anchors`·`resolutions`(있으면 `judgmentDraft`)가 더해진다.
 
+## 2.1.0 새 코드
+
+구조 지도(Graphify 어댑터·다리·선언 대조)의 코드다. 1.2.0 새 코드처럼 6건 이상을 한 줄로 묶지 않는다. 대상이 `설정`인 코드의 `subject`는 설정 키(`{ kind: 'config', id: 'architecture.graph' }`)이거나, 다리가 짝을 못 찾은 노드(`{ kind: 'table', id }`)다.
+
+| 코드 | 수준 | 대상 | 처리 | 뜻 |
+|---|---|---|---|---|
+| `architecture.graph-schema` | error | 설정 | engine·config | `graph.json` 최상위 키 여섯(`directed`·`multigraph`·`graph`·`nodes`·`links`·`hyperedges`)이나 반드시 있는 노드 필드 여섯(`id`·`label`·`community`·`community_name`·`file_type`·`source_file`)·링크 필드 여덟(`source`·`target`·`relation`·`confidence`·`confidence_score`·`source_file`·`source_location`·`weight`)이 없다. 반쯤 읽은 그래프로 노드를 싣지 않는다 |
+| `architecture.bridge-unmatched` | warn | 설정 | code·config | 다리가 짝을 못 찾았다: DB 함수가 닿는(`touches`) 테이블인데 Graphify 에 정의 자리가 없어 livemap 만 아는 테이블이다. 대상은 그 `table` 노드, 문구에 `touches` 수. Graphify 의 SQL 추출이 놓친 자리이거나 migration 밖에서 만든 테이블이다 |
+| `architecture.table-unreached` | warn | 설정 | code·config | Graphify 정의 자리가 있는 테이블인데 어떤 DB 함수도 닿지 않는다. 죽은 테이블이거나 내부 전용 테이블이다 |
+| `architecture.graph-missing` | warn | 설정 | config | 설정 `architecture.graph`(기본 `graphify-out/graph.json`)의 Graphify 그래프 파일이 없다. `graphify` 어댑터는 `partial`로 보고하고 빌드 종료 코드는 0이다. 다리 단계는 새 다리 없이 기존 사슬만 세고, 화면은 부품과 기존 사슬 두 층까지 그린다. 프로젝트 루트에서 `uvx --from "graphifyy[sql]" graphify update .` 을 돌려 만든다 |
+
 ## 1.2.0 새 코드
 
 | 코드 | 수준 | 대상 | 처리 | 뜻 |

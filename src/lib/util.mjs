@@ -32,5 +32,7 @@ export function makeFs(ROOT) {
   // main → origin/main → HEAD 순으로 존재하는 참조를 고른다(CI 체크아웃에는 로컬 main이 없을 수 있다).
   const resolveRef = (name) => { for (const c of [name, `origin/${name}`, 'HEAD']) if (git('rev-parse', '--verify', '--quiet', c)) return c; return null; };
   const lineOf = (text, needle) => { const i = text.indexOf(needle); return i < 0 ? null : text.slice(0, i).split('\n').length; };
-  return { ROOT, abs, has, isDir, read, walk, ls, git, lastCommit, lineOf, resolveRef, hasGit: () => { if (gitOk === null) git('rev-parse', 'HEAD'); return gitOk; } };
+  // 파일의 마지막 수정 시각(ISO). 생성 시각이 없는 산출물(Graphify graph.json)의 generatedAt 으로 쓴다
+  const mtime = (p) => (has(p) ? statSync(abs(p)).mtime.toISOString() : null);
+  return { ROOT, abs, has, isDir, read, walk, ls, git, lastCommit, lineOf, mtime, resolveRef, hasGit: () => { if (gitOk === null) git('rev-parse', 'HEAD'); return gitOk; } };
 }
