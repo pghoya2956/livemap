@@ -266,3 +266,46 @@ test('SC-7 check --json: errors가 텍스트 오류 수·종료 코드와 같다
   assert.equal(j.code, t.code);
   assert.match(t.out, /^✗ 표본 오류: 필수 항목 없음$/m);
 });
+
+// 2.1.0 구조 지도 코드(스펙 「검사 규칙」): architecture.* 열여섯과 budget.nav-items-low. --strict 는 architecture.* 만 승격한다
+const ARCH_CODES = {
+  'architecture.layer-violation': ['warn', ['source', 'code']],
+  'architecture.module-unassigned': ['warn', ['source']],
+  'architecture.lane-empty': ['warn', ['source']],
+  'architecture.container-unanchored': ['warn', ['source']],
+  'architecture.container-undeclared': ['warn', ['source']],
+  'architecture.external-undeclared': ['warn', ['source']],
+  'architecture.diagram-unreadable': ['error', ['source']],
+  'architecture.duplicate-id': ['error', ['source']],
+  'architecture.flow-step-missing': ['error', ['source', 'code']],
+  'architecture.flow-broken': ['warn', ['source', 'code', 'judge']],
+  'architecture.bridge-unmatched': ['warn', ['code', 'config']],
+  'architecture.table-unreached': ['warn', ['code', 'config']],
+  'architecture.graph-missing': ['warn', ['config']],
+  'architecture.graph-schema': ['error', ['engine', 'config']],
+  'architecture.skill-stale': ['warn', ['source']],
+  'architecture.out-too-long': ['warn', ['config']],
+  'budget.nav-items-low': ['warn', ['config']],
+};
+test('SC-13 코드 표: 2.1.0 코드 열일곱의 수준·처리가 스펙과 같고 문서 표에도 같은 집합으로 있다. 1.2.0 묶음 대상(NEW_CODES)에는 들지 않는다', async () => {
+  const { ISSUE_CODES, NEW_CODES } = await issuesModule();
+  for (const [code, [level, resolutions]] of Object.entries(ARCH_CODES)) assert.deepEqual([ISSUE_CODES[code]?.level, ISSUE_CODES[code]?.resolutions], [level, resolutions], code);
+  assert.equal(Object.keys(ISSUE_CODES).filter((c) => c.startsWith('architecture.')).length, 16);
+  for (const code of Object.keys(ARCH_CODES)) assert.equal(NEW_CODES.has(code), false, code);
+  const doc = readFileSync(join(PKG, 'docs', 'issue-codes.md'), 'utf8');
+  const docCodes = new Set([...doc.matchAll(/^\| `([a-z0-9.-]+)` \|/gm)].map((m) => m[1]));
+  for (const code of Object.keys(ARCH_CODES)) assert.ok(docCodes.has(code), `문서에 ${code} 없음`);
+  assert.match(doc, /budget\.nav-items-low.*승격/);
+});
+
+test('SC-13 --strict: architecture.* 경고는 오류로 올리고 budget.nav-items-low 는 경고로 남는다', async () => {
+  const { applyStrict, problem } = await issuesModule();
+  const ps = [problem('warn', 'architecture.layer-violation', 'a'), problem('warn', 'budget.nav-items-low', 'b'), problem('warn', 'architecture.graph-missing', 'c'), problem('warn', 'router.unknown-api', 'd')];
+  assert.deepEqual(applyStrict(ps, true).map((p) => p.level), ['error', 'warn', 'error', 'warn']);
+  assert.deepEqual(applyStrict(ps, false).map((p) => p.level), ['warn', 'warn', 'warn', 'warn']);
+  const dir = probeProject([issueCall('warn', 'architecture.layer-violation', 'web/src/a.ts'), issueCall('warn', 'budget.nav-items-low', 'budget.navItems')].join('\n'));
+  assert.equal(run(dir, ['check']).code, 0);
+  const strict = run(dir, ['check', '--strict']);
+  assert.equal(strict.code, 1, strict.out);
+  assert.deepEqual(strict.out.trimEnd().split('\n'), ['✗ 표본: architecture.layer-violation web/src/a.ts', '△ 표본: budget.nav-items-low budget.navItems', 'map check: 오류 1']);
+});

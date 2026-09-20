@@ -91,3 +91,25 @@ test('check: 라우트 없음은 오류, 고아는 경고, 바닥값 미달은 �
   const strict = check(data, { ...cfg, floors: { screen: 99 } });
   assert.ok(strict.some((p) => p.level === 'error' && /바닥값 미달 screen/.test(p.msg)));
 });
+
+test('graphify·architecture(2.1.0): mini 에 Graphify 그래프와 선언(부품 web·bff·db, 바깥 상대 auth, 층 셋, 흐름 하나)이 있고 깨끗한 상태에서 위반 0·끊김 0', () => {
+  const st = Object.fromEntries(data.adapters.map((a) => [a.name, a.status]));
+  assert.equal(st.graphify, 'ok');
+  const a = data.architecture;
+  assert.deepEqual(a.containers.map((c) => [c.id, c.kind]), [['web', 'ours'], ['bff', 'ours'], ['db', 'ours'], ['auth', 'external']]);
+  assert.deepEqual(a.containers[0].counts.screens, 2);
+  assert.deepEqual(a.lanes.filter((l) => l.kind === 'code' && l.container === 'web').map((l) => [l.id, l.nodes]), [['pages', 2], ['lib', 1], ['mock', 1]]);
+  assert.ok(a.laneLinks.some((l) => l.from === 'pages' && l.to === 'lib'), '층 사이 import 가 최소 1건');
+  assert.deepEqual(a.violations, []);
+  assert.deepEqual(a.flows.map((f) => [f.id, f.status, f.broken]), [['live-flow', 'live', []]]);
+  assert.ok(a.modules.length >= 7);
+  assert.ok(a.communities.length >= 2);
+  assert.deepEqual(a.bridges.unmatched, { livemapOnly: 0, unreached: 0 });
+  assert.equal(a.graphify.unknownRelations && typeof a.graphify.nodes, 'number');
+  assert.deepEqual([data.summary.containers, data.summary.flows, data.summary.boundaryViolations], [4, 1, 0]);
+  assert.equal(data.summary.modules, a.modules.length);
+  assert.equal(data.summary.communities, a.communities.length);
+  // 합치기: 같은 SQL 라벨 노드 둘이 function·table 하나에 graphifyIds 로 붙는다
+  assert.equal(g.get('table', 'app.resorts').props.graphifyIds.length, 2);
+  assert.equal(g.of('function').length, 2, '2.0.2 함수 수 그대로(list_resorts·get_item)');
+});
