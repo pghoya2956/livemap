@@ -171,7 +171,9 @@ const taskFolderOf = (path, dir) => { if (!dir || !path.startsWith(`${dir}/`)) r
 const norm = (p) => String(p).replace(/^\.\//, '').replace(/\/+$/, '');
 
 // 구조 지도 대상(2.1.0, DEC-37): 설정에 architecture 가 있을 때 map/architecture/ 아래 파일, architecture.skillFile, map/config.json.
-// 이 중 하나가 스테이징됐을 때만 architecture.* 를 오류로 센다. 코드 파일이 스테이징됐다는 이유로 구조 검사를 돌리지 않고 훅 안에서 Graphify 를 돌리지도 않는다
+// 이 중 하나가 스테이징됐을 때만 architecture.* 를 오류로 센다. 코드 파일이 스테이징됐다는 이유로 구조 검사를 돌리지 않고 훅 안에서 Graphify 를 돌리지도 않는다.
+// 세는 것은 그 선언·설정·사본에서 고칠 수 있는 문제, 곧 처리(resolutions)에 source 가 있는 코드뿐이다(2.1.1). Graphify 가 정의를 놓친 bridge-unmatched,
+// 어떤 함수도 닿지 않는 table-unreached, 그래프 파일 없음 graph-missing, graph-schema, out-too-long 은 선언으로 못 고치므로 check 의 경고(--strict 는 오류)로 남고 훅은 막지 않는다
 export function architectureTargets(paths, cfg) {
   const a = cfg?.architecture;
   if (!a || typeof a !== 'object') return [];
@@ -194,7 +196,8 @@ export function stagedProblems(problems, paths, cfg) {
   const folders = new Set(targets.map((p) => taskFolderOf(p, dir)).filter(Boolean));
   const judged = new Set(targets.map((p) => p.match(JUDGMENT_FILE)?.[1]).filter(Boolean));
   const archStaged = architectureTargets(paths, cfg).length > 0;
-  return problems.filter((p) => (archStaged && p.code.startsWith('architecture.')) || (STAGED_PREFIXES.some((x) => p.code.startsWith(x)) && STAGED_SUBJECTS.includes(p.subject?.kind) && (
+  const fixableInDeclaration = (p) => p.code.startsWith('architecture.') && (p.resolutions || []).includes('source');
+  return problems.filter((p) => (archStaged && fixableInDeclaration(p)) || (STAGED_PREFIXES.some((x) => p.code.startsWith(x)) && STAGED_SUBJECTS.includes(p.subject?.kind) && (
     p.anchors.some((a) => files.has(a.file))
     || (p.subject.kind === 'task' && folders.has(p.subject.id))
     || (p.subject.kind === 'judgment' && (judged.has(p.subject.id) || folders.has(p.subject.id)))

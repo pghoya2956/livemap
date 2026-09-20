@@ -156,4 +156,4 @@ sequenceDiagram 을 넣는 기능은 현재 마일스톤(진행, 없으면 다�
 - **위반이 나오는데 구조가 맞다**: 허용 목록이 실제 import 보다 좁은 것이다. 배럴(`index.ts`)이 다른 층을 재수출하면 그 층을 허용 목록에 더한다.
 - **미배정 파일이 한 폴더에 몰린다**(예: `tests/`): 그 폴더를 부품으로 선언하거나, 그대로 두고 화면에서 접는다. 선언하면 묶음 구역도 채워진다.
 - **묶음 구역이 null**: 그 묶음의 파일이 어느 부품에도 없다. `zones` 규칙은 묶음 이름(파일 이름 또는 심볼 이름)에만 맞으므로 부품 선언이 더 넓게 덮는다.
-- **`bridge-unmatched`**: livemap 이 migration 에서 읽은 테이블인데 Graphify 가 정의 자리를 내지 않았다. 선언으로는 못 고치고 Graphify 쪽 문제다.
+- **`bridge-unmatched`**: livemap 이 migration 에서 읽은 테이블인데 Graphify 가 정의 자리를 내지 않았다. 선언으로는 못 고치고 Graphify 쪽 문제다. `check` 에서는 경고(`--strict` 는 오류)이고, 선언을 스테이징한 커밋의 `check --staged` 는 세지 않는다(2.1.1). `table-unreached`·`graph-missing` 도 같다.

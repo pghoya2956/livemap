@@ -58,6 +58,7 @@
 
 - 오류로 세는 문제는 코드가 `tasks.`·`judgment.`로 시작하고 대상이 작업·장부·판정 파일이면서, 대상이 스테이징된 작업 폴더·판정 파일이거나 근거 줄이 스테이징된 대상 파일에 있는 것이다. 나머지 문제는 보이지 않는다.
 - `tasks.ambiguous-ref`는 대상이 여정 단계이고 고칠 곳이 여정 파일이라 세지 않는다. 코드만 바꾼 커밋과 과거 작업의 남은 문제는 막지 않는다.
+- 구조 지도(2.1.0): 선언 폴더(`architecture.dir`) 안 파일, 스킬 사본(`architecture.skillFile`), `map/config.json` 중 하나가 스테이징되면 `architecture.*`도 대상이다. 세는 것은 그 선언·설정·사본에서 고칠 수 있는 문제, 곧 처리에 `source`가 있는 코드뿐이다(2.1.1). Graphify가 정의를 놓친 `architecture.bridge-unmatched`, `architecture.table-unreached`, `architecture.graph-missing`, `architecture.graph-schema`, `architecture.out-too-long`은 선언으로 못 고치므로 `check`의 경고(`--strict`는 오류)로 남고 훅은 막지 않는다. 훅 안에서 Graphify를 돌리지 않는다.
 - 대상 파일이 없거나 git 저장소가 아니면 빌드하지 않고 종료 코드 0이다.
 - 출력은 문제마다 `✗ <코드> <문구>`, `처리:`, `근거:`(파일:줄과 원문 조각), `판정 초안(judgmentDraft):` 한 줄 JSON이고, 끝 줄이 `map check --staged: 오류 n (…)`와 처리 안내다. 통과는 `map check --staged: 통과 (대상 파일 n)`, 대상 없음은 `map check --staged: 대상 없음`, git 저장소가 아니면 `map check --staged: git 저장소 아님, 건너뜀`이다. `--json`을 함께 주면 `check --json`과 같은 모양으로 낸다.
 - 오류가 있으면 종료 코드 1이라 커밋이 멈춘다. 멈춘 출력을 받은 에이전트 세션이 원문을 식별자 줄 규칙대로 고치거나 판정 파일을 써서 스테이징하고 다시 커밋한다. `--no-verify`로 넘기지 않는다.

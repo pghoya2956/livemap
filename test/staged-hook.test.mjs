@@ -177,20 +177,31 @@ test('SC-12 커밋 전 훅: 실제 git commit에서 표 결정 완료 작업 커
 
 // 구조 지도(2.1.0, DEC-37): map/architecture/ 아래 파일, architecture.skillFile, map/config.json 중 하나가 스테이징됐을 때만 architecture.* 를 오류로 센다.
 // 코드 파일이 스테이징됐다는 이유로 구조 검사를 돌리지 않고 훅 안에서 Graphify 를 돌리지도 않는다
-function archProject() {
+// violation: 선언(허용 목록)으로 고칠 수 있는 층 위반. bridge: 선언으로 못 고치는 Graphify 쪽 경고 셋(처리에 source 없음). skill: skillFile 설정과 사본
+function archProject({ violation = true, bridge = false, skill = true } = {}) {
   const dir = tmp('훅 구조');
+  const issues = [];
+  if (violation) issues.push("g.issue('warn', '구조 규칙', 'web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다', { code: 'architecture.layer-violation', subject: { kind: 'module', id: 'web/src/lib/a.ts' }, anchors: [{ file: 'web/src/lib/a.ts' }] });");
+  if (bridge) issues.push(
+    "g.issue('warn', '구조 다리', '테이블 receipts: Graphify 정의 자리 없음, livemap 만 아는 테이블(touches 3)', { code: 'architecture.bridge-unmatched', subject: { kind: 'table', id: 'receipts' }, anchors: [{ file: 'db/migrations/001.sql', line: 45 }] });",
+    "g.issue('warn', '구조 다리', '테이블 audit: 어떤 DB 함수도 닿지 않음(Graphify 정의 자리 1)', { code: 'architecture.table-unreached', subject: { kind: 'table', id: 'audit' }, anchors: [{ file: 'db/migrations/002.sql', line: 3 }] });",
+    "g.issue('warn', '구조 그래프', 'Graphify 그래프 파일 없음: graphify-out/graph.json', { code: 'architecture.graph-missing', subject: { kind: 'config', id: 'architecture.graph' }, anchors: [{ file: 'map/config.json' }] });",
+  );
+  issues.push("g.issue('warn', '작업', '무관한 경고', { code: 'tasks.stage-unknown', subject: { kind: 'task', id: '20260101-x' } });");
+  const architecture = { dir: 'map/architecture', graph: 'graphify-out/graph.json', ...(skill ? { skillFile: '.claude/skills/sample-architecture/SKILL.md' } : {}) };
   write(dir, {
-    'map/config.json': JSON.stringify({ engine: 2, adapters: ['probe'], semantic: 'map/semantic/journeys.json', architecture: { dir: 'map/architecture', graph: 'graphify-out/graph.json', skillFile: '.claude/skills/sample-architecture/SKILL.md' } }),
+    'map/config.json': JSON.stringify({ engine: 2, adapters: ['probe'], semantic: 'map/semantic/journeys.json', architecture }),
     'map/semantic/journeys.json': JSON.stringify({ journeys: [] }),
-    'map/adapters/probe.mjs': "export default function probe(g) { g.issue('warn', '구조 규칙', 'web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다', { code: 'architecture.layer-violation', subject: { kind: 'module', id: 'web/src/lib/a.ts' }, anchors: [{ file: 'web/src/lib/a.ts' }] }); g.issue('warn', '작업', '무관한 경고', { code: 'tasks.stage-unknown', subject: { kind: 'task', id: '20260101-x' } }); return null; }\n",
+    'map/adapters/probe.mjs': `export default function probe(g) { ${issues.join(' ')} return null; }\n`,
     'map/architecture/README.md': md('# 시스템 그림', '', '```mermaid', 'flowchart LR', '  web["웹"]', '```', '', '| 부품 | 파일 | 이름 | 종류 |', '|---|---|---|---|', '| web | [web.md](web.md) | 웹 | 우리 코드 |'),
     'map/architecture/web.md': md('# 웹', '- id: web', '- 폴더: web/src'),
-    '.claude/skills/sample-architecture/SKILL.md': md('# 구조', '사본'),
+    ...(skill ? { '.claude/skills/sample-architecture/SKILL.md': md('# 구조', '사본') } : {}),
     'web/src/lib/a.ts': '// 코드\n',
   });
   git(dir, 'init', '-q', '-b', 'main'); git(dir, 'add', '-A'); git(dir, 'commit', '-qm', 'base');
   return dir;
 }
+const stageDeclaration = (dir) => { write(dir, { 'map/architecture/web.md': readFileSync(join(dir, 'map/architecture/web.md'), 'utf8') + '\n' }); git(dir, 'add', 'map/architecture/web.md'); };
 test('SC-13 check --staged: 코드 파일만 스테이징이면 대상 없음, 선언 파일·설정·스킬 사본이 스테이징되면 architecture.* 만 오류(다른 경고는 세지 않음)', () => {
   const dir = archProject();
   assert.match(cli(dir, ['check']).out, /architecture\.layer-violation|층 lib/);
@@ -216,4 +227,30 @@ test('SC-13 check --staged: 코드 파일만 스테이징이면 대상 없음, �
     assert.equal(j.errors, j.problems.length, f);
     git(dir, 'reset', '-q');
   }
+});
+
+// 2.1.1: 훅은 스테이징된 선언·설정·사본에서 고칠 수 있는 문제(처리에 source 가 있는 코드)만 막는다.
+// Graphify 가 정의를 놓쳐 나는 bridge-unmatched, 닿지 않는 테이블, 그래프 파일 없음은 선언으로 못 고치므로 check 의 경고로 남고(--strict 는 오류) --staged 는 세지 않는다
+const GRAPHIFY_SIDE = ['architecture.bridge-unmatched', 'architecture.table-unreached', 'architecture.graph-missing'];
+test('SC-13b check --staged: 선언으로 못 고치는 architecture.*(처리에 source 없음)는 선언이 스테이징돼도 오류로 세지 않고, check 에서는 경고·--strict 에서는 오류 그대로다', () => {
+  const dir = archProject({ bridge: true, skill: false });
+  const plain = JSON.parse(cli(dir, ['check', '--json']).out);
+  for (const c of GRAPHIFY_SIDE) assert.equal(plain.problems.find((p) => p.code === c)?.level, 'warn', c);
+  const strict = JSON.parse(cli(dir, ['check', '--json', '--strict']).out);
+  for (const c of GRAPHIFY_SIDE) assert.equal(strict.problems.find((p) => p.code === c)?.level, 'error', c);
+  stageDeclaration(dir);
+  const r = cli(dir, ['check', '--staged']);
+  assert.equal(r.code, 1, r.out + r.err);
+  assert.ok(r.out.includes('✗ architecture.layer-violation 구조 규칙: web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다'), r.out);
+  for (const c of GRAPHIFY_SIDE) assert.equal(r.out.includes(c), false, `${c} 가 훅 출력에 있음: ${r.out}`);
+  const j = JSON.parse(cli(dir, ['check', '--staged', '--json']).out);
+  assert.deepEqual(j.problems.map((p) => [p.code, p.level]), [['architecture.layer-violation', 'error']]);
+  assert.ok(j.problems.every((p) => p.resolutions.includes('source')));
+});
+test('SC-13c check --staged: 선언으로 고칠 문제가 없으면 Graphify 쪽 경고만 남아도 통과한다', () => {
+  const dir = archProject({ violation: false, bridge: true, skill: false });
+  assert.equal(JSON.parse(cli(dir, ['check', '--json']).out).problems.filter((p) => GRAPHIFY_SIDE.includes(p.code)).length, 3);
+  stageDeclaration(dir);
+  const r = cli(dir, ['check', '--staged']);
+  assert.deepEqual([r.code, r.out.trim()], [0, 'map check --staged: 통과 (대상 파일 1)'], r.out + r.err);
 });
