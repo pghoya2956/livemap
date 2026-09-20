@@ -178,6 +178,8 @@ export function LaneMap({ arch, focus, flow, hidden, hubMin, fn = null, onFocus,
       </svg>
       <div className="am-bar">
         <span className="chip">{L.level === 'fn' ? '함수' : '파일'} 노드 {L.boxes.length} · 선 {L.lines.length}</span>
+        {/* 이웃이 없는 심볼은 상자 하나가 맞는 답이다. 왜 하나뿐인지 적지 않으면 막다른 길로 보인다 */}
+        {L.lonelySymbol && <span className="chip am-lonely">이 함수를 부르는 곳도, 이 함수가 부르는 곳도 없다</span>}
         {L.folded > 0 && <span className="chip am-foldchip">노드 {L.folded}개를 묶음 {L.boxes.filter((b) => b.folded).length}개로 접음 · 상자를 누르면 그 묶음으로</span>}
         {L.lines.some((l) => l.bundled) && <span className="chip">묶은 선 {L.lines.filter((l) => l.bundled).length}</span>}
         {L.lines.some((l) => l.kind === 'flowEdge') && <span className="chip">기능 선 실측 {L.lines.filter((l) => l.kind === 'flowEdge').length} · 선언 {L.lines.filter((l) => l.kind === 'flow').length}</span>}
