@@ -9,8 +9,9 @@
 // 통계는 g.architecture.bridges 에 남긴다(파생이 data.json architecture.bridges 에 싣는다).
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
-// 로그인 노드 종류. 스펙 데이터 모델에 로그인 종류가 없어 부모 결정(AUTH_KIND_DECISION)을 기다린다. 기본은 symbol(external·auth)
-export const AUTH_KIND = 'symbol';
+// 로그인 노드 종류 auth(AUTH_KIND_DECISION=A). 스펙 데이터 모델의 새 종류 넷에 없던 다섯째 종류다. function 에 실으면 summary.dbFunctions·functions[] 의 2.0.2 값이 바뀌고,
+// symbol 은 파일 안 이름이라 뜻이 다르다. id 는 API props.calls 의 auth:<제공자> 그대로
+export const AUTH_KIND = 'auth';
 
 // 이름 규칙 (^|\.)이름\(\)$: livemap 함수 이름(스키마 없음)을 스키마 접두를 가진 SQL 함수 라벨에 맞춘다. 접미 일치(xlist_resorts)는 걸러진다
 export function matchFunctionLabel(name, labels) {

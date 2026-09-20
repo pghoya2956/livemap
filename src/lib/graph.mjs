@@ -4,8 +4,8 @@
 //   넷째 인자를 주면 code·subject·anchors·resolutions(이슈 계약, src/lib/issues.mjs)를 더 싣는다. 세 인자 호출은 1.1.0 모양 그대로다.
 import { issueDetail } from './issues.mjs';
 
-// 2.1.0(minor): 구조 지도가 container·module·symbol·flow 노드와 imports·renders·defined_in·depends·reads·inherits 엣지를 더했다(스펙 DEC-24). contains 는 2.0.2에 이미 있다
-export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'table', 'migration', 'test', 'commit', 'decision', 'task', 'ledger', 'deploy', 'testreport', 'milestone', 'release', 'container', 'module', 'symbol', 'flow'];
+// 2.1.0(minor): 구조 지도가 container·module·symbol·flow·auth 노드와 imports·renders·defined_in·depends·reads·inherits 엣지를 더했다(스펙 DEC-24, auth 는 AUTH_KIND_DECISION). contains 는 2.0.2에 이미 있다
+export const NODE_KINDS = ['journey', 'step', 'screen', 'api', 'function', 'table', 'migration', 'test', 'commit', 'decision', 'task', 'ledger', 'deploy', 'testreport', 'milestone', 'release', 'container', 'module', 'symbol', 'flow', 'auth'];
 export const EDGE_KINDS = ['has_step', 'shows', 'uses', 'calls', 'invokes', 'touches', 'covers', 'changes', 'refs', 'defines', 'contains', 'tracks', 'imports', 'renders', 'defined_in', 'depends', 'reads', 'inherits'];
 
 export class Graph {

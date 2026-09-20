@@ -114,6 +114,7 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 | symbol | `<파일>:<이름>`. 같은 파일에 같은 이름이 둘이면 `@<위치>`를 붙인다. 정의 자리 없는 SQL 라벨은 라벨 그대로이고 `props.external`·`props.sql`이 참(2.1.0) | graphify |
 | container | 선언한 부품 id(2.1.0) | architecture 단계(선언 파일 `map/architecture/`) |
 | flow | 선언한 흐름 id(2.1.0) | architecture 단계 |
+| auth | 로그인 제공자 호출 이름 `auth:<제공자>`(API `props.calls`의 `auth:` 접두 그대로, 2.1.0). `props.external`·`props.auth`가 참, `props.provider` | 다리 단계(`src/bridge.mjs`) |
 
 로드맵 항목과 마일스톤의 노드 종류 이름은 1.x 동안 `milestone`·`release`이고, 2.0.0에서 `roadmapItem`·`milestone`으로 바꾼다(어댑터 계약 변경이라 major).
 
@@ -140,7 +141,9 @@ Graphify 는 SQL 객체마다 노드 하나를 주지 않고 (migration 파일, 
 |---|---|---|
 | `s.f()`, 정의 자리(source_file 있는 노드) 있음 | livemap `function:f`(migrations·bff 가 만든 노드 자신. 없으면 만들고 `qualified`를 둔다) | `graphifyIds`(정렬), `schema`, `community`, `communityName` |
 | `s.t`, 정의 자리 있음 | livemap `table:s.t`(없으면 만든다) | 같음 |
-| 정의 자리 없음(남의 스키마·참조만·스키마 낱말 조각) | `symbol:<라벨>` 바깥 상대 | `external`·`sql` 참, `schema`(접두 없으면 null), `graphifyIds`, `community` null |
+| 정의 자리 없음, 같은 이름의 livemap `function`·`table`이 있음(Graphify 가 정의를 놓친 자리) | 그 livemap 노드 | `graphifyRefs`(증거 id 만. `graphifyIds`가 아니라 다리 매칭에 세지 않고 `architecture.bridge-unmatched`가 그대로 난다) |
+| 정의 자리 없음, livemap 노드도 없음(남의 스키마, 예 `auth.users`) | `symbol:<라벨>` 바깥 상대 | `external`·`sql` 참, `schema`, `graphifyIds`, `community` null. 선언 파일(Phase 2)의 바깥 상대 키는 스키마 단위이고 객체는 엔진이 나열한다 |
+| 정의 자리 없음, 스키마 접두 없는 낱말 조각(`auth`·`is` 같은 SQL 낱말) | 만들지 않는다(`architecture.graphify.dropped.sqlNoise`) | — |
 | 스키마 접두 없는 SQL 심볼(인덱스 이름) | 보통 심볼 `symbol:<파일>:<이름>` | — |
 
 묶음(`community`)은 정의 자리 중 `source_file`이 사전순으로 가장 앞선 노드의 커뮤니티다. migration 파일명이 시각 접두를 가지므로 사전순이 생성 순서이고 그 자리가 객체를 만든 자리다. 같은 파일 안에 둘이면 Graphify id 순이다. 입력 노드 순서를 뒤집어도 같은 배정이 나온다(SC-24).
@@ -279,7 +282,7 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 
 2.1.0(minor)이 더한 노드 종류는 위 표의 `module`·`symbol`·`container`·`flow` 넷, 엣지는 `imports`(module→module), `renders`(screen→module, 다리), `defined_in`(api→module, 다리), `depends`(container→container), `reads`(module→module, symbol→symbol, function→table|symbol), `inherits`(symbol→symbol) 여섯이다(스펙 DEC-24. `contains`는 2.0.2에 이미 있어 그대로 쓴다). 2.0.2 엣지 모양 `{ from, to, kind }`는 그대로고 Graphify·다리가 만든 엣지만 `props`를 더 가진다: `confidence`(`EXTRACTED`|`INFERRED`), 참일 때만 실리는 `typeOnly`·`deferred`, 원 relation 이 종류 이름과 다를 때의 `via`(`method`·`indexes`·`cites`), 다리가 만든 엣지의 `bridge: true`. `g.link`의 여섯째 인자로 넣고, 같은 (from, kind, to)가 이미 있으면 돌려받은 엣지의 props 를 부르는 쪽이 합친다.
 
-이고(livemap 함수 id 는 스키마 없는 짧은 이름), 테이블은 `schema.table` 그대로 같다. 다리가 새로 만드는 엣지는 `renders`(screen→module)·`defined_in`(api→module)·`invokes`(api→로그인 노드) 셋이고 `props.bridge`가 참이다.
+이고(livemap 함수 id 는 스키마 없는 짧은 이름), 테이블은 `schema.table` 그대로 같다. 다리가 새로 만드는 엣지는 `renders`(screen→module)·`defined_in`(api→module)·`invokes`(api→`auth` 노드) 셋이고 `props.bridge`가 참이다.
 
 ## 순서
 

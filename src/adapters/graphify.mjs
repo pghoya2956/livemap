@@ -8,7 +8,9 @@
 //   code, 파일 판정                  → module(id 저장소 기준 경로). 판정: 라벨이 파일명 모양이고 source_file 의 basename 또는 dir/basename 과 같다
 //                                      (Graphify 는 파일명이 겹치면 라벨에 상위 폴더를 붙인다). 심볼 없는 barrel·진입 파일도 파일이다(N0 SPEC_FIX=file-rule)
 //   code, SQL 계열 스키마 접두 라벨   → 라벨 단위로 합쳐 livemap function(<이름>)·table(<스키마.이름>) 노드에 props.graphifyIds 로 붙인다(DEC-43, 아래 mergeSqlLabels).
-//                                      정의 자리가 없는 라벨은 바깥 상대 symbol(id 라벨, external·sql·schema)
+//                                      정의 자리가 없는 라벨(OQ09_DECISION=b): 같은 이름의 livemap function·table 이 있으면 그 노드에 props.graphifyRefs 로만 붙인다
+//                                      (Graphify 가 정의를 놓친 자리. 다리 매칭 graphifyIds 에는 세지 않아 bridge-unmatched 가 그대로 난다), 없으면 남의 스키마라
+//                                      바깥 상대 symbol(id 라벨, external·sql·schema. 선언 파일의 바깥 상대 키는 스키마 단위다), 스키마 접두 없는 낱말 조각은 버린다
 //   code, 그 밖                      → symbol(id <파일>:<이름>, 같은 파일에 같은 이름이 둘이면 @<위치>)
 //   source_file 이 비고 들어오는 엣지 없음 → 조각 노드, 버린다
 // relation 대응(DEC-24·DEC-28): imports·imports_from·re_exports → imports(끝점을 module 로 올린다), contains·method → contains, calls·indirect_call → calls,
@@ -133,11 +135,16 @@ export default function graphify(g, fs, cfg) {
     }
   }
   const merged = mergeSqlLabels(sql);
-  let sqlFunctions = 0, sqlTables = 0, sqlExternal = 0;
+  let sqlFunctions = 0, sqlTables = 0, sqlExternal = 0, sqlNoise = 0;
   for (const m of merged) {
     const props = { schema: m.schema, graphifyIds: m.ids, community: m.community, communityName: m.communityName };
     let key;
-    if (m.sites === 0) { key = ['symbol', m.label]; g.add('symbol', m.label, m.label, { external: true, sql: true, ...props }, null); sqlExternal += 1; }
+    if (m.sites === 0) {
+      if (!m.schema) { sqlNoise += 1; continue; } // 스키마 낱말·SQL 낱말 조각. 그리로 가는 엣지는 끝점이 없어 버려진다
+      const own = m.isFn ? g.get('function', m.name) : g.get('table', m.label);
+      if (own) { key = [own.kind, own.id]; g.add(own.kind, own.id, own.label, { graphifyRefs: m.ids }); }
+      else { key = ['symbol', m.label]; g.add('symbol', m.label, m.label, { external: true, sql: true, ...props }, null); sqlExternal += 1; }
+    }
     else if (m.isFn) {
       key = ['function', m.name];
       const existing = g.get('function', m.name);
@@ -193,7 +200,7 @@ export default function graphify(g, fs, cfg) {
       communities: new Set(doc.nodes.map((n) => n.community)).size, inferred, typeOnly, deferred, unknownRelations,
       generatedAt: typeof fs.mtime === 'function' ? fs.mtime(path) : null, tool: 'graphify', builtAtCommit: doc.built_at_commit ?? null,
       kept: { modules: files.length, symbols: symbols.length, external: external.length, sqlFunctions, sqlTables, sqlExternal },
-      dropped: { fragments, edges: droppedEdges },
+      dropped: { fragments, sqlNoise, edges: droppedEdges },
     },
   };
   return null;
