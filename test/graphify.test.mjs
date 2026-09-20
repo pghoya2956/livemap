@@ -37,11 +37,13 @@ test('SC-1 계약: 최상위 키 여섯이 있으면 읽고 덧붙은 키(built_
   assert.equal(status(g), 'ok');
   assert.deepEqual(REQUIRED_TOP, ['directed', 'multigraph', 'graph', 'nodes', 'links', 'hyperedges']);
   const s = g.architecture.graphify;
-  assert.deepEqual([s.nodes, s.edges, s.relations, s.communities, s.inferred, s.typeOnly, s.deferred], [35, 42, 13, 5, 1, 2, 1]);
+  assert.deepEqual([s.nodes, s.edges, s.relations, s.communities, s.inferred, s.typeOnly, s.deferred], [37, 44, 13, 5, 1, 2, 1]);
   assert.deepEqual(s.unknownRelations, { decorates: 1 });
   assert.deepEqual([s.generatedAt, s.tool, s.builtAtCommit], ['2026-09-19T00:00:00.000Z', 'graphify', '0000000']);
-  assert.deepEqual(s.kept, { modules: 9, symbols: 16, external: 2, sqlFunctions: 1, sqlTables: 2, sqlExternal: 1 });
-  assert.deepEqual(s.dropped, { fragments: 1, edges: 0 });
+  // livemap 노드가 먼저 없는 그래프에서는 참조만 라벨 app.items 도 바깥 상대다(sql-merge 검사가 livemap table 이 있을 때를 본다)
+  assert.deepEqual(s.kept, { modules: 9, symbols: 16, external: 2, sqlFunctions: 1, sqlTables: 2, sqlExternal: 2 });
+  // 스키마 접두 없는 SQL 낱말 조각(is)은 버리고 그리로 가는 엣지도 버린다(OQ-09 결정 b)
+  assert.deepEqual(s.dropped, { fragments: 1, sqlNoise: 1, edges: 1 });
 });
 
 test('SC-1 계약: 최상위 키 하나가 없으면 architecture.graph-schema 오류이고 반쯤 읽은 그래프로 노드를 싣지 않는다', () => {
@@ -151,11 +153,12 @@ test('SC-1 엣지: relation 을 종류에 대응하고 confidence·typeOnly·def
   // calls·indirect_call → calls(추정은 INFERRED), reads_from·references·indexes·cites → reads, inherits → inherits
   assert.equal(edges(g, 'calls').length, 4);
   assert.deepEqual(edge(g, 'symbol:web/src/pages/Live.tsx:submit()@L15', 'calls', 'symbol:web/src/lib/queries.ts:fetchResorts').props, { confidence: 'INFERRED' });
-  assert.deepEqual(edges(g, 'reads'), ['function:list_resorts → symbol:auth.users', 'function:list_resorts → table:app.resorts', 'module:app/server.mjs → module:RFC-0001', 'symbol:supabase/migrations/20260102000000_more.sql:resorts_name_idx → table:app.resorts']);
+  assert.deepEqual(edges(g, 'reads'), ['function:list_resorts → symbol:app.items', 'function:list_resorts → symbol:auth.users', 'function:list_resorts → table:app.resorts', 'module:app/server.mjs → module:RFC-0001', 'symbol:supabase/migrations/20260102000000_more.sql:resorts_name_idx → table:app.resorts']);
+  assert.equal(g.nodes.has('symbol:is'), false, '접두 없는 조각은 노드가 아니다');
   assert.deepEqual(edge(g, 'module:app/server.mjs', 'reads', 'module:RFC-0001').props, { confidence: 'EXTRACTED', via: 'cites' });
   assert.deepEqual(edge(g, 'symbol:supabase/migrations/20260102000000_more.sql:resorts_name_idx', 'reads', 'table:app.resorts').props, { confidence: 'EXTRACTED', via: 'indexes' });
   assert.deepEqual(edges(g, 'inherits'), ['symbol:web/src/lib/queries.ts:AdminResort → symbol:web/src/lib/queries.ts:Resort']);
-  assert.equal(g.edges.length, 37);
+  assert.equal(g.edges.length, 38);
   // 2.0.2 엣지 모양 { from, to, kind } 는 그대로고 Graphify 엣지만 props 를 더 가진다
   for (const e of g.edges) assert.deepEqual(Object.keys(e), ['from', 'to', 'kind', 'props']);
 });
@@ -176,6 +179,9 @@ test('SC-1 조각 노드(source_file 이 비고 들어오는 엣지 없음)는 �
   assert.equal(ids.includes('app_orphan'), false);
   assert.ok(ids.includes('app_resorts'), '참조 노드는 app.resorts 라벨의 증거로 남는다');
   assert.equal(g.architecture.graphify.dropped.fragments, 1);
+  // 스키마 접두 없는 SQL 낱말 조각(is)은 들어오는 엣지가 있어도 버린다(OQ-09 결정 b). 그 증거 id 는 어느 노드에도 남지 않는다
+  assert.equal(ids.includes('is_ref'), false);
+  assert.equal(g.architecture.graphify.dropped.sqlNoise, 1);
 });
 
 test('SC-4 그래프 파일이 없으면 partial 로 보고하고 architecture.graph-missing 경고를 내며 노드를 만들지 않는다', () => {

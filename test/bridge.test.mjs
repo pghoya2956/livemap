@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Graph, runAdapter } from '../src/lib/graph.mjs';
+import { Graph, NODE_KINDS, runAdapter } from '../src/lib/graph.mjs';
 import graphify from '../src/adapters/graphify.mjs';
 import { bridgeArchitecture, matchFunctionLabel } from '../src/bridge.mjs';
 
@@ -68,6 +68,10 @@ test('SC-2 로그인: props.calls 의 auth: 접두마다 로그인 노드에 inv
   const authNodes = [...g.nodes.values()].filter((n) => n.props.auth);
   assert.deepEqual(authNodes.map((n) => n.label).sort(), ['auth:logout', 'auth:token', 'auth:user']);
   for (const n of authNodes) assert.equal(n.props.external, true);
+  // AUTH_KIND_DECISION=A: 새 노드 종류 auth. summary·functions[] 가 세는 function 이 아니다
+  assert.ok(NODE_KINDS.includes('auth'));
+  assert.deepEqual(g.of('auth').map((n) => n.id).sort(), ['auth:logout', 'auth:token', 'auth:user']);
+  assert.equal(g.of('function').length, 2);
   const authEdges = g.edges.filter((e) => e.kind === 'invokes' && authNodes.some((n) => e.to === `${n.kind}:${n.id}`));
   assert.equal(authEdges.length, 4);
   assert.deepEqual(g.out('api', '/api/password', 'invokes').filter((n) => n.props.auth).map((n) => n.label).sort(), ['auth:logout', 'auth:user']);

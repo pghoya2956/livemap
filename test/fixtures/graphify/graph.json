@@ -372,6 +372,28 @@
    "source_location": ""
   },
   {
+   "id": "app_items_ref",
+   "label": "app.items",
+   "_origin": "ast",
+   "community": 5,
+   "community_name": "20260102000000_more.sql",
+   "file_type": "code",
+   "norm_label": "app.items",
+   "source_file": "",
+   "source_location": ""
+  },
+  {
+   "id": "is_ref",
+   "label": "is",
+   "_origin": "ast",
+   "community": 4,
+   "community_name": "20260101000000_init.sql",
+   "file_type": "code",
+   "norm_label": "is",
+   "source_file": "",
+   "source_location": ""
+  },
+  {
    "id": "app_orphan",
    "label": "app.orphan",
    "_origin": "ast",
@@ -847,6 +869,28 @@
    "confidence_score": 1,
    "source_file": "supabase/migrations/20260102000000_more.sql",
    "source_location": "L7",
+   "weight": 1
+  },
+  {
+   "source": "supabase_migrations_20260102000000_more_app_list_resorts",
+   "target": "app_items_ref",
+   "relation": "reads_from",
+   "_origin": "ast",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1,
+   "source_file": "supabase/migrations/20260102000000_more.sql",
+   "source_location": "L7",
+   "weight": 1
+  },
+  {
+   "source": "supabase_migrations_20260101000000_init_app_list_resorts",
+   "target": "is_ref",
+   "relation": "reads_from",
+   "_origin": "ast",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1,
+   "source_file": "supabase/migrations/20260101000000_init.sql",
+   "source_location": "L4",
    "weight": 1
   },
   {
