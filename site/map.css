@@ -582,6 +582,8 @@ button.am-link:hover{color:#fff;text-decoration:underline}
 .am-node-edge.is-bad{stroke:var(--amber);stroke-dasharray:5 4}
 .am-node-edge.is-flow{stroke:var(--cyan)}
 .am-node-edge.is-measured{stroke:var(--green)}
+.am-node-edge.is-symbol{stroke:#2A3540}
+.am-nbox.k-symbol .am-kind{fill:var(--amber)}
 .am-nbox.is-fold rect{fill:var(--panel2);stroke-dasharray:6 3}
 .am-nbox.is-fold .am-kind{fill:var(--violet)}
 .am-node-edge.is-broken{stroke:var(--red);stroke-dasharray:3 3}
