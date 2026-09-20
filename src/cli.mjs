@@ -2,7 +2,7 @@
 //   livemap build   [--root .] [--out map/.out]       저장소 스캔 → graph.json·data.json·overview.json(+ 구조 지도가 켜진 프로젝트는 architecture.md·architecture.json·스킬 사본)
 //   livemap check   [--root .] [--json] [--strict]     검증(바닥값·라우트 존재·상태 모순·참조 미해결·어댑터 실패) → exit 1이면 실패
 //                                                      --json은 stdout에 이슈 계약 JSON만, --strict는 tasks.*·judgment.* 경고도 오류로 센다
-//                  [--staged]                          커밋 전 훅: 스테이징된 작업 문서·판정 파일에 걸린 tasks.*·judgment.*만 오류로 센다(git 없음·대상 없음 0)
+//                  [--staged]                          커밋 전 훅: 스테이징된 작업 문서·판정 파일의 tasks.*·judgment.* 와, 선언·설정·사본이 스테이징됐을 때 그것으로 고칠 수 있는 architecture.* 만 오류로 센다(git 없음·대상 없음 0)
 //   livemap serve   [--port 4180] [--static <dir>]     loopback 서빙. 기본은 요청마다 재빌드(5초 캐시), --static은 export 폴더를 그대로 준다
 //   livemap export  <dir> [--out map/.out]             화면·서체·캡처·생성물을 /map/ 주소 배치 그대로 한 폴더에 모은다
 //   livemap init                                       없는 파일만 템플릿으로 만들고 .gitignore·npm 스크립트·커밋 전 훅(.githooks/pre-commit)을 넣는다
@@ -122,7 +122,7 @@ const USAGE = `usage: livemap <command>
   build        [--root .] [--out map/.out] [--semantic <경로>]
                                               저장소 스캔 → graph.json · data.json · overview.json
   check        [--root .] [--json] [--strict] [--semantic <경로>] 정합 검사, 오류가 있으면 exit 1(--json: 이슈 JSON만)
-  check --staged                              커밋 전 훅: 스테이징된 작업 문서·판정 파일의 문제만 오류로
+  check --staged                              커밋 전 훅: 스테이징된 작업 문서·판정 파일의 문제와, 선언이 스테이징됐을 때 그 선언에서 고칠 수 있는 구조 문제만 오류로
   serve        [--port 4180] [--static <dir>] 로컬 뷰 http://127.0.0.1:<port>/map/
   export <dir> [--out map/.out]               화면·서체·캡처·생성물을 한 폴더에(먼저 build)
   init                                        map/ 초안 파일·.gitignore·npm 스크립트·커밋 전 훅
@@ -143,7 +143,20 @@ function readConfig(root) {
 
 // 명령을 실행하고 종료 코드를 돌려준다. serve는 서버를 띄우고 undefined를 돌려준다(프로세스가 계속 산다).
 // check --staged: 스테이징 목록(git diff --cached, 내용은 작업트리 기준)에 작업 문서·판정 파일이 없으면 빌드하지 않고 0
-const STAGED_FAIL = '원문을 식별자 줄 규칙대로 고치거나 map/judgments/<작업 폴더>.json에 판정을 적어 스테이징하고 다시 커밋한다. --no-verify로 넘기지 않는다';
+// 끝 줄은 실제로 센 문제의 종류를 따른다(2.1.2). 훅이 막는 갈래가 둘이고 처리하는 자리가 서로 달라서다 —
+// 작업 문서 문제는 원문이나 판정 파일에서, 구조 문제는 선언·설정에서 고친다. 한쪽 안내만 내면 그 자리에 없는 처리를 가리킨다
+const STAGED_KIND = {
+  task: { what: '스테이징된 작업 문서·판정 파일의 tasks.*·judgment.* 문제', how: '원문을 식별자 줄 규칙대로 고치거나 map/judgments/<작업 폴더>.json에 판정을 적는다' },
+  arch: { what: '스테이징된 선언·설정에서 고칠 수 있는 architecture.* 문제', how: 'map/architecture/ 의 선언이나 map/config.json 을 고친다' },
+};
+const stagedSummary = (problems) => {
+  const kinds = [];
+  if (problems.some((p) => !p.code.startsWith('architecture.'))) kinds.push(STAGED_KIND.task);
+  if (problems.some((p) => p.code.startsWith('architecture.'))) kinds.push(STAGED_KIND.arch);
+  const what = kinds.map((k) => k.what).join(', ');
+  const how = kinds.map((k) => k.how).join(' 또는 ');
+  return `map check --staged: 오류 ${problems.length} (${what}). ${how}. 고친 것을 스테이징하고 다시 커밋한다. --no-verify로 넘기지 않는다`;
+};
 async function checkStaged(root, cfg, json) {
   let paths;
   try {
@@ -169,7 +182,7 @@ async function checkStaged(root, cfg, json) {
   if (json) { process.stdout.write(JSON.stringify(problemsJson(problems, VERSION), null, 2) + '\n'); return problems.length ? 1 : 0; }
   if (!problems.length) { console.log(`map check --staged: 통과 (대상 파일 ${targets.length})`); return 0; }
   for (const line of stagedText(problems)) console.log(line);
-  console.log(`map check --staged: 오류 ${problems.length} (스테이징된 작업 문서·판정 파일의 tasks.*·judgment.* 문제). ${STAGED_FAIL}`);
+  console.log(stagedSummary(problems));
   return 1;
 }
 

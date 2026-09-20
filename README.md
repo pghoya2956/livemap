@@ -20,7 +20,7 @@ npx --no livemap init                 # map/ 초안·.gitignore·npm 스크립�
 |---|---|
 | `livemap build [--out map/.out]` | 스캔 → `graph.json`·`data.json`·`overview.json` |
 | `livemap check [--json] [--strict]` | 정합 검사. 오류가 있으면 exit 1. `--json`은 stdout에 이슈 JSON만, `--strict`는 `tasks.*`·`judgment.*` 경고도 오류로 센다([docs/issue-codes.md](docs/issue-codes.md)) |
-| `livemap check --staged` | 커밋 전 훅용. 스테이징한 작업 문서·판정 파일에 걸린 문제만 오류로 센다 |
+| `livemap check --staged` | 커밋 전 훅용. 스테이징한 것으로 고칠 수 있는 문제만 오류로 센다 — 작업 문서·판정 파일의 `tasks.*`·`judgment.*`와, 구조 선언·설정·스킬 사본을 스테이징했을 때 그 선언에서 고칠 수 있는 `architecture.*` |
 | `livemap serve [--port 4180]` | `http://127.0.0.1:4180/map/`, 요청마다 재빌드(5초 캐시) |
 | `livemap serve --static <dir>` | export 폴더를 재빌드 없이 같은 배치로 |
 | `livemap export <dir>` | 화면·서체·캡처·생성물을 `/map/` 배치 그대로 한 폴더에 |

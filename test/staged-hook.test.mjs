@@ -254,3 +254,24 @@ test('SC-13c check --staged: 선언으로 고칠 문제가 없으면 Graphify �
   const r = cli(dir, ['check', '--staged']);
   assert.deepEqual([r.code, r.out.trim()], [0, 'map check --staged: 통과 (대상 파일 1)'], r.out + r.err);
 });
+
+// 2.1.2: 끝 줄 안내는 실제로 센 문제의 종류를 따른다. 2.1.1 까지는 구조 문제만 셌을 때도
+// "작업 문서·판정 파일의 tasks.*·judgment.* 문제" 라고 말하고 판정 파일을 고치라고 안내했다 — 그 자리에 없는 처리다
+test('SC-13d check --staged 끝 줄: 구조 문제를 셌으면 선언을, 작업 문서 문제를 셌으면 판정 파일을 가리킨다', () => {
+  const arch = archProject();
+  write(arch, { 'map/architecture/web.md': readFileSync(join(arch, 'map/architecture/web.md'), 'utf8') + '\n' });
+  git(arch, 'add', 'map/architecture/web.md');
+  const a = cli(arch, ['check', '--staged']).out.trim().split('\n').at(-1);
+  assert.match(a, /architecture\.\*/, a);
+  assert.match(a, /map\/architecture/, a);
+  assert.equal(/판정/.test(a), false, `구조 문제만 셌는데 판정 파일을 가리킨다: ${a}`);
+  assert.match(a, /--no-verify/, a);
+
+  const tasks = project();
+  write(tasks, { 'tasks/20260102-done/spec/final.md': DONE_SPEC });
+  git(tasks, 'add', 'tasks/20260102-done');
+  const t = cli(tasks, ['check', '--staged']).out.trim().split('\n').at(-1);
+  assert.match(t, /tasks\.\*·judgment\.\*/, t);
+  assert.match(t, /map\/judgments/, t);
+  assert.equal(/map\/architecture/.test(t), false, `작업 문서 문제만 셌는데 선언을 가리킨다: ${t}`);
+});

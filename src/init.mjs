@@ -28,8 +28,10 @@ export const SCRIPTS = {
 export const HOOK_DIR = '.githooks';
 export const HOOK_LINE = 'npx --no livemap check --staged';
 export const HOOK_SCRIPT = `#!/bin/sh
-# livemap: 스테이징된 작업 문서(tasks)·판정 파일(map/judgments)에 걸린 tasks.*·judgment.* 문제가 있으면 커밋을 멈춘다.
-# 멈추면 출력의 문제 코드·판정 초안대로 원문을 고치거나 판정 파일을 적어 같은 커밋을 다시 시도한다(--no-verify로 넘기지 않는다).
+# livemap: 스테이징한 것으로 고칠 수 있는 문제가 있으면 커밋을 멈춘다. 갈래가 둘이다 —
+#   작업 문서(tasks)·판정 파일(map/judgments)을 스테이징하면 거기 걸린 tasks.*·judgment.*,
+#   구조 선언(map/architecture)·map/config.json·스킬 사본을 스테이징하면 그 선언에서 고칠 수 있는 architecture.*.
+# 멈추면 출력 끝 줄이 어디를 고칠지 말해 준다. 고친 것을 스테이징해 같은 커밋을 다시 시도한다(--no-verify로 넘기지 않는다).
 ${HOOK_LINE}
 `;
 const OTHER_MANAGERS = [['.husky', 'husky(.husky)'], ['lefthook.yml', 'lefthook(lefthook.yml)'], ['lefthook.yaml', 'lefthook(lefthook.yaml)'], ['.lefthook.yml', 'lefthook(.lefthook.yml)'], ['.pre-commit-config.yaml', 'pre-commit(.pre-commit-config.yaml)']];
