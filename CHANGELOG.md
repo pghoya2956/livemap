@@ -2,6 +2,12 @@
 
 버전마다 `## [X.Y.Z] - YYYY-MM-DD` 절을 둔다. 릴리스 워크플로가 태그 버전의 절이 있는지 확인한다.
 
+## [2.1.1] - 2026-09-21
+
+### 고침
+
+- **`check --staged`가 선언으로 못 고치는 `architecture.*`까지 오류로 세어 커밋을 막았다.** 2.1.0은 선언 폴더·스킬 사본·`map/config.json`이 스테이징되면 `architecture.` 문제를 종류와 무관하게 전부 오류로 올렸다. Graphify가 SQL 정의 자리를 놓쳐 나는 `architecture.bridge-unmatched`는 선언으로 고칠 수 없는데도 커밋을 막았다(실제 migration에 `CREATE TABLE`이 있는 테이블 7건이 막힌 사례). 이제 훅은 처리(`resolutions`)에 `source`가 있는 코드, 곧 스테이징된 선언·설정·사본에서 고칠 수 있는 문제만 오류로 센다. `bridge-unmatched`·`table-unreached`·`graph-missing`·`graph-schema`·`out-too-long`은 `check`의 경고(`--strict`는 오류)로 그대로 남고 훅은 막지 않는다. `layer-violation`·`module-unassigned`·`skill-stale` 같은 선언 문제는 전과 같이 막는다. 검사: `test/staged-hook.test.mjs` SC-13b·SC-13c.
+
 ## [2.1.0] - 2026-09-20
 
 저장소가 무엇으로 되어 있는지를 사람이 선언하고, 엔진이 실제 코드와 대조해 어긋난 자리를 짚는다. 「구조」 화면과 에이전트용 한 장이 함께 나온다.
