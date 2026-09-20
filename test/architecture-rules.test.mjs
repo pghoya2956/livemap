@@ -212,16 +212,16 @@ test('SC-22 묶음 구역(zone)은 community_name 규칙 설정으로 정하고,
 
 test('SC-6 층 목록: 선언한 층은 파일 수, 화면·API·DB 함수·테이블·로그인은 종류 층으로 세고, 층 없는 부품은 부품 하나가 층 하나다', () => {
   const r = run();
-  assert.deepEqual(r.lanes.map((l) => [l.id, l.container, l.kind, l.count]), [
+  assert.deepEqual(r.lanes.map((l) => [l.id, l.container, l.kind, l.nodes]), [
     ['pages', 'web', 'code', 2], ['lib', 'web', 'code', 1], ['mock', 'web', 'code', 1], ['screen', 'web', 'screen', 2],
     ['bff', 'bff', 'code', 1], ['api', 'bff', 'api', 2],
     ['db', 'db', 'code', 1], ['function', 'db', 'function', 1], ['table', 'db', 'table', 2],
     ['auth', null, 'auth', 1],
   ]);
   assert.ok(r.lanes.every((l) => l.visible === true));
-  // P3-14a(SC-6): 층마다 선 노드 목록. 항목은 { id, kind, label, community, part } 만(파일 경로 같은 큰 값은 없다). 목록 길이가 count 다
-  for (const l of r.lanes) { assert.equal(l.nodes.length, l.count, l.id); for (const n of l.nodes) assert.deepEqual(Object.keys(n), ['id', 'kind', 'label', 'community', 'part'], `${l.id}/${n.id}`); }
-  const lane = (id) => r.lanes.find((l) => l.id === id).nodes;
+  // P3-14a(SC-6, LANE_NODES_FIELD=members): nodes 는 수 그대로, members 가 그 층에 선 노드 목록. 항목은 { id, kind, label, community, part } 만(파일 경로 같은 큰 값은 없다)
+  for (const l of r.lanes) { assert.equal(typeof l.nodes, 'number', l.id); assert.equal(l.members.length, l.nodes, l.id); for (const n of l.members) assert.deepEqual(Object.keys(n), ['id', 'kind', 'label', 'community', 'part'], `${l.id}/${n.id}`); }
+  const lane = (id) => r.lanes.find((l) => l.id === id).members;
   assert.deepEqual(lane('screen'), [{ id: '/live', kind: 'screen', label: '/live', community: 1, part: 'web' }, { id: '/mocked', kind: 'screen', label: '/mocked', community: 1, part: 'web' }]);
   assert.deepEqual(lane('api').map((n) => [n.id, n.community, n.part]), [['/api/login', 3, 'bff'], ['/api/resorts', 3, 'bff']]);
   assert.deepEqual(lane('function'), [{ id: 'list_resorts', kind: 'function', label: 'list_resorts', community: 4, part: 'db' }]);

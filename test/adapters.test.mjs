@@ -98,7 +98,7 @@ test('graphify·architecture(2.1.0): mini 에 Graphify 그래프와 선언(부�
   const a = data.architecture;
   assert.deepEqual(a.containers.map((c) => [c.id, c.kind]), [['web', 'ours'], ['bff', 'ours'], ['db', 'ours'], ['auth', 'external']]);
   assert.deepEqual(a.containers[0].counts.screens, 2);
-  assert.deepEqual(a.lanes.filter((l) => l.kind === 'code' && l.container === 'web').map((l) => [l.id, l.count]), [['pages', 2], ['lib', 1], ['mock', 1]]);
+  assert.deepEqual(a.lanes.filter((l) => l.kind === 'code' && l.container === 'web').map((l) => [l.id, l.nodes]), [['pages', 2], ['lib', 1], ['mock', 1]]);
   assert.ok(a.laneLinks.some((l) => l.from === 'pages' && l.to === 'lib'), '층 사이 import 가 최소 1건');
   assert.deepEqual(a.violations, []);
   assert.deepEqual(a.flows.map((f) => [f.id, f.status, f.broken]), [['live-flow', 'live', []]]);
@@ -114,7 +114,7 @@ test('graphify·architecture(2.1.0): mini 에 Graphify 그래프와 선언(부�
   assert.equal(g.of('function').length, 2, '2.0.2 함수 수 그대로(list_resorts·get_item)');
 });
 
-test('P3-14a SC-7·SC-6: flows[].edges 는 길 위 노드 사이 실측 엣지, lanes[].nodes 는 층에 선 노드 목록(화면·API·로그인·DB 함수·테이블 층이 비지 않는다)', () => {
+test('P3-14a SC-7·SC-6: flows[].edges 는 길 위 노드 사이 실측 엣지, lanes[].members 는 층에 선 노드 목록(화면·API·로그인·DB 함수·테이블 층이 비지 않는다), lanes[].nodes 는 수 그대로', () => {
   const a = data.architecture;
   const f = a.flows[0];
   assert.deepEqual(f.edges, [
@@ -125,10 +125,10 @@ test('P3-14a SC-7·SC-6: flows[].edges 는 길 위 노드 사이 실측 엣지, 
     { from: 'screen:/live', to: 'module:web/src/pages/Live.tsx', kind: 'renders' },
   ]);
   const lane = (id) => a.lanes.find((l) => l.id === id);
-  assert.deepEqual(lane('screen').nodes, [{ id: '/live', kind: 'screen', label: '/live', community: 1, part: 'web' }, { id: '/mocked', kind: 'screen', label: '/mocked', community: 2, part: 'web' }]);
-  assert.deepEqual(lane('api').nodes.map((n) => n.id), ['/api/items/:id', '/api/login', '/api/resorts']);
-  assert.deepEqual(lane('function').nodes, [{ id: 'list_resorts', kind: 'function', label: 'list_resorts', community: 4, part: 'db' }]);
-  assert.deepEqual(lane('table').nodes, [{ id: 'app.resorts', kind: 'table', label: 'resorts', community: 4, part: 'db' }]);
-  assert.deepEqual(lane('auth').nodes, [{ id: 'auth:token', kind: 'auth', label: 'auth:token', community: null, part: null }]);
-  for (const l of a.lanes) { assert.equal(l.nodes.length, l.count, l.id); for (const n of l.nodes) assert.deepEqual(Object.keys(n), ['id', 'kind', 'label', 'community', 'part']); }
+  assert.deepEqual(lane('screen').members, [{ id: '/live', kind: 'screen', label: '/live', community: 1, part: 'web' }, { id: '/mocked', kind: 'screen', label: '/mocked', community: 2, part: 'web' }]);
+  assert.deepEqual(lane('api').members.map((n) => n.id), ['/api/items/:id', '/api/login', '/api/resorts']);
+  assert.deepEqual(lane('function').members, [{ id: 'list_resorts', kind: 'function', label: 'list_resorts', community: 4, part: 'db' }]);
+  assert.deepEqual(lane('table').members, [{ id: 'app.resorts', kind: 'table', label: 'resorts', community: 4, part: 'db' }]);
+  assert.deepEqual(lane('auth').members, [{ id: 'auth:token', kind: 'auth', label: 'auth:token', community: null, part: null }]);
+  for (const l of a.lanes) { assert.equal(typeof l.nodes, 'number', l.id); assert.equal(l.members.length, l.nodes, l.id); assert.equal('count' in l, false, l.id); for (const n of l.members) assert.deepEqual(Object.keys(n), ['id', 'kind', 'label', 'community', 'part']); }
 });

@@ -106,8 +106,12 @@ export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
   for (const c of containers) for (const e of c.externals) nodeContainer.set(e, c.id);
   for (const m of modules) if (info.get(m.id).container) nodeContainer.set(key(m), info.get(m.id).container);
 
-  // 5. 층 목록과 층 id 풀이
+  // 5. 층 목록과 층 id 풀이. nodes 는 그 층의 노드 수(2.1.0 그대로), members 는 그 층에 선 노드 목록 { id, kind, label, community, part }(P3-14a, LANE_NODES_FIELD=members.
+  //    파일 경로 같은 큰 값은 넣지 않는다). 같은 필드의 타입을 숫자에서 배열로 바꾸면 스펙 예시·검사·읽는 쪽이 조용히 깨져 새 이름을 쓴다
   const lanes = [];
+  const item = (n) => ({ id: n.id, kind: n.kind, label: n.label, community: n.props.community ?? null, part: nodeContainer.get(key(n)) ?? null });
+  const modulesOfLane = (cid, lid) => modules.filter((m) => { const i = info.get(m.id); return i.container === cid && (lid === null ? true : i.lane === lid); }).map(item);
+  const pushLane = (l, list) => lanes.push({ ...l, nodes: list.length, members: list });
   const kindLane = { screen: 'screen', api: 'api', function: 'function', table: 'table', auth: 'auth' };
   const laneOf = (k) => {
     const n = g.nodes.get(k);
@@ -116,12 +120,12 @@ export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
     return kindLane[n.kind] ?? null;
   };
   for (const c of ours) {
-    if (c.lanes.length) for (const l of c.lanes) lanes.push({ id: l.id, name: l.name, container: c.id, kind: 'code', nodes: laneCount.get(`${c.id}/${l.id}`) || 0, visible: true, allow: l.allow ?? null });
-    else lanes.push({ id: c.id, name: c.name, container: c.id, kind: 'code', nodes: c.counts.files, visible: true });
-    const has = (nodes) => nodes.filter((n) => nodeContainer.get(key(n)) === c.id).length;
-    for (const [kind, list] of [['screen', screens], ['api', apis], ['function', fns], ['table', tables]]) { const n = has(list); if (n) lanes.push({ id: kind, name: kind, container: c.id, kind, nodes: n, visible: true }); }
+    if (c.lanes.length) for (const l of c.lanes) pushLane({ id: l.id, name: l.name, container: c.id, kind: 'code', visible: true, allow: l.allow ?? null }, modulesOfLane(c.id, l.id));
+    else pushLane({ id: c.id, name: c.name, container: c.id, kind: 'code', visible: true }, modulesOfLane(c.id, null));
+    const has = (nodes) => nodes.filter((n) => nodeContainer.get(key(n)) === c.id).sort((a, b) => cmp(a.id, b.id)).map(item);
+    for (const [kind, list] of [['screen', screens], ['api', apis], ['function', fns], ['table', tables]]) { const xs = has(list); if (xs.length) pushLane({ id: kind, name: kind, container: c.id, kind, visible: true }, xs); }
   }
-  if (auths.length) lanes.push({ id: 'auth', name: 'auth', container: null, kind: 'auth', nodes: auths.length, visible: true });
+  if (auths.length) pushLane({ id: 'auth', name: 'auth', container: null, kind: 'auth', visible: true }, auths.slice().sort((a, b) => cmp(a.id, b.id)).map(item));
 
   // 6. 층 위반·파일 의존·층 사이 선·부품 사이 실측
   const deferredPolicy = cfg.architecture?.deferred ?? 'count'; // OQ10_DECISION=C: 기본은 세되 표시
@@ -261,12 +265,15 @@ export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
     const tableN = [...new Set(fnN.flatMap((fn) => g.out('function', fn.id, 'touches')))];
     const sorted = (xs) => xs.map(key).sort(cmp);
     const nodes = [...sorted(stepScreens), ...sorted(files), ...sorted(stepApis), ...sorted(authN), ...sorted(fnN), ...sorted(tableN)];
+    // P3-14a: 길 위 노드 사이의 실측 엣지. 화면이 기능 길의 선을 그린다. 선언 좌표 사슬(path)과 겹쳐도 된다
+    const inFlow = new Set(nodes);
+    const edges = g.edges.filter((e) => inFlow.has(e.from) && inFlow.has(e.to)).map((e) => ({ from: e.from, to: e.to, kind: e.kind })).sort((x, y) => cmp(x.from, y.from) || cmp(x.kind, y.kind) || cmp(x.to, y.to));
     const counts = { screen: stepScreens.length, file: files.length, api: stepApis.length, auth: authN.length, fn: fnN.length, table: tableN.length };
     const status = step?.s.status ?? null;
     g.add('flow', f.id, f.name, { container: c.id, step: f.step, status }, { file: c.file, line: f.line, rule: 'architecture:흐름' });
     for (const p of resolved) { const [k, ...rest] = p.node.split(':'); g.link('flow', f.id, 'contains', k, rest.join(':')); }
     c.flows += 1;
-    flows.push({ id: f.id, name: f.name, container: c.id, step: f.step, status, nodes, counts, broken, path, story: `화면 ${counts.screen}개에서 API ${counts.api}개를 부르고 DB 함수 ${counts.fn}개가 테이블 ${counts.table}개를 건드린다${counts.auth ? `. 로그인 ${counts.auth}건` : ''}` });
+    flows.push({ id: f.id, name: f.name, container: c.id, step: f.step, status, nodes, edges, counts, broken, path, story: `화면 ${counts.screen}개에서 API ${counts.api}개를 부르고 DB 함수 ${counts.fn}개가 테이블 ${counts.table}개를 건드린다${counts.auth ? `. 로그인 ${counts.auth}건` : ''}` });
   }
 
   return done({
