@@ -968,3 +968,20 @@ test('SC-9 focusScope·laneLayout 회귀 고정: fn 이 없으면 초점 다섯�
     assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus, fn: { symbols: [], edges: [] } }), lay, focus);
   }
 });
+
+test('SC-9 neighbors 심볼: 영향 패널이 그림과 같은 자료를 읽는다(호출 0 이라고 말하면서 선을 긋지 않는다)', () => {
+  // fn 없이는 지금 그대로(심볼을 모른다)
+  assert.deepEqual(neighbors(ARCH, 'web/src/lib/api.ts:get()').out, []);
+  const n = neighbors(ARCH, 'web/src/lib/api.ts:get()', FN);
+  assert.deepEqual(n.in, ['web/src/pages/A.tsx:A()']);
+  assert.deepEqual(n.out, ['web/src/lib/api.ts:req()']);
+  // 심볼의 층·부품·묶음은 그 심볼이 속한 파일에서 온다
+  assert.deepEqual([n.lane, n.container, n.community], ['lib', 'web', 2]);
+  assert.equal(n.symbol, true);
+  assert.equal(n.module, 'web/src/lib/api.ts');
+  // 그림이 그린 선 수와 패널이 세는 이웃 수가 맞는다
+  const L = laneLayout(ARCH, { mode: 'nodes', focus: 'web/src/lib/api.ts:get()', fn: FN });
+  assert.equal(L.lines.length, n.in.length + n.out.length);
+  // 파일 초점은 한 글자도 안 바뀐다
+  assert.deepEqual(neighbors(ARCH, 'web/src/lib/util.ts', FN), neighbors(ARCH, 'web/src/lib/util.ts'));
+});

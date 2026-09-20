@@ -535,9 +535,23 @@ export function flowPath(arch, flowId) {
 
 /** 노드의 1홉 이웃: 들어오는 호출과 나가는 호출, 층·부품·묶음·위반·지나는 기능.
  *  파일은 modules[].deps 로, 그 밖의 노드는 기능의 실측 선(flows[].edges)으로 이웃을 찾는다 */
-export function neighbors(arch, nodeId) {
+export function neighbors(arch, nodeId, fn = null) {
   const id = bare(nodeId);
   const mods = arch?.modules || [];
+  // 여섯째 단계(함수): 심볼의 이웃은 심볼 사이 엣지에서 읽는다. 층·부품·묶음은 그 심볼이 속한 파일에서 온다.
+  // 그림과 같은 자료를 봐야 패널이 "호출 0" 이라고 말하면서 그림이 선을 긋는 어긋남이 안 생긴다
+  if (isSymbolId(fn, id)) {
+    const sy = fn.symbols.find((x) => x.id === id);
+    const om = mods.find((x) => x.id === sy.module) || null;
+    const sn = symbolNeighbors(fn, id);
+    return {
+      id, symbol: true, module: sy.module, line: sy.line ?? null,
+      lane: om?.lane ?? null, container: om?.container ?? null,
+      community: sy.community ?? om?.community ?? null, communityName: om?.communityName ?? null,
+      in: sn.in, out: sn.out, violations: [],
+      flows: (arch?.flows || []).filter((f) => (f.nodes || []).some((x) => bare(x) === sy.module)).map((f) => f.id),
+    };
+  }
   const m = mods.find((x) => x.id === id) || null;
   const flows = (arch?.flows || []).filter((f) => (f.nodes || []).some((x) => bare(x) === id)).map((f) => f.id);
   const mem = laneMembers(arch).get(id) || null;

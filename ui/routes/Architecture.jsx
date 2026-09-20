@@ -11,12 +11,12 @@ import { CommunityMap } from '../components/CommunityMap.jsx';
 import { ImpactPanel } from '../components/ImpactPanel.jsx';
 import { PathPanel } from '../components/PathPanel.jsx';
 import { archHash } from '../lib/route.js';
-import { flowPath, neighbors, laneName } from '../lib/arch.js';
+import { flowPath, neighbors, laneName, isSymbolId } from '../lib/arch.js';
 
 const HUB_MIN = 8;
 
 /** 초점 여섯 단계의 빵부스러기. 위로 올라가는 단계만 링크로 둔다 */
-function Crumbs({ arch, focus, go }) {
+function Crumbs({ arch, focus, fn, go }) {
   const parts = [{ label: '시스템', focus: 'sys' }];
   const nameC = (id) => (arch.containers || []).find((c) => c.id === id)?.name ?? id;
   const nameL = (id) => laneName((arch.lanes || []).find((l) => l.id === id)) || id;
@@ -28,10 +28,14 @@ function Crumbs({ arch, focus, go }) {
     if (l?.container) parts.push({ label: nameC(l.container), focus: `part:${l.container}` });
     parts.push({ label: nameL(focus.slice(6)), focus });
   } else if (focus && focus !== 'sys') {
-    const m = (arch.modules || []).find((x) => x.id === focus);
+    // 여섯째 단계(함수)면 그 심볼이 속한 파일을 다섯째 칸으로 끼워 넣는다. 빵부스러기로 한 단계씩 올라와야 한다(SC-9)
+    const sym = isSymbolId(fn, focus) ? fn.symbols.find((x) => x.id === focus) : null;
+    const fileId = sym ? sym.module : focus;
+    const m = (arch.modules || []).find((x) => x.id === fileId);
     if (m?.container) parts.push({ label: nameC(m.container), focus: `part:${m.container}` });
     if (m?.community != null) parts.push({ label: nameM(m.community), focus: `community:${m.community}` });
-    parts.push({ label: focus.split('/').pop(), focus });
+    parts.push({ label: fileId.split('/').pop(), focus: fileId });
+    if (sym) parts.push({ label: focus.slice(sym.module.length + 1), focus });
   }
   return (
     <nav className="am-crumbs" aria-label="초점">
@@ -109,7 +113,7 @@ export function Architecture({ ov, data, params }) {
   return (
     <Screen ov={ov} screen="architecture" nav={2} title="구조" sub={sub}>
       <div className="am-top">
-        <Crumbs arch={arch} focus={focus} go={go} />
+        <Crumbs arch={arch} focus={focus} fn={level === 'fn' && fnData ? fnData : null} go={go} />
         <div className="am-toggles">
           <span className="am-tg" role="group" aria-label="수준">
             {[['file', '파일'], ['fn', '함수·컴포넌트']].map(([k, w]) => (
@@ -150,7 +154,7 @@ export function Architecture({ ov, data, params }) {
           </Panel>
         </div>
         <div className="am-col-r">
-          <ImpactPanel arch={arch} focus={focus} bundle={bundle} onFocus={onFocus} onFlow={onFlow} expanded={expanded} onExpand={setExpanded} />
+          <ImpactPanel arch={arch} focus={focus} bundle={bundle} fn={level === 'fn' && fnData ? fnData : null} onFocus={onFocus} onFlow={onFlow} expanded={expanded} onExpand={setExpanded} />
           <PathPanel arch={arch} flow={flow} onFlow={onFlow} onFocus={onFocus} journeys={data.semantic?.journeys || []} />
         </div>
       </div>
