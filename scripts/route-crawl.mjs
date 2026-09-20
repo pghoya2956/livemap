@@ -16,7 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { get as httpGet } from 'node:http';
 
 export const USAGE = 'node scripts/route-crawl.mjs --url <…/map/> --targets <click-targets.json> [--only <screen>] [--overview-only] [--block-fonts] [--json <결과 파일>]';
-export const SCREENS = ['overview', 'journeys', 'roadmap', 'tasks', 'more'];
+export const SCREENS = ['overview', 'journeys', 'architecture', 'roadmap', 'tasks', 'more'];
 export const VIEWPORT = { width: 1440, height: 900 };
 export const DEFERRED = '--overview-only: 하위 화면으로 이동한 뒤의 검사는 라우트 크롤에서 본다';
 const LIMITS = { panels: 8 };
@@ -295,7 +295,7 @@ export async function crawlRoutes(page, log, ctx, { maxFollow = 400, scope = () 
 }
 
 /** 개요 밖 화면을 새로 연다(빈 문서를 거쳐 상태를 버린다). */
-async function openScreen(page, base, hash, screen) {
+export async function openScreen(page, base, hash, screen) {
   await page.goto('about:blank');
   await page.goto(`${base}${hash}`, { waitUntil: 'load' });
   await page.waitForSelector(`[data-screen="${screen}"]`, { timeout: 15000 });
@@ -343,13 +343,29 @@ async function syncCandidates(page, sel, sels) {
   }, [sel, sels]);
 }
 
-const whenHolds = (when, served) => {
+export const whenHolds = (when, facts) => {
   const m = String(when || '').match(/^(\w+)\s*(>=|<=|>|<|==)\s*(\d+)$/); if (!m) return true;
-  const raw = served[m[1]]; const v = Array.isArray(raw) ? raw.length : Number(raw ?? served.counts?.[m[1]] ?? 0), n = Number(m[3]);
+  const raw = facts[m[1]]; const v = Array.isArray(raw) ? raw.length : Number(raw ?? facts.counts?.[m[1]] ?? 0), n = Number(m[3]);
   return { '>=': v >= n, '<=': v <= n, '>': v > n, '<': v < n, '==': v === n }[m[2]];
 };
 
-const KNOWN_EXPECT = new Set(['hrefs', 'ariaCurrent', 'hrefIn', 'pattern', 'patternIn', 'visible', 'hostFrom', 'rel', 'ariaPressedToggles', 'stopsAnimation', 'ariaPressed',
+/** 표의 when 조건이 보는 값. 개요 자료(overview.json)에 구조 절 수를 더한다.
+ *  구조 수는 data.json 의 architecture 절에서 읽는다 — overviewSlice 는 첫 화면이 쓰는 것만 싣고
+ *  구조에서는 boundaryViolations 하나만 싣기로 정해져 있어(스펙 「데이터 모델」), 크롤러만 쓰는 수를 거기 넣지 않는다.
+ *  크롤러는 이미 data.json 을 받아 두므로 읽을 곳이 하나 더 늘지 않는다. data.json 을 못 받았으면 구조 조건은 모두 거짓이다. */
+export function whenFacts(served, data) {
+  const a = data?.architecture || null;
+  return {
+    ...served,
+    architecture: a ? 1 : 0,
+    containers: a?.containers?.length ?? 0,
+    communities: a?.communities?.length ?? 0,
+    flows: a?.flows?.length ?? 0,
+    modules: a?.modules?.length ?? 0,
+  };
+}
+
+export const KNOWN_EXPECT = new Set(['hrefs', 'ariaCurrent', 'hrefIn', 'pattern', 'patternIn', 'visible', 'hostFrom', 'rel', 'ariaPressedToggles', 'stopsAnimation', 'ariaPressed',
   'filtersRowsByKind', 'syncsSelection', 'keys', 'hidesLayer', 'dblclickClearsFocus', 'escapeKey', 'switchesCapture', 'stopsRotation', 'switchesDetail', 'togglesDetails', 'cursor', 'title']);
 
 /** 표 요소 하나를 판정한다. 매번 개요를 새로 연다. scope가 있으면 이동 요소는 그 화면으로 가는 주소만, 제자리·외부·비대화형 요소는 개요 범위에서만 본다. */
