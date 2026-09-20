@@ -131,6 +131,26 @@ BFF 호출과 형 변환. 화면 조각을 가져오지 않는다.
 
 sequenceDiagram 을 넣는 기능은 현재 마일스톤(진행, 없으면 다음) 소속을 첫째, 지나는 노드 수를 둘째로 고른다. 동작 상태는 쓰지 않는다. 상태로 고르면 새로 만드는 기능이 산출물에서 빠져 에이전트가 가장 필요할 때 못 읽는다. `livemap export` 는 두 파일을 `/map/data/` 아래에 함께 담고, `check --staged` 는 `map/architecture/` 아래 파일·`skillFile`·`map/config.json` 이 스테이징됐을 때만 `architecture.*` 를 오류로 센다(코드 파일만 바꾼 커밋은 막지 않고 훅 안에서 Graphify 를 돌리지 않는다).
 
+## data.json 의 architecture 절(자료 계약)
+
+화면과 산출물이 읽는 절이다. 1.0.1·2.0.2 필드는 바꾸지 않고 추가만 한다. `graphify` 어댑터가 돌지 않은 프로젝트에는 절이 없고 `summary` 의 다섯(`containers`·`modules`·`communities`·`flows`·`boundaryViolations`)은 0이다.
+
+| 키 | 담는 것 |
+|---|---|
+| `status`·`error`·`graphMissing`·`deferred` | 단계 상태(`ok`·`partial`), 까닭, 그래프 없음, 동적 import 취급 |
+| `declaration` | 선언 폴더·그림의 방향과 경계·읽기 문제 수 |
+| `containers[]` | 부품: `id`·`name`·`kind`(`ours`·`external`)·`boundary`·`dirs`·`schemas`·`counts`(screens·files·symbols·mocks)·`deps`·`flows`·`externals`·`src` |
+| `lanes[]` | 층: `id`·`name`·`container`·`kind`(`code`, 종류 층 `screen`·`api`·`function`·`table`·`auth`)·`visible`·`allow`(선언 층의 허용 목록)·`nodes`(그 층의 노드 수)·**`members`**. **`members` 는 그 층에 선 노드 목록**이고 항목은 `{ id, kind, label, community, part }` 만이다(`part` 는 부품 id. 파일 경로 같은 큰 값은 없다). 화면이 층 배치의 상자를 이것으로 그린다. `nodes` 는 수 그대로다(타입을 바꾸면 읽는 쪽이 조용히 깨진다) |
+| `laneLinks[]` | 층 사이 선 `{ from, to, n }`(imports·calls·invokes·touches) |
+| `communities[]`·`communityLinks[]` | 묶음(`id`·`name`·`zone`·`nodes`(파일 수)·`lanes`·`visible`·`inherited`)과 묶음 사이 선 `{ from, to, n, kinds }` |
+| `modules[]` | 파일: `id`(경로)·`container`·`lane`·`symbols`·`community`·`communityName`·`deps`·`violations` |
+| `bridges` | 다리 통계(`made`·`moved`·`byKind`·`matched`·`unmatched`) |
+| `flows[]` | 기능: `id`·`name`·`container`·`step`·`status`·`nodes`(길 위 노드 `kind:id`)·**`edges`**·`counts`·`broken`·`path`·`story`. **`edges` 는 길 위 노드 사이의 실측 엣지 `{ from, to, kind }`** 이고 `from`·`to` 는 `nodes` 와 같은 `kind:id` 공간, `kind` 는 그래프 엣지 종류 그대로(calls·invokes·touches·renders·defined_in·imports·reads 등)다. 선언 좌표 사슬 `path` 와 겹쳐도 된다. 화면이 기능 길의 선을 이것으로 그린다 |
+| `violations[]` | 층 위반 `{ code, from, to, fromLane, toLane, at, deferred? }` |
+| `graphify` | Graphify 통계(노드·엣지·relation·묶음·추정·typeOnly·deferred·unknownRelations·생성 시각) |
+
+함수 수준(심볼과 심볼 사이 엣지)은 이 절에 없고 `map/.out/architecture.json` 에 있다.
+
 ## 자주 겪는 일
 
 - **위반이 나오는데 구조가 맞다**: 허용 목록이 실제 import 보다 좁은 것이다. 배럴(`index.ts`)이 다른 층을 재수출하면 그 층을 허용 목록에 더한다.
