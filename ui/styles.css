@@ -598,6 +598,7 @@ button.am-link:hover{color:#fff;text-decoration:underline}
 .am-sec{padding:9px 12px 3px;font-size:10.5px;color:var(--dim);letter-spacing:.04em}
 .am-list{padding:0 12px;font-size:11.5px;color:var(--ink);display:flex;flex-direction:column;gap:2px;max-height:190px;overflow:auto}
 .am-list .dim{color:var(--dim)}
+.am-names{display:block;line-height:1.6;word-break:break-all}
 .am-row{display:flex;align-items:center;gap:6px;min-height:20px;border:0;background:none;padding:0;color:inherit;font:inherit;text-align:left;width:100%}
 button.am-row{cursor:pointer}
 button.am-row:hover{color:#fff}

@@ -11,7 +11,7 @@ import { CommunityMap } from '../components/CommunityMap.jsx';
 import { ImpactPanel } from '../components/ImpactPanel.jsx';
 import { PathPanel } from '../components/PathPanel.jsx';
 import { archHash } from '../lib/route.js';
-import { flowPath, neighbors } from '../lib/arch.js';
+import { flowPath, neighbors, laneName } from '../lib/arch.js';
 
 const HUB_MIN = 8;
 
@@ -19,7 +19,7 @@ const HUB_MIN = 8;
 function Crumbs({ arch, focus, go }) {
   const parts = [{ label: '시스템', focus: 'sys' }];
   const nameC = (id) => (arch.containers || []).find((c) => c.id === id)?.name ?? id;
-  const nameL = (id) => (arch.lanes || []).find((l) => l.id === id)?.name ?? id;
+  const nameL = (id) => laneName((arch.lanes || []).find((l) => l.id === id)) || id;
   const nameM = (id) => (arch.communities || []).find((c) => c.id === id)?.name ?? `묶음 ${id}`;
   if (focus?.startsWith('part:')) parts.push({ label: nameC(focus.slice(5)), focus });
   else if (focus?.startsWith('community:')) parts.push({ label: nameM(Number(focus.slice(10))), focus });

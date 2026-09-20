@@ -6,9 +6,10 @@
 // 규칙 절은 선언이 없으면 어디에 적으면 위반이 여기 뜨는지 말한다.
 import React from 'react';
 import { Panel, Icons, Proj } from './primitives.jsx';
-import { neighbors } from '../lib/arch.js';
+import { neighbors, laneName } from '../lib/arch.js';
 
 const Row = ({ k, children }) => <div className="am-kv"><span className="k">{k}</span><span className="v">{children}</span></div>;
+const nameOfLane = (arch, id) => laneName((arch.lanes || []).find((l) => l.id === id)) || id;
 
 /** 규칙 절: 위반이 있으면 파일·줄 좌표, 없으면 선언 자리를 알려 준다 */
 function Rules({ violations, part, dir }) {
@@ -37,8 +38,9 @@ function Rules({ violations, part, dir }) {
 function Names({ ids, max = 8, onPick }) {
   if (!ids.length) return <span className="dim">없음</span>;
   const shown = ids.slice(0, max);
+  // 목록 상자가 세로 flex 라 이름들을 한 줄짜리 상자에 담아야 가운뎃점 구분자가 제 줄로 떨어지지 않는다
   return (
-    <>
+    <span className="am-names">
       {shown.map((id, i) => (
         <React.Fragment key={id}>
           {i > 0 && ' · '}
@@ -46,7 +48,7 @@ function Names({ ids, max = 8, onPick }) {
         </React.Fragment>
       ))}
       {ids.length > max && <span className="dim"> 외 {ids.length - max}</span>}
-    </>
+    </span>
   );
 }
 
@@ -90,9 +92,9 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
         <Row k="종류별 수">{Object.entries(c.counts || {}).filter(([, v]) => v).map(([k, v]) => `${{ screens: '화면', files: '파일', symbols: '함수', mocks: '목업' }[k] || k} ${v}`).join(' · ') || '없음'}</Row>
         <Row k="지나는 기능">{fl.length}/{flows.length}{fl.length > 0 && <> · {fl.map((f) => <button key={f.id} type="button" className="am-link" onClick={() => onFlow?.(f.id)}><Proj>{f.name}</Proj></button>)}</>}</Row>
         <div className="am-sec">나가는 연결 (층별)</div>
-        <div className="am-list">{out.length ? out.map((e) => <div key={`${e.from}>${e.to}`} className="am-row"><Proj>{e.from} → {e.to}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
+        <div className="am-list">{out.length ? out.map((e) => <div key={`${e.from}>${e.to}`} className="am-row"><Proj>{nameOfLane(arch, e.from)} → {nameOfLane(arch, e.to)}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
         <div className="am-sec">들어오는 연결 (층별)</div>
-        <div className="am-list">{into.length ? into.map((e) => <div key={`${e.from}>${e.to}`} className="am-row"><Proj>{e.from} → {e.to}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
+        <div className="am-list">{into.length ? into.map((e) => <div key={`${e.from}>${e.to}`} className="am-row"><Proj>{nameOfLane(arch, e.from)} → {nameOfLane(arch, e.to)}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
         <button type="button" className="chip am-into" onClick={() => onFocus?.(`group:${lanes[0]?.id ?? id}`)} disabled={!lanes.length}>이 부품 안으로</button>
         <Rules violations={(arch.violations || []).filter((v) => (arch.modules || []).some((m) => m.container === id && m.id === v.from))} part={id} dir={dir} />
       </Panel>
@@ -110,7 +112,7 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
       <Panel icon={Icons.alert} title="영향" sub={<Proj>{c.name}</Proj>} at={at} className="am-panel">
         <Row k="노드 수">{c.nodes}{c.inherited ? ` · 물려받은 노드 ${c.inherited}` : ''}</Row>
         <Row k="구역">{c.zone ?? '구역 없음'}</Row>
-        <Row k="걸친 층">{(c.lanes || []).length ? c.lanes.join(' · ') : <span className="dim">층 밖</span>}</Row>
+        <Row k="걸친 층">{(c.lanes || []).length ? c.lanes.map((x) => nameOfLane(arch, x)).join(' · ') : <span className="dim">층 밖</span>}</Row>
         <div className="am-sec">이웃 묶음 {near.length}</div>
         <div className="am-list">{near.slice(0, 12).map((e) => (
           <button key={`${e.from}>${e.to}`} type="button" className="am-row am-link" onClick={() => onFocus?.(`community:${e.from === id ? e.to : e.from}`)}>
@@ -131,13 +133,13 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
     const out = (arch.laneLinks || []).filter((e) => e.from === id);
     const into = (arch.laneLinks || []).filter((e) => e.to === id);
     return (
-      <Panel icon={Icons.alert} title="영향" sub={<Proj>{l.name}</Proj>} at={at} className="am-panel">
+      <Panel icon={Icons.alert} title="영향" sub={<Proj>{laneName(l)}</Proj>} at={at} className="am-panel">
         <Row k="노드 수">{l.nodes}</Row>
         <Row k="부품">{l.container ? <Proj>{(arch.containers || []).find((c) => c.id === l.container)?.name ?? l.container}</Proj> : <span className="dim">부품 밖</span>}</Row>
         <div className="am-sec">나가는 연결</div>
-        <div className="am-list">{out.length ? out.map((e) => <div key={e.to} className="am-row"><Proj>→ {e.to}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
+        <div className="am-list">{out.length ? out.map((e) => <div key={e.to} className="am-row"><Proj>→ {nameOfLane(arch, e.to)}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
         <div className="am-sec">들어오는 연결</div>
-        <div className="am-list">{into.length ? into.map((e) => <div key={e.from} className="am-row"><Proj>← {e.from}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
+        <div className="am-list">{into.length ? into.map((e) => <div key={e.from} className="am-row"><Proj>← {nameOfLane(arch, e.from)}</Proj><span className="n">{e.n}</span></div>) : <span className="dim">없음</span>}</div>
         <div className="am-sec">안에 든 파일 {mods.length}</div>
         <div className="am-list"><Names ids={mods.map((m) => m.id)} max={10} onPick={onFocus} /></div>
       </Panel>
@@ -166,7 +168,7 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
     <Panel icon={Icons.alert} title="영향" sub={<Proj>{n.id.split('/').pop()}</Proj>} at={at} className="am-panel">
       <Row k="파일"><Proj>{n.id}</Proj></Row>
       <Row k="묶음">{n.communityName ? <button type="button" className="am-link" onClick={() => onFocus?.(`community:${n.community}`)}><Proj>{n.communityName}</Proj></button> : <span className="dim">묶음 없음</span>}</Row>
-      <Row k="층·부품">{n.lane ?? <span className="dim">층 없음</span>} · {n.container ?? <span className="dim">미배정</span>}</Row>
+      <Row k="층·부품">{n.lane ? nameOfLane(arch, n.lane) : <span className="dim">층 없음</span>} · {n.container ?? <span className="dim">미배정</span>}</Row>
       <Row k="지나는 기능">{passing.length}/{flows.length}{passing.length > 0 && <> · {passing.map((f) => <button key={f.id} type="button" className="am-link" onClick={() => onFlow?.(f.id)}><Proj>{f.name}</Proj></button>)}</>}</Row>
       <div className="am-sec">나가는 호출 {n.out.length}</div>
       <div className="am-list"><Names ids={n.out} onPick={onFocus} /></div>

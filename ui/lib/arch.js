@@ -5,7 +5,7 @@
 // 같은 깊이·같은 부품의 층을 가르는 종류 순서. 층 id 는 프로젝트가 선언하므로 종류로 정한다
 export const LANE_ORDER = ['screen', 'code', 'api', 'auth', 'function', 'table'];
 // 종류 층은 엔진이 만든 것이라 이름이 id 와 같다. 화면에서는 사람 말로 읽는다
-const KIND_NAME = { screen: '화면', api: 'API', auth: '로그인', function: 'DB 함수', table: '테이블' };
+const KIND_NAME = { screen: '화면 경로', api: 'API', auth: '로그인', function: 'DB 함수', table: '테이블' };
 /** 층의 화면 이름. 선언한 층은 사람이 준 이름 그대로, 엔진이 만든 종류 층은 사람 말로 */
 export const laneName = (l) => (!l ? '' : l.name && l.name !== l.id ? l.name : KIND_NAME[l.kind] ?? l.name ?? l.id);
 

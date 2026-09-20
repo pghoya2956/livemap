@@ -3,7 +3,7 @@
 //  · 층 배치(그 밖): 열이 층 순서, 오른쪽 곡선과 되돌아가는 왼쪽 곡선, 추정 점선, 위반 주황 점선, 허브 들어오는 선 한 가닥 묶기.
 // 묶은 선을 눌러도 초점은 옮기지 않는다(스펙 「화면 모델」 허브 절).
 import React from 'react';
-import { laneLayout } from '../lib/arch.js';
+import { laneLayout, laneName } from '../lib/arch.js';
 
 /** 열 머리 글자: 층이 여럿이면 둘까지 적고 나머지는 수로. 열 폭을 넘기면 옆 열과 겹친다 */
 function colLabel(c) {
@@ -75,6 +75,27 @@ export function LaneSummary({ arch, hidden, focus, onFocus }) {
   );
 }
 
+/** 그릴 노드가 없을 때의 문구. 화면·API·로그인·DB 함수·테이블 층은 자료(architecture.modules)가 파일 노드만 담아
+ *  노드 목록을 셀 수 없다. 그 층의 노드는 기능을 고르면 그 길 위에서 보인다 — 왜 비었는지를 말한다 */
+function EmptyNodes({ arch, focus, flow }) {
+  const id = focus?.startsWith('group:') ? focus.slice(6) : null;
+  const lane = id && (arch.lanes || []).find((l) => l.id === id);
+  const body = (() => {
+  if (lane && lane.kind !== 'code') {
+    return (
+      <p className="empty">
+        「{laneName(lane)}」 층의 노드 {lane.nodes}개는 목록이 자료에 없습니다. 생성물의 파일 목록은 코드 파일만 담습니다.
+        이 층의 노드는 길 패널에서 기능을 고르면 그 길 위에 섭니다.
+      </p>
+    );
+  }
+  if (flow) return <p className="empty">고른 기능의 길과 이 초점이 겹치는 노드가 없습니다. 기능 고르기를 풀거나 다른 초점을 고르세요.</p>;
+  return <p className="empty">이 초점에 그릴 노드가 없습니다. 위 그림에서 부품이나 묶음을 고르세요.</p>;
+  })();
+  // 빈 문구도 그림 상자 안에 둔다. 상자 높이가 고정이라 초점이 바뀌어도 페이지 높이가 그대로다(SC-10)
+  return <div className="am-wrap am-nodes">{body}</div>;
+}
+
 /** 층 배치: 열이 층 순서, 열 안은 barycenter 두 번. 노드 초점이면 안에 든 것과 1홉 이웃을 점선 상자로 그린다 */
 export function LaneMap({ arch, focus, flow, hidden, hubMin, onFocus, neighbourIds = new Set() }) {
   const L = React.useMemo(() => laneLayout(arch, { mode: 'nodes', focus, flow, hidden, hubMin }), [arch, focus, flow, hidden, hubMin]);
@@ -104,7 +125,7 @@ export function LaneMap({ arch, focus, flow, hidden, hubMin, onFocus, neighbourI
     if (el) el.focus();
   };
 
-  if (!L.boxes.length) return <p className="empty">이 초점에 그릴 노드가 없습니다. 위 그림에서 부품이나 묶음을 고르세요.</p>;
+  if (!L.boxes.length) return <EmptyNodes arch={arch} focus={focus} flow={flow} />;
   return (
     <div className="am-wrap am-nodes" ref={boxRef}>
       <svg className="am-svg" width={L.W} height={L.H} viewBox={`0 0 ${L.W} ${L.H}`} role="img"
