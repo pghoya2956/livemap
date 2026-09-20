@@ -190,3 +190,22 @@ test('P4-06 init: 없는 architecture 템플릿(README 그림·부품 파일 틀
   const leak = new RegExp(readFileSync(join(PKG, 'scripts/leak-patterns.txt'), 'utf8').trim(), 'i');
   for (const f of ['templates/architecture/README.md', 'templates/architecture/web.md']) assert.equal(leak.test(readFileSync(join(PKG, f), 'utf8')), false, `${f} 에 표본 이름 없음`);
 });
+
+test('SC-12 위반 모양: mini 사본의 허용 목록을 비우면 modules[].violations 가 최상위 violations 와 같은 { code, to, at } 객체이고 at.line 이 Graphify 줄로 채워진다', () => {
+  const dir = project();
+  const web = join(dir, 'map/architecture/web.md');
+  writeFileSync(web, readFileSync(web, 'utf8').replace(/^- 가져올 수 있는 층:.*$/gm, '- 가져올 수 있는 층: —'));
+  assert.equal(run(dir, ['build']).code, 0);
+  const a = JSON.parse(readFileSync(join(dir, 'map/.out/data.json'), 'utf8')).architecture;
+  assert.deepEqual(a.violations.map((v) => [v.from, v.to, v.at]), [
+    ['web/src/pages/Live.tsx', 'web/src/lib/queries.ts', { file: 'web/src/pages/Live.tsx', line: 1 }],
+    ['web/src/pages/Mocked.tsx', 'web/src/mock/index.ts', { file: 'web/src/pages/Mocked.tsx', line: 1 }],
+  ]);
+  const live = a.modules.find((m) => m.id === 'web/src/pages/Live.tsx');
+  assert.deepEqual(live.violations, [{ code: 'architecture.layer-violation', to: 'web/src/lib/queries.ts', at: { file: 'web/src/pages/Live.tsx', line: 1 } }]);
+  assert.deepEqual(a.modules.find((m) => m.id === 'web/src/pages/Mocked.tsx').violations.map((v) => [v.code, v.to, v.at.line]), [['architecture.layer-violation', 'web/src/mock/index.ts', 1]]);
+  for (const m of a.modules) for (const v of m.violations) assert.deepEqual(Object.keys(v), ['code', 'to', 'at']);
+  // check 의 근거 줄도 같은 줄 번호다
+  const j = JSON.parse(run(dir, ['check', '--json']).out);
+  assert.deepEqual(j.problems.filter((p) => p.code === 'architecture.layer-violation').map((p) => p.anchors[0]), [{ file: 'web/src/pages/Live.tsx', line: 1 }, { file: 'web/src/pages/Mocked.tsx', line: 1 }]);
+});

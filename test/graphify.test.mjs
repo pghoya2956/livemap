@@ -147,12 +147,13 @@ test('SC-1 엣지: relation 을 종류에 대응하고 confidence·typeOnly·def
     'module:web/src/pages/Mocked.tsx → module:web/src/lib/queries.ts',
   ]);
   // 런타임 import 와 타입 전용 import 가 섞인 짝은 런타임 의존이다(typeOnly 없음). 타입 전용만이면 typeOnly, 동적 import 만이면 deferred
-  assert.deepEqual(edge(g, 'module:web/src/pages/Live.tsx', 'imports', 'module:web/src/lib/queries.ts').props, { confidence: 'EXTRACTED' });
-  assert.deepEqual(edge(g, 'module:web/src/admin/Live.tsx', 'imports', 'module:web/src/lib/queries.ts').props, { confidence: 'EXTRACTED', typeOnly: true });
-  assert.deepEqual(edge(g, 'module:web/src/pages/Mocked.tsx', 'imports', 'module:web/src/lib/queries.ts').props, { confidence: 'EXTRACTED', deferred: true });
+  // imports 엣지는 기여한 링크 중 가장 앞선 source_location 줄을 line 에 남긴다(층 위반의 at.line 근거, P5-15a)
+  assert.deepEqual(edge(g, 'module:web/src/pages/Live.tsx', 'imports', 'module:web/src/lib/queries.ts').props, { confidence: 'EXTRACTED', line: 1 });
+  assert.deepEqual(edge(g, 'module:web/src/admin/Live.tsx', 'imports', 'module:web/src/lib/queries.ts').props, { confidence: 'EXTRACTED', typeOnly: true, line: 1 });
+  assert.deepEqual(edge(g, 'module:web/src/pages/Mocked.tsx', 'imports', 'module:web/src/lib/queries.ts').props, { confidence: 'EXTRACTED', deferred: true, line: 9 });
   // calls·indirect_call → calls(추정은 INFERRED), reads_from·references·indexes·cites → reads, inherits → inherits
   assert.equal(edges(g, 'calls').length, 4);
-  assert.deepEqual(edge(g, 'symbol:web/src/pages/Live.tsx:submit()@L15', 'calls', 'symbol:web/src/lib/queries.ts:fetchResorts').props, { confidence: 'INFERRED' });
+  assert.deepEqual(edge(g, 'symbol:web/src/pages/Live.tsx:submit()@L15', 'calls', 'symbol:web/src/lib/queries.ts:fetchResorts').props, { confidence: 'INFERRED' }, 'imports 가 아닌 엣지는 line 을 싣지 않는다');
   assert.deepEqual(edges(g, 'reads'), ['function:list_resorts → symbol:app.items', 'function:list_resorts → symbol:auth.users', 'function:list_resorts → table:app.resorts', 'module:app/server.mjs → module:RFC-0001', 'symbol:supabase/migrations/20260102000000_more.sql:resorts_name_idx → table:app.resorts']);
   assert.equal(g.nodes.has('symbol:is'), false, '접두 없는 조각은 노드가 아니다');
   assert.deepEqual(edge(g, 'module:app/server.mjs', 'reads', 'module:RFC-0001').props, { confidence: 'EXTRACTED', via: 'cites' });
