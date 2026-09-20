@@ -3,6 +3,10 @@
 // 문제마다 이슈 계약 코드(docs/issue-codes.md)를 붙인다. 문구(msg)와 순서는 1.1.1 텍스트 출력 그대로다.
 import { problem } from './lib/issues.mjs';
 
+// 엔진 내비 수의 정본(2.1.0, DEC-12). 팩 files 에 ui/ 가 없어 런타임에 ui/lib/route.js 를 읽을 수 없으므로 상수로 두고 test/nav-budget.test.mjs 가 NAV 길이와 같은지 묶는다.
+// Phase 3 이 NAV 를 6으로 올릴 때 이 값도 함께 올린다
+export const NAV_ITEMS = 5;
+
 // derive가 만든 완성 문장을 코드로 가른다. 맞는 규칙이 없으면 마지막 대체 코드
 const STEP_WARNING = [[/^라우트 없음/, 'step.route-missing'], [/^참조 미해결/, 'step.ref-unresolved'], [/^장면은 동작인데/, 'step.screen-not-live'], [/^장면은 \S+인데 화면은 동작/, 'step.screen-live-early'], [/관측 근거 없음/, 'step.no-evidence'], [/^확인 필요/, 'step.review-stale']];
 // 로드맵 problem 중 경고로 내는 문장(1.3.0). 선행 흐름 문제라 화면은 멈추지 않고 CI도 막지 않는다
@@ -23,6 +27,9 @@ export function checkProblems(d, cfg) {
   const stepCount = d.semantic.journeys.reduce((n, j) => n + (j.steps?.length || 0), 0);
   const counts = { screen: d.summary.routes, api: d.summary.apis, function: d.summary.dbFunctions, test: d.tests.length, task: d.tasks.length, decision: d.decisions.length, journey: d.semantic.journeys.length, step: stepCount };
   for (const [k, floor] of Object.entries(cfg.floors || {})) if ((counts[k] ?? 0) < floor) err('floor.below', `바닥값 미달 ${k}: ${counts[k] ?? 0} < ${floor} (스캐너가 깨졌을 가능성)`, subj('config', `floors.${k}`));
+  // 내비 예산(2.1.0): 프로젝트 예산이 엔진 내비 수보다 작으면 예산 검사가 실패하기 전에 까닭을 보인다. --strict 에서도 경고다(접두 budget.)
+  const navItems = cfg.budget?.navItems;
+  if (Number.isFinite(navItems) && navItems < NAV_ITEMS) warn('budget.nav-items-low', `budget.nav-items-low: budget.navItems ${navItems} 가 엔진 내비 수 ${NAV_ITEMS} 보다 작음. map/config.json 의 budget.navItems 를 ${NAV_ITEMS} 으로 올린다`, subj('config', 'budget.navItems'));
 
   // 정본 경로를 설정했는데 여정이 0건이면 읽기가 조용히 빈 것이다. 빈 자료는 모든 대조를 통과시키므로 오류로 막는다
   if (d.semantic.readEmpty) err('semantic.empty', `여정 정본을 읽지 못함: ${d.semantic.readEmpty}`, subj('config', 'semantic'));
@@ -159,12 +166,25 @@ export function check(d, cfg) {
 const STAGED_PREFIXES = ['tasks.', 'judgment.'];
 const STAGED_SUBJECTS = ['task', 'ledger', 'judgment'];
 const JUDGMENT_FILE = /^map\/judgments\/([^/]+)\.json$/;
+const CONFIG_FILE = 'map/config.json';
 const taskFolderOf = (path, dir) => { if (!dir || !path.startsWith(`${dir}/`)) return null; const m = path.slice(dir.length + 1).match(/^(\d{8}-[^/]+)\//); return m ? m[1] : null; };
+const norm = (p) => String(p).replace(/^\.\//, '').replace(/\/+$/, '');
+
+// 구조 지도 대상(2.1.0, DEC-37): 설정에 architecture 가 있을 때 map/architecture/ 아래 파일, architecture.skillFile, map/config.json.
+// 이 중 하나가 스테이징됐을 때만 architecture.* 를 오류로 센다. 코드 파일이 스테이징됐다는 이유로 구조 검사를 돌리지 않고 훅 안에서 Graphify 를 돌리지도 않는다
+export function architectureTargets(paths, cfg) {
+  const a = cfg?.architecture;
+  if (!a || typeof a !== 'object') return [];
+  const dir = norm(a.dir || 'map/architecture');
+  const skill = a.skillFile ? norm(a.skillFile) : null;
+  return paths.filter((p) => p.startsWith(`${dir}/`) || p === skill || p === CONFIG_FILE);
+}
 
 export function stagedTargets(paths, cfg) {
-  const dir = cfg?.tasks?.dir ? cfg.tasks.dir.replace(/^\.\//, '').replace(/\/+$/, '') : null;
-  const index = cfg?.tasks?.index ? cfg.tasks.index.replace(/^\.\//, '') : null;
-  return paths.filter((p) => taskFolderOf(p, dir) || (index && p === index) || JUDGMENT_FILE.test(p));
+  const dir = cfg?.tasks?.dir ? norm(cfg.tasks.dir) : null;
+  const index = cfg?.tasks?.index ? norm(cfg.tasks.index) : null;
+  const arch = new Set(architectureTargets(paths, cfg));
+  return paths.filter((p) => taskFolderOf(p, dir) || (index && p === index) || JUDGMENT_FILE.test(p) || arch.has(p));
 }
 
 export function stagedProblems(problems, paths, cfg) {
@@ -173,11 +193,12 @@ export function stagedProblems(problems, paths, cfg) {
   const files = new Set(targets);
   const folders = new Set(targets.map((p) => taskFolderOf(p, dir)).filter(Boolean));
   const judged = new Set(targets.map((p) => p.match(JUDGMENT_FILE)?.[1]).filter(Boolean));
-  return problems.filter((p) => STAGED_PREFIXES.some((x) => p.code.startsWith(x)) && STAGED_SUBJECTS.includes(p.subject?.kind) && (
+  const archStaged = architectureTargets(paths, cfg).length > 0;
+  return problems.filter((p) => (archStaged && p.code.startsWith('architecture.')) || (STAGED_PREFIXES.some((x) => p.code.startsWith(x)) && STAGED_SUBJECTS.includes(p.subject?.kind) && (
     p.anchors.some((a) => files.has(a.file))
     || (p.subject.kind === 'task' && folders.has(p.subject.id))
     || (p.subject.kind === 'judgment' && (judged.has(p.subject.id) || folders.has(p.subject.id)))
-  )).map((p) => ({ ...p, level: 'error' }));
+  ))).map((p) => ({ ...p, level: 'error' }));
 }
 
 // 훅 출력: 문제마다 코드·문구, 처리, 근거 줄, 판정 초안. 받은 에이전트 세션이 판정 파일을 쓰거나 원문을 고친다

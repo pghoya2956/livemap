@@ -82,14 +82,27 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 
 ## 2.1.0 새 코드
 
-구조 지도(Graphify 어댑터·다리·선언 대조)의 코드다. 1.2.0 새 코드처럼 6건 이상을 한 줄로 묶지 않는다. 대상이 `설정`인 코드의 `subject`는 설정 키(`{ kind: 'config', id: 'architecture.graph' }`)이거나, 다리가 짝을 못 찾은 노드(`{ kind: 'table', id }`)다.
+구조 지도(Graphify 어댑터·다리·선언 대조)의 코드 열여섯이다. 기본은 경고이고 `livemap check --strict`에서 `architecture.` 접두 코드가 오류로 승격된다(`tasks.`·`judgment.`와 같다). `budget.nav-items-low`는 접두가 `budget.`이라 승격되지 않고 경고로 남는다. 소비 프로젝트의 설정값 차이가 배포를 막을 일이 아니기 때문이다. 1.2.0 새 코드처럼 6건 이상을 한 줄로 묶지 않는다. `subject`는 대상 노드(`module`·`container`·`flow`·`table`)이거나 설정 키(`{ kind: 'config', id: 'architecture.graph' }`·`architecture.lane.<층 id>`·`architecture.external.<스키마>`)다.
 
 | 코드 | 수준 | 대상 | 처리 | 뜻 |
 |---|---|---|---|---|
+| `architecture.layer-violation` | warn | 모듈 | source·code | 파일 의존(`imports`)이 그 층의 `- 가져올 수 있는 층:` 허용 목록에 없다. 같은 부품 안에서 층이 둘 다 정해진 파일 사이만 판정하고 타입 전용(`typeOnly`) 링크는 뺀다. 동적 import(`deferred`)는 위반으로 세되 문구 끝에 `[동적 import]`를 붙인다(OQ-10 결정 C. 설정 `architecture.deferred: "ignore"`면 타입 전용처럼 뺀다) |
+| `architecture.module-unassigned` | warn | 모듈 | source | 파일이 어느 부품 폴더(`- 폴더:`)에도 들지 않았다. 부품 폴더 안이지만 층 폴더 밖인 파일은 층 없음일 뿐 경고가 아니다 |
+| `architecture.lane-empty` | warn | 설정 | source | 선언한 층의 폴더에 든 파일이 0건이다 |
+| `architecture.container-unanchored` | warn | 컨테이너 | source | 우리 코드 부품의 폴더 선언이 없거나 저장소에 없다. 부품 표가 가리키는 부품 파일이 없을 때도 난다 |
+| `architecture.container-undeclared` | warn | 컨테이너 | source | 그림(mermaid)에 있는 부품이 부품 표에 없다 |
+| `architecture.external-undeclared` | warn | 컨테이너 | source | 바깥 상대 SQL 스키마(정의 자리 없는 남의 스키마 객체)를 `- 스키마:`로 선언한 바깥 상대 부품이 없다. 화면은 "선언 없음"으로 그린다 |
+| `architecture.diagram-unreadable` | error | 설정 | source | `README.md`가 없거나 `flowchart LR`·`TD`로 시작하는 mermaid 그림을 못 읽었다 |
+| `architecture.duplicate-id` | error | 컨테이너 | source | 부품·층·흐름 id가 겹친다(층 id는 종류 층 이름 `screen`·`api`·`function`·`table`·`auth`와도 겹칠 수 없다). 부품·층 폴더가 같은 깊이로 겹칠 때도 같은 급이다 |
+| `architecture.flow-step-missing` | error | 흐름 | source·code | 흐름의 `- 단계:`가 여정에 없거나 `- 지나는 곳:` 좌표에 맞는 노드가 없다 |
+| `architecture.flow-broken` | warn | 흐름 | source·code·judge | 이어진 두 좌표 사이에 엣지가 없거나 추정(`INFERRED`) 엣지뿐이다. 같은 종류 좌표(함수 → 함수)는 직접 엣지만 보고, 종류가 다르면 파일·화면·API 자리 묶음 사이 엣지를 본다. 변수를 넘기는 호출은 Graphify가 `indirect_call`로만 잡으므로 사람이 판정 파일로 채운다 |
 | `architecture.graph-schema` | error | 설정 | engine·config | `graph.json` 최상위 키 여섯(`directed`·`multigraph`·`graph`·`nodes`·`links`·`hyperedges`)이나 반드시 있는 노드 필드 여섯(`id`·`label`·`community`·`community_name`·`file_type`·`source_file`)·링크 필드 여덟(`source`·`target`·`relation`·`confidence`·`confidence_score`·`source_file`·`source_location`·`weight`)이 없다. 반쯤 읽은 그래프로 노드를 싣지 않는다 |
 | `architecture.bridge-unmatched` | warn | 설정 | code·config | 다리가 짝을 못 찾았다: DB 함수가 닿는(`touches`) 테이블인데 Graphify 에 정의 자리가 없어 livemap 만 아는 테이블이다. 대상은 그 `table` 노드, 문구에 `touches` 수. Graphify 의 SQL 추출이 놓친 자리이거나 migration 밖에서 만든 테이블이다 |
 | `architecture.table-unreached` | warn | 설정 | code·config | Graphify 정의 자리가 있는 테이블인데 어떤 DB 함수도 닿지 않는다. 죽은 테이블이거나 내부 전용 테이블이다 |
 | `architecture.graph-missing` | warn | 설정 | config | 설정 `architecture.graph`(기본 `graphify-out/graph.json`)의 Graphify 그래프 파일이 없다. `graphify` 어댑터는 `partial`로 보고하고 빌드 종료 코드는 0이다. 다리 단계는 새 다리 없이 기존 사슬만 세고, 화면은 부품과 기존 사슬 두 층까지 그린다. 프로젝트 루트에서 `uvx --from "graphifyy[sql]" graphify update .` 을 돌려 만든다 |
+| `architecture.skill-stale` | warn | 설정 | source | 커밋된 스킬 사본(`architecture.skillFile`) 본문이 지금 생성물 `map/.out/architecture.md`와 다르다(Phase 4) |
+| `architecture.out-too-long` | warn | 설정 | config | `map/.out/architecture.md`가 상한을 넘었다(Phase 4) |
+| `budget.nav-items-low` | warn | 설정 | config | `budget.navItems`가 엔진 내비 수(`src/check.mjs`의 `NAV_ITEMS`)보다 작다. 예산 검사가 실패하기 전에 까닭을 보인다. `--strict`에서도 경고다 |
 
 ## 1.2.0 새 코드
 

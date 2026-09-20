@@ -7,7 +7,8 @@ export const ISSUE_SCHEMA = 1;
 // 같은 새 코드가 이 수 이상이면 텍스트 출력에서 한 줄로 묶는다
 export const GROUP_MIN = 6;
 // --strict가 오류로 세는 경고의 코드 접두어
-const STRICT_PREFIXES = ['tasks.', 'judgment.'];
+// architecture. 는 2.1.0 구조 지도 코드(DEC-4). budget. 은 소비 프로젝트의 설정값 차이라 배포를 막지 않으므로 승격하지 않는다
+const STRICT_PREFIXES = ['tasks.', 'judgment.', 'architecture.'];
 const EXCERPT_MAX = 120;
 const CODE_FORMAT = /^[a-z][a-z0-9]*(\.[a-z0-9]+(-[a-z0-9]+)*)+$/;
 
@@ -86,11 +87,24 @@ export const ISSUE_CODES = {
   'orphan.apis': code('warn', 'API', ['code', 'source']),
   'orphan.tests': code('warn', '검사', ['code']),
   'deploy.behind-unknown': code('warn', '배포', ['config']),
-  // 2.1.0 구조 지도(docs/issue-codes.md 「2.1.0 새 코드」). 묶음 줄 대상은 아니다
-  'architecture.graph-schema': code('error', '설정', ['engine', 'config']),
+  // 2.1.0 구조 지도(docs/issue-codes.md 「2.1.0 새 코드」). 묶음 줄 대상은 아니다. architecture. 는 --strict 에서 오류로 승격된다
+  'architecture.layer-violation': code('warn', '모듈', ['source', 'code']),
+  'architecture.module-unassigned': code('warn', '모듈', ['source']),
+  'architecture.lane-empty': code('warn', '설정', ['source']),
+  'architecture.container-unanchored': code('warn', '컨테이너', ['source']),
+  'architecture.container-undeclared': code('warn', '컨테이너', ['source']),
+  'architecture.external-undeclared': code('warn', '컨테이너', ['source']),
+  'architecture.diagram-unreadable': code('error', '설정', ['source']),
+  'architecture.duplicate-id': code('error', '컨테이너', ['source']),
+  'architecture.flow-step-missing': code('error', '흐름', ['source', 'code']),
+  'architecture.flow-broken': code('warn', '흐름', ['source', 'code', 'judge']),
   'architecture.bridge-unmatched': code('warn', '설정', ['code', 'config']),
   'architecture.table-unreached': code('warn', '설정', ['code', 'config']),
   'architecture.graph-missing': code('warn', '설정', ['config']),
+  'architecture.graph-schema': code('error', '설정', ['engine', 'config']),
+  'architecture.skill-stale': code('warn', '설정', ['source']),
+  'architecture.out-too-long': code('warn', '설정', ['config']),
+  'budget.nav-items-low': code('warn', '설정', ['config']),
 };
 export const NEW_CODES = new Set(Object.keys(ISSUE_CODES).filter((c) => ISSUE_CODES[c].isNew));
 

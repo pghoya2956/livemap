@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -197,11 +197,9 @@ test('SC-4 명령: mini 사본에 graphify 어댑터를 넣고 그래프 파일�
   const dir = mkdtempSync(join(tmpdir(), 'livemap graphify 없음 검사-'));
   made.push(dir);
   cpSync(MINI, dir, { recursive: true });
-  const cfgFile = join(dir, 'map/config.json');
-  const cfg = JSON.parse(readFileSync(cfgFile, 'utf8'));
-  const i = cfg.adapters.indexOf('migrations');
-  cfg.adapters.splice(i + 1, 0, 'graphify');
-  writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n');
+  // mini 는 2.1.0부터 graphify 어댑터와 그래프 파일을 가진다. 그래프 파일만 지워 없음 경로를 만든다
+  rmSync(join(dir, 'graphify-out'), { recursive: true, force: true });
+  assert.ok(JSON.parse(readFileSync(join(dir, 'map/config.json'), 'utf8')).adapters.includes('graphify'));
   const run = (args) => { const r = spawnSync(process.execPath, [BIN, ...args], { cwd: dir, encoding: 'utf8' }); return { code: r.status, out: r.stdout, err: r.stderr }; };
   const b = run(['build']);
   assert.equal(b.code, 0, b.out + b.err);

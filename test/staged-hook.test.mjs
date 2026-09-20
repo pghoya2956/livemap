@@ -174,3 +174,42 @@ test('SC-12 커밋 전 훅: 실제 git commit에서 표 결정 완료 작업 커
   assert.equal(c3.status, 0, c3.stdout + c3.stderr);
   assert.deepEqual(git(dir, 'log', '--format=%s').stdout.trim().split('\n'), ['code', 'done-judged', 'init', 'base']);
 });
+
+// 구조 지도(2.1.0, DEC-37): map/architecture/ 아래 파일, architecture.skillFile, map/config.json 중 하나가 스테이징됐을 때만 architecture.* 를 오류로 센다.
+// 코드 파일이 스테이징됐다는 이유로 구조 검사를 돌리지 않고 훅 안에서 Graphify 를 돌리지도 않는다
+function archProject() {
+  const dir = tmp('훅 구조');
+  write(dir, {
+    'map/config.json': JSON.stringify({ engine: 2, adapters: ['probe'], semantic: 'map/semantic/journeys.json', architecture: { dir: 'map/architecture', graph: 'graphify-out/graph.json', skillFile: '.claude/skills/sample-architecture/SKILL.md' } }),
+    'map/semantic/journeys.json': JSON.stringify({ journeys: [] }),
+    'map/adapters/probe.mjs': "export default function probe(g) { g.issue('warn', '구조 규칙', 'web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다', { code: 'architecture.layer-violation', subject: { kind: 'module', id: 'web/src/lib/a.ts' }, anchors: [{ file: 'web/src/lib/a.ts' }] }); g.issue('warn', '작업', '무관한 경고', { code: 'tasks.stage-unknown', subject: { kind: 'task', id: '20260101-x' } }); return null; }\n",
+    'map/architecture/README.md': md('# 시스템 그림', '', '```mermaid', 'flowchart LR', '  web["웹"]', '```', '', '| 부품 | 파일 | 이름 | 종류 |', '|---|---|---|---|', '| web | [web.md](web.md) | 웹 | 우리 코드 |'),
+    'map/architecture/web.md': md('# 웹', '- id: web', '- 폴더: web/src'),
+    '.claude/skills/sample-architecture/SKILL.md': md('# 구조', '사본'),
+    'web/src/lib/a.ts': '// 코드\n',
+  });
+  git(dir, 'init', '-q', '-b', 'main'); git(dir, 'add', '-A'); git(dir, 'commit', '-qm', 'base');
+  return dir;
+}
+test('SC-13 check --staged: 코드 파일만 스테이징이면 대상 없음, 선언 파일·설정·스킬 사본이 스테이징되면 architecture.* 만 오류(다른 경고는 세지 않음)', () => {
+  const dir = archProject();
+  assert.match(cli(dir, ['check']).out, /architecture\.layer-violation|층 lib/);
+  write(dir, { 'web/src/lib/a.ts': '// 코드 바꿈\n' });
+  git(dir, 'add', 'web/src/lib/a.ts');
+  assert.deepEqual([cli(dir, ['check', '--staged']).code, cli(dir, ['check', '--staged']).out.trim()], [0, 'map check --staged: 대상 없음']);
+  git(dir, 'reset', '-q');
+  for (const f of ['map/architecture/web.md', 'map/config.json', '.claude/skills/sample-architecture/SKILL.md']) {
+    write(dir, { [f]: readFileSync(join(dir, f), 'utf8') + '\n' });
+    git(dir, 'add', f);
+    const r = cli(dir, ['check', '--staged']);
+    assert.equal(r.code, 1, `${f}: ${r.out}${r.err}`);
+    const lines = r.out.trim().split('\n');
+    assert.equal(lines[0], '✗ architecture.layer-violation 구조 규칙: web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다', f);
+    assert.ok(lines.includes('  처리: source·code'), f);
+    assert.equal(r.out.includes('tasks.stage-unknown'), false, f);
+    assert.match(lines.at(-1), /^map check --staged: 오류 1 /, f);
+    const j = JSON.parse(cli(dir, ['check', '--staged', '--json']).out);
+    assert.deepEqual([j.errors, j.problems.map((p) => p.code)], [1, ['architecture.layer-violation']], f);
+    git(dir, 'reset', '-q');
+  }
+});

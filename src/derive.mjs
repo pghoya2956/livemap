@@ -295,8 +295,24 @@ function milestoneSlice(releases, roadmap) {
   });
 }
 
+// 구조 절(2.1.0, 스펙 「데이터 모델」): graphify 어댑터·다리·architecture 단계가 g.architecture 에 남긴 것을 옮긴다. 함수 수준(symbols·심볼 엣지)은 싣지 않는다(DEC-39, Phase 4 의 architecture.json).
+// graphify 어댑터가 돌지 않은 프로젝트(g.architecture 없음)는 절이 없다. 1.0.1 필드는 바꾸지 않고 추가만 한다
+function architectureSlice(g) {
+  const a = g.architecture;
+  if (!a) return null;
+  const st = a.stage ?? null;
+  return {
+    status: st?.status ?? 'partial', error: st?.error ?? (a.graphMissing ? 'Graphify 그래프 없음' : null), deferred: st?.deferredPolicy ?? null, graphMissing: !!a.graphMissing,
+    declaration: st?.declaration ?? null,
+    containers: st?.containers ?? [], lanes: st?.lanes ?? [], laneLinks: st?.laneLinks ?? [],
+    communities: st?.communities ?? [], communityLinks: st?.communityLinks ?? [],
+    modules: st?.modules ?? [], bridges: a.bridges ?? null, flows: st?.flows ?? [], violations: st?.violations ?? [], inherited: st?.inherited ?? 0,
+    graphify: a.graphify ?? null,
+  };
+}
+
 // 요약 수치
-function summarySlice(g, { screenView, apiView, fnView, testView }, journeys, orphans, commitView, taskView, plans) {
+function summarySlice(g, { screenView, apiView, fnView, testView }, journeys, orphans, commitView, taskView, plans, architecture) {
   return {
     routes: screenView.length, liveRoutes: screenView.filter((s) => s.source === 'live').length, mockRoutes: screenView.filter((s) => s.source === 'mock' || s.source === 'mixed').length, fixedRoutes: screenView.filter((s) => s.fixedVia.length).length,
     apis: apiView.length, dbFunctions: fnView.length, dbTables: g.of('table').length, tests: testView.reduce((n, t) => n + t.count, 0), e2e: testView.filter((t) => t.kind === 'e2e').reduce((n, t) => n + t.count, 0),
@@ -306,6 +322,8 @@ function summarySlice(g, { screenView, apiView, fnView, testView }, journeys, or
     commits: commitView.length, warnings: journeys.reduce((n, j) => n + j.warnings, 0), orphans: Object.values(orphans).reduce((n, a) => n + a.length, 0),
     stepsLive: journeys.reduce((n, j) => n + j.counts.live, 0), stepsTotal: journeys.reduce((n, j) => n + j.steps.length, 0),
     grades: Object.fromEntries(['A', 'B', 'C', 'D'].map((k) => [k, journeys.reduce((n, j) => n + j.steps.filter((s) => s.grade === k).length, 0)])),
+    // 구조 지도 다섯(2.1.0). 어댑터가 없으면 0
+    containers: architecture?.containers.length ?? 0, modules: architecture?.modules.length ?? 0, communities: architecture?.communities.length ?? 0, flows: architecture?.flows.length ?? 0, boundaryViolations: architecture?.violations.length ?? 0,
   };
 }
 
@@ -329,7 +347,8 @@ export function derive(g, sem, cfg, { captureExists }) {
   for (const t of taskView) t.roadmapItems = roadmap.filter((m) => m.tasks.some((x) => x.name === t.name)).map((m) => m.id);
   const milestoneView = milestoneSlice(releases, roadmap);
   const plans = taskView.filter((t) => t.pnDone + t.pnOpen > 0).map((t) => ({ task: t.name, title: t.title, done: t.pnDone, open: t.pnOpen, oq: t.oq }));
-  const summary = summarySlice(g, views, journeys, orphans, commitView, taskView, plans);
+  const architecture = architectureSlice(g);
+  const summary = summarySlice(g, views, journeys, orphans, commitView, taskView, plans, architecture);
 
   return {
     schemaVersion: 1, generatedAt: new Date().toISOString(), project: sem.project || cfg.project, head, deploy: homelab, testreport: report,
@@ -343,6 +362,8 @@ export function derive(g, sem, cfg, { captureExists }) {
     readings: countReadings([...g.nodes.values()]),
     // 판정 파일: 작업마다 판정 파일 경로·by·note와 적용·낡음·무효 항목 수(작업 폴더 이름 순). 파일 모양이 틀린 판정 파일은 issues에만 있다
     judgments: tasks.filter((t) => t.props.judged).map((t) => ({ task: t.id, file: t.props.judged, ...t.props.judgment })).sort((a, b) => a.task.localeCompare(b.task)),
+    // 구조 절(2.1.0): graphify 어댑터가 돈 프로젝트에만 있다
+    ...(architecture ? { architecture } : {}),
   };
 }
 
