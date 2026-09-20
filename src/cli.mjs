@@ -1,5 +1,5 @@
 // 프로젝트 상황판 CLI. 의존성 없음(Node 22). 명령 진입은 bin/livemap.mjs가 main(argv)를 부른다.
-//   livemap build   [--root .] [--out map/.out]       저장소 스캔 → graph.json·data.json·overview.json
+//   livemap build   [--root .] [--out map/.out]       저장소 스캔 → graph.json·data.json·overview.json(+ 구조 지도가 켜진 프로젝트는 architecture.md·architecture.json·스킬 사본)
 //   livemap check   [--root .] [--json] [--strict]     검증(바닥값·라우트 존재·상태 모순·참조 미해결·어댑터 실패) → exit 1이면 실패
 //                                                      --json은 stdout에 이슈 계약 JSON만, --strict는 tasks.*·judgment.* 경고도 오류로 센다
 //                  [--staged]                          커밋 전 훅: 스테이징된 작업 문서·판정 파일에 걸린 tasks.*·judgment.*만 오류로 센다(git 없음·대상 없음 0)
@@ -21,6 +21,7 @@ import { checkProblems, stagedTargets, stagedProblems, stagedText } from './chec
 import { linkScreenApis } from './link.mjs';
 import { bridgeArchitecture } from './bridge.mjs';
 import { architectureStage } from './architecture.mjs';
+import { architectureOutputs } from './reporters/architecture-md.mjs';
 import { applyStrict, problemsJson, sortProblems, textLines } from './lib/issues.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -87,7 +88,10 @@ export async function buildGraph(root = process.cwd(), { semantic = null } = {})
   try { architectureStage(g, fs, cfg, sem); } catch (e) { g.issue('error', '구조 단계', String(e?.message || e)); }
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);
   const data = derive(g, sem, cfg, { captureExists });
-  return { g, cfg, sem, data, fs, shadowed };
+  // 구조 산출물(2.1.0): architecture.md 본문·architecture.json·스킬 사본을 만들고 상한·낡음 판정을 이슈로 남긴다(check 가 본다). 절이 없는 프로젝트는 null
+  const outputs = architectureOutputs(g, data, cfg, fs, { version: VERSION });
+  if (outputs) { for (const i of outputs.issues) g.issue(i.level, i.label, i.message, i.detail); data.issues = g.issues.map((i) => ({ ...i })); }
+  return { g, cfg, sem, data, fs, shadowed, outputs };
 }
 
 export async function build(root = process.cwd(), out = resolve(root, 'map/.out'), opts = {}) {
@@ -96,6 +100,12 @@ export async function build(root = process.cwd(), out = resolve(root, 'map/.out'
   writeFileSync(join(out, 'graph.json'), JSON.stringify(r.g.toJSON()));
   writeFileSync(join(out, 'data.json'), JSON.stringify(r.data));
   writeFileSync(join(out, 'overview.json'), JSON.stringify(overviewSlice(r.data, { sinceDays: r.cfg.git?.sinceDays })));
+  if (r.outputs) {
+    writeFileSync(join(out, 'architecture.md'), r.outputs.md);
+    writeFileSync(join(out, 'architecture.json'), JSON.stringify(r.outputs.json));
+    // 스킬 사본(architecture.skillFile): 발견 방식만 다른 같은 본문. 정본은 빌드 산출물이고 사본은 커밋되므로 낡음을 check 가 본다
+    if (r.outputs.copy) { const file = resolve(root, r.outputs.copy.path); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, r.outputs.copy.text); }
+  }
   return r;
 }
 
