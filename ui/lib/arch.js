@@ -95,15 +95,36 @@ function nodeLane(id, L) {
   return lane ? lane.id : null;
 }
 
-/** 초점이 고르는 노드 집합. 초점은 sys · part:<부품> · community:<id> · group:<층> · 노드 id 여섯 단계다 */
+/** 층이 실은 노드 목록(2.1.0 `lanes[].members`). 그 층의 노드 수는 `lanes[].nodes` 숫자가 따로 들고 있다.
+ *  엔진이 아직 안 싣는 옛 자료에서는 빈 목록이고, 그 층은 층 배치에서 빈 채로 남는다 */
+export function laneMembers(arch) {
+  const out = new Map();
+  for (const l of arch?.lanes || []) {
+    for (const m of Array.isArray(l.members) ? l.members : []) {
+      if (!m?.id) continue;
+      out.set(bare(m.id), { id: bare(m.id), raw: m.id, lane: l.id, kind: m.kind ?? kindOf(m.id), label: m.label ?? bare(m.id), community: m.community ?? null, part: m.part ?? null });
+    }
+  }
+  return out;
+}
+
+/** 기능의 실측 선(2.1.0 `flows[].edges`). 없는 자료에서는 빈 목록이고 선언 좌표 사슬만 그린다 */
+export function flowEdges(arch, flowId) {
+  const f = (arch?.flows || []).find((x) => x.id === flowId);
+  return (Array.isArray(f?.edges) ? f.edges : []).filter((e) => e?.from && e?.to);
+}
+
+/** 초점이 고르는 노드 집합. 초점은 sys · part:<부품> · community:<id> · group:<층> · 노드 id 여섯 단계다.
+ *  모듈(파일)과 층이 실은 노드를 함께 센다 */
 export function focusScope(arch, focus, L) {
   const laneById = L.byId;
   const mods = (arch?.modules || []).filter((m) => moduleLane(m, laneById) !== null || m.container);
+  const mem = [...laneMembers(arch).values()].filter((x) => laneById.has(x.lane));
   const f = String(focus || 'sys');
-  if (f === 'sys') return mods.map((m) => m.id);
-  if (f.startsWith('part:')) { const id = f.slice(5); return mods.filter((m) => m.container === id).map((m) => m.id); }
-  if (f.startsWith('community:')) { const id = Number(f.slice(10)); return mods.filter((m) => m.community === id).map((m) => m.id); }
-  if (f.startsWith('group:')) { const id = f.slice(6); return mods.filter((m) => moduleLane(m, laneById) === id).map((m) => m.id); }
+  if (f === 'sys') return [...mods.map((m) => m.id), ...mem.map((x) => x.id)];
+  if (f.startsWith('part:')) { const id = f.slice(5); return [...mods.filter((m) => m.container === id).map((m) => m.id), ...mem.filter((x) => x.part === id).map((x) => x.id)]; }
+  if (f.startsWith('community:')) { const id = Number(f.slice(10)); return [...mods.filter((m) => m.community === id).map((m) => m.id), ...mem.filter((x) => x.community === id).map((x) => x.id)]; }
+  if (f.startsWith('group:')) { const id = f.slice(6); return [...mods.filter((m) => moduleLane(m, laneById) === id).map((m) => m.id), ...mem.filter((x) => x.lane === id).map((x) => x.id)]; }
   const id = bare(f);
   const n = neighbors(arch, id);
   return [id, ...n.in, ...n.out];
@@ -139,6 +160,7 @@ export function laneLayout(arch, opts = {}) {
 
   const laneById = L.byId;
   const modById = new Map((arch?.modules || []).map((m) => [m.id, m]));
+  const memById = laneMembers(arch);
   const flow = opts.flow ? (arch?.flows || []).find((x) => x.id === opts.flow) : null;
   const flowSet = flow ? new Set(flow.nodes.map(bare)) : null;
   let ids;
@@ -149,7 +171,14 @@ export function laneLayout(arch, opts = {}) {
   }
   ids = [...new Set(ids)].sort(cmp);
 
-  const laneOf = (id) => { const m = modById.get(id); return m ? moduleLane(m, laneById) : nodeLane(id, L); };
+  // 층: 파일은 선언한 층, 층이 실은 노드는 그 층, 그 밖은 종류가 같은 층
+  const laneOf = (id) => {
+    const m = modById.get(id);
+    if (m) return moduleLane(m, laneById);
+    const x = memById.get(id);
+    if (x && laneById.has(x.lane)) return x.lane;
+    return nodeLane(id, L);
+  };
   const shown = ids.filter((id) => { const l = laneOf(id); return l === null ? !!modById.get(id) : laneById.has(l); });
   const colOf = new Map();
   const colIndex = (lane) => (lane === null ? L.columns.length : L.columns.findIndex((c) => c.lanes.includes(lane)));
@@ -175,9 +204,14 @@ export function laneLayout(arch, opts = {}) {
   const onCanvas = (id) => (inScope.has(bare(id)) ? bare(id) : inScope.has(moduleOfSymbol(id)) ? moduleOfSymbol(id) : null);
   if (flow) for (const e of flowPath(arch, flow.id).chain) {
     const a = onCanvas(e.from), b = onCanvas(e.to);
-    if (a && b && a !== b) edges.push({ from: a, to: b, n: 1, kind: 'flow', broken: e.broken });
+    if (a && b && a !== b) edges.push({ from: a, to: b, n: 1, kind: 'flow', declared: true, broken: e.broken });
   }
-  edges.sort(byKey((e) => [e.from, e.to, e.kind]));
+  // 기능의 실측 선(flows[].edges). 선언 사슬과 종류로 갈라 화면이 다르게 그린다. 끝점이 화폭에 없는 줄은 뺀다
+  if (flow) for (const e of flowEdges(arch, flow.id)) {
+    const a = onCanvas(e.from), b = onCanvas(e.to);
+    if (a && b && a !== b) edges.push({ from: a, to: b, n: 1, kind: 'flowEdge', declared: false, relation: e.kind ?? null });
+  }
+  edges.sort(byKey((e) => [e.from, e.to, e.kind, e.relation ?? '']));
 
   // 열 안 순서: 앞 열 이웃 자리의 평균을 두 번 돌린다. 같은 값은 id 순
   const pos = new Map();
@@ -217,21 +251,71 @@ export function laneLayout(arch, opts = {}) {
     lines.push({ from: group[0].from, to: e.to, n: group.length, kind: 'bundle', bundled: true, focusable: false, members: group.map((x) => x.from), column: colOf.get(e.from) });
   }
 
+  // 묶음 단위 접기: 한 열이 foldMax 를 넘으면 그 열을 묶음 상자로 접는다(DEC-33 접기 규칙).
+  // 접은 상자를 누르면 그 묶음으로 가고, 무엇이 접혔는지는 members 와 화면 칩이 적는다
+  const foldMax = opts.foldMax ?? 40;
+  const communityOf = (id) => modById.get(id)?.community ?? memById.get(id)?.community ?? null;
+  const communityNameOf = (id) => modById.get(id)?.communityName ?? (communityOf(id) == null ? null : (arch?.communities || []).find((c) => c.id === communityOf(id))?.name ?? String(communityOf(id)));
+  const foldedIn = new Map(); // 접힌 노드 id → 접은 상자 id
+  let folded = 0;
+  for (const c of columns) {
+    if (c.ids.length <= foldMax) continue;
+    const groups = foldByCommunity(c.ids.map((id) => ({ id, community: communityOf(id), communityName: communityNameOf(id) })));
+    // 묶음이 하나뿐이면 접지 않는다. 상자 하나 뒤에 열 전체가 숨고, 그 상자를 눌러 그 묶음으로 가도 같은 열이 다시 접혀 빠져나갈 자리가 없다
+    if (groups.length < 2) continue;
+    folded += c.ids.length;
+    c.foldedFrom = c.ids.length;
+    c.ids = groups.map((g) => {
+      const boxId = `fold:${c.lanes[0] ?? c.index}:${g.community ?? '-'}`;
+      for (const x of g.ids) foldedIn.set(x, boxId);
+      c.folds = [...(c.folds || []), { id: boxId, community: g.community, name: g.name, n: g.n, members: g.ids }];
+      return boxId;
+    });
+  }
+  const foldById = new Map(columns.flatMap((c) => (c.folds || []).map((f) => [f.id, f])));
+  // 접힌 노드로 가는 선은 접은 상자로 옮기고 같은 짝은 한 줄로 모은다
+  const at = (id) => foldedIn.get(id) ?? id;
+  let drawn = lines;
+  if (foldById.size) {
+    const seen = new Map();
+    for (const l of lines) {
+      const a = at(l.from), b = at(l.to);
+      if (a === b) continue;
+      const k = `${a}>${b}|${l.kind}`;
+      const cur = seen.get(k);
+      if (cur) { cur.n += l.n; continue; }
+      seen.set(k, { ...l, from: a, to: b, members: l.members ? l.members.map(at) : undefined });
+    }
+    drawn = [...seen.values()];
+  }
+
   const rows = Math.max(1, ...columns.map((c) => c.ids.length));
   const boxes = [];
   columns.forEach((c) => c.ids.forEach((id, row) => {
-    const m = modById.get(id);
+    const m = modById.get(id), x = memById.get(id), f = foldById.get(id);
+    const pos = { x: colX(c.index), y: N.head + N.pad + row * (N.h + N.gapY), w: N.w, h: N.h };
+    if (f) {
+      boxes.push({
+        id, row, column: c.index, lane: c.lanes[0] ?? null, kind: 'fold', folded: true,
+        name: f.name, n: f.n, members: f.members, community: f.community,
+        communityName: f.community == null ? null : f.name, symbols: null, violations: [],
+        focusTo: f.community == null ? null : `community:${f.community}`,
+        onFlow: flowSet ? f.members.some((y) => flowSet.has(y)) : false, ...pos,
+      });
+      return;
+    }
     boxes.push({
-      id, row, column: c.index, lane: laneOf(id), kind: m ? 'module' : kindOf(id),
-      name: m ? id.split('/').pop() : String(id).slice(String(id).indexOf(':') + 1),
-      community: m ? m.community : null, communityName: m ? m.communityName : null,
+      id, row, column: c.index, lane: laneOf(id), kind: m ? 'module' : x ? x.kind : kindOf(id), folded: false,
+      name: m ? id.split('/').pop() : x ? x.label : String(id).slice(String(id).indexOf(':') + 1),
+      community: m ? m.community : x ? x.community : null,
+      communityName: m ? m.communityName : x ? communityNameOf(id) : null,
+      container: m ? m.container ?? null : x ? x.part : null,
       symbols: m ? m.symbols : null, violations: m ? m.violations || [] : [],
-      onFlow: flowSet ? flowSet.has(id) : false,
-      x: colX(c.index), y: N.head + N.pad + row * (N.h + N.gapY), w: N.w, h: N.h,
+      onFlow: flowSet ? flowSet.has(id) : false, ...pos,
     });
   }));
   return {
-    mode: 'nodes', boxes, lines, columns, sweeps, hiddenN,
+    mode: 'nodes', boxes, lines: drawn, columns, sweeps, hiddenN, folded,
     W: N.pad * 2 + columns.length * N.w + Math.max(0, columns.length - 1) * N.gapX,
     H: N.head + N.pad * 2 + rows * N.h + Math.max(0, rows - 1) * N.gapY,
   };
@@ -343,13 +427,23 @@ export function flowPath(arch, flowId) {
   if (!f) return null;
   const L = laneColumns(arch, {});
   const modById = new Map((arch?.modules || []).map((m) => [m.id, m]));
-  const laneOf = (id) => { const m = modById.get(bare(id)); return m ? moduleLane(m, L.byId) : nodeLane(id, L); };
+  const memById = laneMembers(arch);
+  const laneOf = (id) => {
+    const m = modById.get(bare(id));
+    if (m) return moduleLane(m, L.byId);
+    const x = memById.get(bare(id));
+    if (x && L.byId.has(x.lane)) return x.lane;
+    return nodeLane(id, L);
+  };
   const order = L.columns.flatMap((c) => c.lanes);
   const groups = new Map();
   for (const raw of f.nodes || []) {
     const lane = laneOf(raw) ?? '';
     if (!groups.has(lane)) groups.set(lane, []);
-    groups.get(lane).push({ id: bare(raw), raw, kind: kindOf(raw), module: modById.get(bare(raw)) || null });
+    const id = bare(raw), mem = memById.get(id);
+    // 화면에 적을 이름: 파일은 경로 그대로, 그 밖은 층이 실은 label(없으면 종류 접두를 뗀 알맹이)
+    const label = modById.get(id) ? id : mem?.label ?? String(id).slice(String(id).indexOf(':') + 1);
+    groups.get(lane).push({ id, raw, kind: kindOf(raw), label, module: modById.get(id) || null });
   }
   const byLane = [...order, ''].filter((l) => groups.has(l)).map((lane) => ({
     lane, name: laneName(L.byId.get(lane)) || '미배정', nodes: groups.get(lane).sort(byKey((x) => [x.id])),
@@ -360,17 +454,31 @@ export function flowPath(arch, flowId) {
   return { id: f.id, name: f.name, status: f.status, container: f.container ?? null, step: f.step ?? null, story: f.story ?? '', counts: f.counts || {}, broken: f.broken || [], nodes: (f.nodes || []).map(bare), path, byLane, chain };
 }
 
-/** 노드의 1홉 이웃: 들어오는 호출과 나가는 호출, 층·부품·묶음·위반·지나는 기능 */
+/** 노드의 1홉 이웃: 들어오는 호출과 나가는 호출, 층·부품·묶음·위반·지나는 기능.
+ *  파일은 modules[].deps 로, 그 밖의 노드는 기능의 실측 선(flows[].edges)으로 이웃을 찾는다 */
 export function neighbors(arch, nodeId) {
   const id = bare(nodeId);
   const mods = arch?.modules || [];
   const m = mods.find((x) => x.id === id) || null;
   const flows = (arch?.flows || []).filter((f) => (f.nodes || []).some((x) => bare(x) === id)).map((f) => f.id);
-  if (!m) return { id, lane: null, container: null, community: null, communityName: null, in: [], out: [], violations: [], flows };
+  const mem = laneMembers(arch).get(id) || null;
+  // 기능의 실측 선은 파일 밖 노드(화면 경로·API·로그인·DB 함수·테이블)의 유일한 이웃 자료다
+  const fin = [], fout = [];
+  for (const f of arch?.flows || []) for (const e of Array.isArray(f.edges) ? f.edges : []) {
+    if (bare(e.to) === id) fin.push(bare(e.from));
+    if (bare(e.from) === id) fout.push(bare(e.to));
+  }
+  const uniq = (xs) => [...new Set(xs)].sort(cmp);
+  if (!m) {
+    return {
+      id, lane: mem?.lane ?? null, container: mem?.part ?? null, community: mem?.community ?? null, communityName: null,
+      in: uniq(fin), out: uniq(fout), violations: [], flows,
+    };
+  }
   return {
     id, lane: m.lane ?? null, container: m.container ?? null, community: m.community ?? null, communityName: m.communityName ?? null,
-    in: mods.filter((x) => (x.deps || []).includes(id)).map((x) => x.id),
-    out: [...(m.deps || [])],
+    in: uniq([...mods.filter((x) => (x.deps || []).includes(id)).map((x) => x.id), ...fin]),
+    out: uniq([...(m.deps || []), ...fout]),
     violations: m.violations || [], flows,
   };
 }

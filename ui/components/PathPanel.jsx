@@ -84,7 +84,7 @@ export function PathPanel({ arch, flow, onFlow, onFocus, journeys = [] }) {
             <div className="am-lanename"><Proj>{g.name}</Proj> <span className="n">{g.nodes.length}</span></div>
             {g.nodes.map((x) => (
               <button key={x.id} type="button" className="am-row am-link" onClick={() => onFocus?.(x.id)}>
-                <span className="dim">{KIND_WORD[x.kind] ?? x.kind}</span> <Proj>{x.kind === 'module' || x.kind === 'symbol' ? x.id.split('/').pop() : x.id}</Proj>
+                <span className="dim">{KIND_WORD[x.kind] ?? x.kind}</span> <Proj>{x.kind === 'module' || x.kind === 'symbol' ? x.label.split('/').pop() : x.label}</Proj>
                 {x.module?.symbols != null && <span className="n">함수 {x.module.symbols}</span>}
               </button>
             ))}

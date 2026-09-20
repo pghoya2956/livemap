@@ -581,6 +581,9 @@ button.am-link:hover{color:#fff;text-decoration:underline}
 .am-node-edge.is-bundle{stroke:var(--muted)}
 .am-node-edge.is-bad{stroke:var(--amber);stroke-dasharray:5 4}
 .am-node-edge.is-flow{stroke:var(--cyan)}
+.am-node-edge.is-measured{stroke:var(--green)}
+.am-nbox.is-fold rect{fill:var(--panel2);stroke-dasharray:6 3}
+.am-nbox.is-fold .am-kind{fill:var(--violet)}
 .am-node-edge.is-broken{stroke:var(--red);stroke-dasharray:3 3}
 .am-node-edge:focus-visible{outline:none;stroke:var(--cyan);stroke-width:3}
 .am-n{fill:var(--muted);font-size:10px;text-anchor:middle;font-family:var(--mono)}
