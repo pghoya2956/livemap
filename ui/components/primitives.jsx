@@ -24,10 +24,10 @@ export function Proj({ children }) {
 }
 
 /** 누를 수 있는 필터 칩. `on`이면 강조한다. */
-export function Chip({ on = false, count, onClick, children }) {
+export function Chip({ on = false, count, onClick, className = '', children }) {
   const Tag = onClick ? 'button' : 'span';
   return (
-    <Tag className={`chip ${on ? 'on' : ''}`} onClick={onClick} aria-pressed={onClick ? on : undefined}>
+    <Tag className={`chip ${on ? 'on' : ''}${className ? ` ${className}` : ''}`} onClick={onClick} aria-pressed={onClick ? on : undefined}>
       {children}
       {count != null && <span className="n">{count}</span>}
     </Tag>

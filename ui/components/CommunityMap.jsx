@@ -73,7 +73,8 @@ export function CommunityMap({ arch, focus, onFocus, hideTests = true, thin = fa
       </svg>
       <div className="am-bar">
         <span className="chip">상자 {L.boxes.length}{L.hidden.length ? ` · 숨긴 묶음 ${L.hidden.length}` : ''}</span>
-        <span className="chip am-linechip">선 {L.lines.length}{L.thinHidden ? ` · 건수 ${L.cut} 미만 ${L.thinHidden} 숨김` : ''}</span>
+        {/* 드문 선 숨김을 켜면 숨긴 수가 0이어도 문턱을 적는다. 켰는데 아무 말이 없으면 문턱이 얼마인지 볼 자리가 없다 */}
+        <span className="chip am-linechip">선 {L.lines.length}{thin ? ` · 건수 ${L.cut} 미만 ${L.thinHidden} 숨김` : ''}</span>
         <span className="chip">굵기 = 건수 구간 셋 · 두 방향은 한 선</span>
         <span className="chip">{sel == null ? '상자를 고르면 닿는 선만 진해진다' : '고른 묶음에 닿는 선'}</span>
       </div>

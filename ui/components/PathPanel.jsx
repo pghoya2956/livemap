@@ -44,7 +44,7 @@ export function PathPanel({ arch, flow, onFlow, onFocus, journeys = [] }) {
             <div className="am-sec"><Proj>{g.journey?.title ?? '여정 밖'}</Proj></div>
             <div className="am-list">
               {g.list.map((x) => (
-                <button key={x.id} type="button" className="am-row am-link" onClick={() => onFlow?.(x.id)}>
+                <button key={x.id} type="button" className="am-row am-link am-flowpick" onClick={() => onFlow?.(x.id)}>
                   <span className="am-chipst"><StepMark status={x.status === 'live' ? 'live' : x.status === 'mock' ? 'mock' : 'planned'} size={10} /></span>
                   <Proj>{x.name}</Proj>
                   <span className="n">화면 {x.counts?.screen ?? 0} · API {x.counts?.api ?? 0}</span>
