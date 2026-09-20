@@ -2,6 +2,31 @@
 
 버전마다 `## [X.Y.Z] - YYYY-MM-DD` 절을 둔다. 릴리스 워크플로가 태그 버전의 절이 있는지 확인한다.
 
+## [2.1.0] - 2026-09-20
+
+저장소가 무엇으로 되어 있는지를 사람이 선언하고, 엔진이 실제 코드와 대조해 어긋난 자리를 짚는다. 「구조」 화면과 에이전트용 한 장이 함께 나온다.
+
+### 추가
+
+- **Graphify 참조 어댑터**(`src/adapters/graphify.mjs`): [Graphify](https://pypi.org/project/graphifyy/)가 낸 `graphify-out/graph.json`을 읽어 파일·심볼·SQL 객체를 노드로, import·호출·읽기·상속을 엣지로 들인다. 설정 `architecture.graph`가 경로를 정하고 기본값은 `graphify-out/graph.json`이다. Graphify의 relation 열둘을 엔진 엣지 여섯(`imports`·`contains`·`calls`·`reads`·`inherits`)에 대응시키고, 모르는 relation은 무시한다. `imports` 엣지에는 기여 링크 중 가장 앞선 `source_location` 줄을 실어 어긋남 좌표의 근거로 쓴다. SQL 객체는 라벨 단위로 합친 논리 노드 하나로 둔다 — 합치지 않으면 같은 테이블이 노드 열둘로 흩어져 배치가 빌드마다 바뀐다.
+- **다리 단계**(`src/bridge.mjs`): 화면 연결 단계(`linkScreenApis`) 뒤에 돌면서 엔진이 이미 아는 화면·API·DB 함수·테이블을 Graphify 파일 노드에 잇는다. 어댑터 자리가 아니라 그 뒤인 까닭은, 어댑터 자리에서는 화면→API 엣지가 아직 없고 어댑터 안에서 다시 맞추면 같은 매칭이 두 곳에 생겨 답이 갈리기 때문이다. 매칭률은 엣지 기준과 객체 기준을 따로 싣는다.
+- **구조 선언과 대조**(`map/architecture/*.md`, `src/architecture.mjs`): 부품·바깥 상대·층·허용 목록·기능 흐름을 마크다운과 Mermaid `flowchart`로 적으면 엔진이 실제 그래프와 맞춰 본다. 선언에 없는 부품, 층 허용 목록을 어기는 import, 좌표가 끊긴 기능 흐름을 각각 이슈로 낸다. 설정 `architecture.dir`가 폴더를 가리킨다.
+- **「구조」 화면**(`#/architecture`): 시스템 그림, 층 요약과 층 배치, 묶음 개요, 기능 길, 영향 패널. 초점은 `시스템 → 부품 → 층 → 묶음 → 파일 → 함수` 여섯 단계이고 상태를 전부 주소에 싣는다. 층 배치는 규칙을 어긴 import를 주황 점선으로 긋고 영향 패널이 파일과 줄을 짚는다. 배치는 결정적이라 같은 자료면 같은 그림이 나온다.
+- **에이전트용 산출물**: `map/.out/architecture.md`(부품·시스템 그림·규칙·기능·기능별 호출 흐름·어긋남·어디를 고치나 여덟 절, 상한 8,000바이트)와 `map/.out/architecture.json`(함수 수준 심볼과 심볼 사이 엣지). 설정 `architecture.skillFile`을 주면 같은 본문 앞에 frontmatter를 붙인 사본을 그 경로에 쓴다. 사본은 커밋하는 것이고, 본문이 생성물과 갈라지면 `architecture.skill-stale`이 말한다.
+- **이슈 코드 열일곱**: `architecture.` 열여섯(`layer-violation`·`module-unassigned`·`lane-empty`·`container-unanchored`·`container-undeclared`·`external-undeclared`·`diagram-unreadable`·`duplicate-id`·`flow-step-missing`·`flow-broken`·`bridge-unmatched`·`table-unreached`·`graph-missing`·`graph-schema`·`skill-stale`·`out-too-long`)과 `budget.nav-items-low`. `architecture.`는 `--strict`에서 오류로 올라간다.
+- **`check --staged` 대상 확장**: 선언 폴더와 스킬 사본과 `map/config.json`이 스테이징될 때만 구조 규칙을 본다. 코드 파일이 스테이징됐다는 이유로 훅 안에서 Graphify를 돌리지 않는다.
+- 노드 종류 다섯(`container`·`module`·`symbol`·`flow`·`auth`)과 엣지 종류 여섯(`imports`·`renders`·`defined_in`·`depends`·`reads`·`inherits`).
+
+### 값이 바뀌는 것
+
+- **`budget.navItems`를 6으로 올려야 한다.** 「구조」가 내비에 들어가 엔진 내비 항목이 여섯이 됐다. 고치지 않으면 예산 검사가 실패하고, 그전에 `check`가 `budget.nav-items-low`로 먼저 말한다.
+- **`adapters` 배열을 설정에 적어 둔 프로젝트는 거기에 `graphify`를 더해야 켜진다.** 배열이 없는 프로젝트는 기본 목록에 들어 있어 그대로 켜진다.
+- **Graphify를 설치해야 파일·묶음 수준이 선다.** `uvx graphifyy[sql]`로 부르며 `[sql]` 추가분이 없으면 SQL 함수 노드가 0이 된다. 설치하지 않으면 `architecture.graph-missing` 경고와 함께 부품과 기존 사슬 두 층까지만 그린다 — 실패가 아니라 줄어든 그림이다.
+- **구조 지도를 끄는 수단은 `architecture.dir`를 비우는 것이다.** `adapters` 배열에서 `graphify`를 빼는 것으로는 안 꺼진다. 다리와 선언 대조가 어댑터가 아니라 후속 단계이기 때문이다.
+- 로그인은 새 노드 종류 `auth`로 선다. 화면·API 어느 쪽으로도 세지 않으므로 화면 수와 API 수는 그대로다.
+- `data.json`에 `architecture` 절이 생기고 `summary`에 `containers`·`modules`·`communities`·`flows`·`boundaryViolations` 다섯이 붙는다. 개요 조각에는 `boundaryViolations` 하나만 간다. 기존 필드는 바꾸지 않고 더하기만 했다. **요약 숫자를 값으로 고정해 둔 검사가 있으면 새 필드가 늘어난 것을 반영해야 한다.**
+- 삭제와 이름 변경은 없다.
+
 ## [2.0.2] - 2026-09-19
 
 ### 고침(문서·저장소 도구)

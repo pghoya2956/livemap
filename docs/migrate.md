@@ -35,3 +35,36 @@
 | 여정 파일 | 설정 `semantic`이 역할별 md 디렉터리를 가리킬 수 있다. 화면·캡처·참조는 대응표(`journeyScreens`)로 옮긴다. `.json` 한 파일도 계속 읽는다 | 단계 ID를 `<여정>/<단계>`로 맞추고, 화면·캡처를 대응표로 옮길 준비를 한다 |
 | 읽기 상태 강제 | `partial`·`stale`·`unknown`을 기본으로 오류로 셀지 정한다 | `livemap check --strict`로 과거 작업 채우기가 끝났는지 본다 |
 | `config.json` `engine` | `2` | 2.0.0으로 올리는 커밋에서 바꾼다. 엔진은 major가 다르면 멈추고 이 문서를 가리킨다 |
+
+## 2.0.x → 2.1.0
+
+minor 판이라 `engine`은 그대로 `2`이고 엔진이 멈추지 않는다. 아무것도 하지 않아도 2.0.x와 같이 돌지만, 구조 지도를 켜려면 아래를 한다. 삭제와 이름 변경은 없다.
+
+### 올리기만 할 때(구조 지도 없이)
+
+1. `npm i -D -E @pghoya2956/livemap@2.1.0`.
+2. `map/config.json`의 `budget.navItems`를 **6**으로 올린다. 「구조」가 내비에 들어가 엔진 내비 항목이 여섯이 됐다. 고치지 않으면 예산 검사가 실패하고, 그전에 `livemap check`가 `budget.nav-items-low`로 먼저 말한다.
+3. `livemap build` → `livemap check`. 구조 절이 없으므로 `architecture.*` 이슈는 나오지 않고 「구조」 화면 자리에는 아직 선언이 없다는 안내가 선다.
+
+### 구조 지도를 켤 때
+
+1. **Graphify를 설치한다.** `uvx graphifyy[sql] --help`로 부를 수 있으면 된다. `[sql]` 추가분을 빼면 SQL 함수 노드가 0이 되어 DB 층이 통째로 빈다.
+2. 저장소 루트에서 Graphify를 돌려 `graphify-out/graph.json`을 만든다. 읽히지 않을 폴더는 `.graphifyignore`에 적는다 — 폴더 목록을 스크립트에 따로 두면 사람이 계속 맞춰야 한다.
+3. `map/config.json`에 `architecture`를 더한다.
+
+   ```json
+   "architecture": { "graph": "graphify-out/graph.json", "dir": "map/architecture", "skillFile": ".claude/skills/architecture/SKILL.md" }
+   ```
+
+   `skillFile`은 선택이다. 주면 산출물과 같은 본문에 frontmatter를 붙인 사본을 그 경로에 쓰고, 그 사본을 커밋한다.
+4. `adapters` 배열을 설정에 **적어 둔** 프로젝트는 거기에 `"graphify"`를 더한다. 배열이 없으면 기본 목록에 들어 있어 그대로 켜진다.
+5. `map/architecture/`에 선언을 쓴다. `README.md`에 부품과 바깥 상대를 Mermaid `flowchart`로 그리고, 부품마다 파일 하나에 층과 허용 목록과 기능 흐름을 적는다. 양식은 `docs/architecture-authoring.md`에 있다.
+6. `livemap build` → `livemap check`. 처음에는 `architecture.module-unassigned`가 많이 나온다 — 선언한 층 어디에도 안 든 파일들이다. 층을 넓히거나 파일을 옮겨 줄여 나간다.
+
+### 끄기
+
+`architecture.dir`를 비우면 선언 대조와 「구조」 화면이 꺼진다. `adapters` 배열에서 `graphify`를 빼는 것으로는 안 꺼진다 — 다리와 선언 대조가 어댑터가 아니라 그 뒤의 후속 단계이기 때문이다.
+
+### 확인
+
+2.0.x에서 만든 `map/.out/graph.json`·`data.json`·`overview.json`을 따로 복사해 두고 올린 뒤 다시 만들어 비교한다. minor 판이므로 옛 파일의 모든 경로와 값이 새 파일에 그대로 있어야 하고, 새로 생긴 경로는 `data.json`의 `architecture` 절과 `summary`의 다섯(`containers`·`modules`·`communities`·`flows`·`boundaryViolations`), `overview.json`의 `boundaryViolations` 하나다. `check` 출력은 옛 출력에 `architecture.*`와 `budget.nav-items-low`만 더해져야 하고 오류 수는 같아야 한다.
