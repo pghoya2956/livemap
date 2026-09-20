@@ -44,6 +44,8 @@ export interface Signals {
   deploy: 'ok' | 'behind' | 'unknown'; deployBehind: number; deployBehindAll: number | null; warnings: number;
   tests: 'ok' | 'stale' | 'fail' | 'none'; lastRun: { failures: number; total: number; at: string; fresh: boolean } | null;
   adapters: 'ok' | 'partial' | 'fail'; adapterNotes: string[]; orphans: number; gated: number;
+  /** 선언한 경계를 넘은 호출 수(2.1.0). 구조 절이 없는 프로젝트는 null 이고 그때 개요는 그 줄을 빼고 그린다 */
+  boundaryViolations?: number | null;
 }
 /**
  * 읽기 상태(1.2.0): observed 구조화된 출력에서 읽음, rule 규칙으로 다 읽음, judged 판정 파일이 채움,
@@ -87,7 +89,7 @@ export interface PanelProps {
 /** 다크 모니터 패널 틀. 머리줄(아이콘·제목·보조 문구·기준 시각·외 n)과 본문. 본문 여백은 자식에 `pb` 클래스를 준다. */
 export declare function Panel(props: PanelProps): ReactElement;
 
-export interface ChipProps { on?: boolean; count?: ReactNode; onClick?: () => void; children?: ReactNode }
+export interface ChipProps { on?: boolean; count?: ReactNode; onClick?: () => void; /** chip 뒤에 붙는 추가 class(2.1.0). 같은 모양의 칩을 골라 잡을 때 쓴다 */ className?: string; children?: ReactNode }
 /** 칩. onClick이 있으면 aria-pressed 버튼, on이면 청록 강조. */
 export declare function Chip(props: ChipProps): ReactElement;
 
@@ -139,7 +141,7 @@ export interface FeatureMapProps {
 /** 기능 지도. 레인별 구역에 기능 허브와 단계 표식 경로, 말줄임 HTML 라벨, 함께 바뀐 기능 연결선, 레이어 토글. 부모 높이를 채운다. */
 export declare function FeatureMap(props: FeatureMapProps): ReactElement;
 
-export interface TopBarProps { project: Project; signals: Pick<Signals, 'deploy' | 'deployBehind' | 'warnings'>; generatedAt: string; /** 선택 내비 순번(0 개요, -1이면 선택 없음) */ current?: number }
+export interface TopBarProps { project: Project; signals: Pick<Signals, 'deploy' | 'deployBehind' | 'warnings'>; generatedAt: string; /** 선택 내비 순번(0 개요 · 1 기능 · 2 구조 · 3 로드맵 · 4 작업 · 5 더보기, -1이면 선택 없음). 2.1.0 에서 「구조」가 2번 자리에 들어가 뒤가 한 칸씩 밀렸다 */ current?: number }
 /** 상단 바: 브랜드, 내비 5, 배포·경고·신선도·제품 주소 알약, 시계. 1279px 이하 두 줄. */
 export declare function TopBar(props: TopBarProps): ReactElement;
 
