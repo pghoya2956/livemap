@@ -38,3 +38,12 @@
 - 1.3.0이 `ui/styles.css`에 로드맵 트리 규칙 55줄을 더하고 `Overview`·`CapturePanel`을 고쳤다. 드라이버 판정은 렌더 churn 12개(`AreaChart`·`CapturePanel`·`ChangesPanel`·`FeatureMap`·`FeatureTablePanel`·`FeatureTrendPanel`·`MilestonePanel`·`Overview`·`ProgressPanel`·`SignalsPanel`·`Ticker`·`TopBar`)였고 등급 재판정 대상은 0건이었다. 표본 다섯을 다시 찍어 통과했다. 업로드는 컴포넌트 12개와 번들·스타일이고 삭제는 없었다.
 - **`npm ci`가 `node_modules/@pghoya2956/livemap-ui` 링크를 지운다.** 이 저장소는 workspaces를 안 쓰고 그 링크가 수동이라, 릴리스 선행 검사로 `npm ci`를 돌린 뒤 재동기화를 하면 드라이버가 `livemap-ui/package.json`을 못 찾아 빌드 단계에서 멈춘다. `mkdir -p node_modules/@pghoya2956 && ln -sfn ../../ui node_modules/@pghoya2956/livemap-ui`로 되살린 뒤 `--node-modules node_modules`로 돌린다. `--node-modules`를 `.ds-sync/node_modules`로 주면 react를 못 찾고, 임시 폴더에 심볼릭 링크를 모아 주면 esbuild가 react를 못 푼다. 저장소의 진짜 `node_modules`를 써야 한다.
 - `RoadmapTree`는 `ui/index.js` 공개 목록에 없어 디자인 시스템 컴포넌트가 아니다. 트리 화면은 카드로 올라가지 않는다. 다음에 올릴지는 별도 판단이다.
+
+## 2026-09-21 재동기화(2.1.0)
+
+- 드라이버 한 번으로 끝났다: `resync.mjs --entry ./ui/dist-lib/index.js --remote .design-sync/.cache/remote-sync.json`. 빌드·diff·validate 전부 exit 0, capture 는 `empty_worklist` 로 건너뜀.
+- **재채점이 0건이었다.** 2.1.0 이 `Chip`(className prop)·`Overview`(특보에 구조 어긋남 행)·`TopBar`(내비가 여섯이 되어 `current` 순번이 밀림)·`ui/styles.css` 를 바꿨는데 검증 구획은 21/21 `unchanged` 였다. 등급은 authored `.tsx` 와 미리보기 영향 설정만 따르고 번들·스타일 변화는 무효화하지 않는 설계대로다. 렌더 검사는 21/21 clean(bad·thin·variantsIdentical 0).
+- `ui/index.d.ts` 가 2.1.0 변경을 안 담고 있어 재동기화 전에 고쳤다(livemap `e206442`): `ChipProps.className`, `Signals.boundaryViolations`, `TopBarProps.current` 의 순번 설명. **이 파일은 손으로 쓰는 타입이라 컴포넌트 props 를 바꾼 판에서는 항상 먼저 확인한다.**
+- 「구조」 화면(`ui/routes/Architecture.jsx` 와 `SystemMap`·`LaneMap`·`CommunityMap`·`ImpactPanel`·`PathPanel`)은 2026-09-17 결정대로 올리지 않았다. `ui/index.js` export 에 없다.
+- `conventions.md` 는 고치지 않았다. 토큰 21개·클래스 20개·컴포넌트 13개·`Tag kind` 값 5개를 새 빌드의 `_ds_bundle.css`·`_ds_bundle.js` 에 전수 대조해 전부 확인됐다. 2.1.0 이 더한 것 중 규약 헤더가 거짓이 되는 문장은 없다.
+- 앵커를 로컬에 저장할 때 `sourceHashes` 를 비워 뒀다(원문이 길어 옮기지 않음). 그 결과 `upload.components` 가 21 전부로 나왔지만 업로드 규칙이 원래 「전부, 항상」이라 결과는 같고, `deletePaths` 는 빈 것이 맞다(빠지거나 늘어난 컴포넌트가 없다). **다음에는 `get_file` 로 받은 원문을 그대로 파일에 쓰는 편이 낫다** — 그래야 업로드 구획이 실제로 바뀐 것만 가리킨다.
