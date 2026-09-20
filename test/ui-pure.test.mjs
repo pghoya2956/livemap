@@ -707,3 +707,117 @@ test('SC-7·SC-14 flowPath: 길의 층별 노드와 선언 좌표 사슬, 끊긴
   broken.flows[0].broken = [{ at: 1, reason: '변수를 넘기는 호출' }];
   assert.equal(flowPath(broken, 'f1').chain[1].broken, true);
 });
+
+// ---- P3-14b: 엔진이 더하는 두 필드(architecture.flows[].edges · architecture.lanes[].members)를 화면이 읽는다.
+// 기능을 고르면 실측 선을 그리고, 화면 경로·API·로그인·DB 함수·테이블 층이 상자를 얻는다.
+// lanes[].nodes 는 지금처럼 숫자(그 층의 노드 수)로 두고 목록은 새 이름 members 다(LANE_NODES_FIELD=members).
+// 두 필드가 없는 옛 자료에서도 지금 동작 그대로여야 한다(화면이 깨지지 않고 "왜 비었는지" 문구로 떨어진다) ----
+const LN = (id, kind, label, community = null, part = null) => ({ id, kind, label, community, part });
+// 같은 ARCH 에 두 필드만 얹는다. 층 노드 id 는 flows[].nodes 와 같은 id 공간(kind:id)이고 nodes 숫자는 건드리지 않는다
+function withEngineFields(base = ARCH) {
+  const a = clone(base);
+  for (const l of a.lanes) {
+    if (l.id === 'screen') l.members = [LN('screen:/pay', 'screen', '/pay', null, 'web')];
+    if (l.id === 'api') l.members = [LN('api:/api/pay', 'api', 'POST /api/pay', null, 'bff')];
+    if (l.id === 'function') l.members = [LN('function:pay', 'function', 'pay', 5, 'db')];
+    if (l.id === 'table') l.members = [LN('table:t.payments', 'table', 't.payments', 5, 'db')];
+  }
+  a.flows[0].edges = [
+    { from: 'screen:/pay', to: 'module:web/src/pages/A.tsx', kind: 'renders' },
+    { from: 'module:web/src/pages/A.tsx', to: 'module:web/src/lib/api.ts', kind: 'imports' },
+    { from: 'module:web/src/lib/api.ts', to: 'api:/api/pay', kind: 'calls' },
+    { from: 'api:/api/pay', to: 'function:pay', kind: 'invokes' },
+    { from: 'function:pay', to: 'table:t.payments', kind: 'touches' },
+    { from: 'api:/api/pay', to: 'auth:없는노드', kind: 'auth' },
+  ];
+  return a;
+}
+
+test('SC-7 laneLayout 기능 실측 선: flows[].edges 를 그리고 선언 좌표 사슬과 구분한다', () => {
+  const A = withEngineFields();
+  const g = laneLayout(A, { mode: 'nodes', focus: 'sys', flow: 'f1' });
+  const measured = g.lines.filter((l) => l.kind === 'flowEdge');
+  // 여섯 중 끝점이 화폭에 없는 한 줄(auth:없는노드)은 빼고 다섯이 선다
+  assert.deepEqual(measured.map((l) => `${l.from}>${l.to}`).sort(), [
+    'api:/api/pay>function:pay', 'function:pay>table:t.payments',
+    'module:web/src/lib/api.ts>api:/api/pay', 'screen:/pay>module:web/src/pages/A.tsx',
+    'web/src/pages/A.tsx>web/src/lib/api.ts',
+  ].sort());
+  assert.deepEqual([...new Set(measured.map((l) => l.relation))].sort(), ['calls', 'imports', 'invokes', 'renders', 'touches']);
+  // 선언 좌표 사슬은 그대로 남고 종류가 다르다
+  const declared = g.lines.filter((l) => l.kind === 'flow');
+  assert.ok(declared.length > 0, '선언 사슬이 남아야 한다');
+  assert.equal(declared.every((l) => l.declared === true), true);
+  assert.equal(measured.every((l) => l.declared === false), true);
+  // 필드가 없으면 지금처럼 선언 사슬만 그린다
+  const old = laneLayout(ARCH, { mode: 'nodes', focus: 'sys', flow: 'f1' });
+  assert.equal(old.lines.filter((l) => l.kind === 'flowEdge').length, 0);
+  assert.equal(old.lines.filter((l) => l.kind === 'flow').length, declared.length);
+});
+
+test('SC-6 laneLayout 층 노드: lanes[].members 로 다섯 층이 상자를 얻고 없으면 빈 채로 둔다', () => {
+  const A = withEngineFields();
+  const g = laneLayout(A, { mode: 'nodes', focus: 'sys' });
+  const byLane = Object.fromEntries(g.boxes.map((b) => [b.id, b.lane]));
+  assert.equal(byLane['screen:/pay'], 'screen');
+  assert.equal(byLane['api:/api/pay'], 'api');
+  assert.equal(byLane['function:pay'], 'function');
+  assert.equal(byLane['table:t.payments'], 'table');
+  // 상자 이름은 label 을 쓰고 묶음·부품을 함께 싣는다
+  const fn = g.boxes.find((b) => b.id === 'function:pay');
+  assert.deepEqual([fn.name, fn.kind, fn.community, fn.container], ['pay', 'function', 5, 'db']);
+  // 층 초점으로도 그 층의 상자만 선다
+  const only = laneLayout(A, { mode: 'nodes', focus: 'group:function' });
+  assert.deepEqual(only.boxes.map((b) => b.id), ['function:pay']);
+  // 옛 자료(members 없음)는 그 다섯 층이 빈 채로 남는다
+  assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus: 'group:function' }).boxes, []);
+  // 층 요약의 노드 수는 lanes[].nodes 숫자 그대로이고 members 를 얹어도 바뀌지 않는다
+  assert.equal(laneLayout(A, {}).boxes.find((b) => b.id === 'function').n, 1);
+  assert.equal(laneLayout(ARCH, {}).boxes.find((b) => b.id === 'function').n, 1);
+  assert.deepEqual(laneLayout(A, {}), laneLayout(ARCH, {}));
+});
+
+test('SC-6·SC-7 laneLayout 층 노드 배치 결정성: 같은 입력이면 같은 좌표이고 입력 순서를 뒤집어도 같다', () => {
+  const A = withEngineFields();
+  const opts = { mode: 'nodes', focus: 'sys', flow: 'f1' };
+  assert.deepEqual(laneLayout(A, opts), laneLayout(A, opts));
+  const rev = clone(A);
+  for (const l of rev.lanes) if (Array.isArray(l.members)) l.members.reverse();
+  rev.flows[0].edges.reverse();
+  rev.flows[0].nodes.reverse();
+  assert.deepEqual(laneLayout(rev, opts), laneLayout(A, opts));
+});
+
+test('SC-6 laneLayout 묶음 단위 접기: 한 열이 foldMax 를 넘으면 묶음 상자로 접고 무엇이 접혔는지 남긴다', () => {
+  const A = withEngineFields();
+  // DB 함수 층에 묶음 둘에 나뉜 노드 30개를 둔다
+  const fnLane = A.lanes.find((l) => l.id === 'function');
+  fnLane.members = Array.from({ length: 30 }, (_, i) =>
+    LN(`function:f${String(i).padStart(2, '0')}`, 'function', `f${i}`, i < 18 ? 5 : 3, 'db'));
+  fnLane.nodes = 30;
+  const wide = laneLayout(A, { mode: 'nodes', focus: 'group:function', foldMax: 40 });
+  assert.equal(wide.boxes.length, 30);
+  assert.equal(wide.folded, 0);
+  const tight = laneLayout(A, { mode: 'nodes', focus: 'group:function', foldMax: 10 });
+  // 묶음 둘로 접힌다. 접은 상자는 묶음 id 순이고 담은 수를 갖는다
+  assert.deepEqual(tight.boxes.map((b) => [b.id, b.n, b.folded]), [['fold:function:3', 12, true], ['fold:function:5', 18, true]]);
+  assert.equal(tight.folded, 30);
+  assert.equal(tight.boxes[0].members.length, 12);
+  // 접은 상자를 누르면 그 묶음으로 간다
+  assert.equal(tight.boxes[0].focusTo, 'community:3');
+  assert.deepEqual(laneLayout(A, { mode: 'nodes', focus: 'group:function', foldMax: 10 }), tight);
+});
+
+test('SC-7 neighbors: 층 노드와 기능 실측 선의 1홉 이웃도 낸다', () => {
+  const A = withEngineFields();
+  const n = neighbors(A, 'api:/api/pay');
+  assert.deepEqual(n.in.sort(), ['web/src/lib/api.ts']);
+  assert.deepEqual(n.out.sort(), ['auth:없는노드', 'function:pay']);
+  assert.deepEqual([n.lane, n.container, n.flows], ['api', 'bff', ['f1']]);
+  // 모듈 노드는 의존과 실측 선을 합쳐 낸다
+  const m = neighbors(A, 'web/src/lib/api.ts');
+  assert.ok(m.out.includes('web/src/lib/util.ts'), '기존 의존이 남는다');
+  assert.ok(m.out.includes('api:/api/pay'), '실측 선이 더해진다');
+  // 필드가 없으면 지금 그대로다
+  assert.deepEqual(neighbors(ARCH, 'web/src/lib/api.ts').out, ['web/src/lib/util.ts']);
+});
