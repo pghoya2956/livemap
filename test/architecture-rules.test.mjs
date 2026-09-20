@@ -212,13 +212,23 @@ test('SC-22 묶음 구역(zone)은 community_name 규칙 설정으로 정하고,
 
 test('SC-6 층 목록: 선언한 층은 파일 수, 화면·API·DB 함수·테이블·로그인은 종류 층으로 세고, 층 없는 부품은 부품 하나가 층 하나다', () => {
   const r = run();
-  assert.deepEqual(r.lanes.map((l) => [l.id, l.container, l.kind, l.nodes]), [
+  assert.deepEqual(r.lanes.map((l) => [l.id, l.container, l.kind, l.count]), [
     ['pages', 'web', 'code', 2], ['lib', 'web', 'code', 1], ['mock', 'web', 'code', 1], ['screen', 'web', 'screen', 2],
     ['bff', 'bff', 'code', 1], ['api', 'bff', 'api', 2],
     ['db', 'db', 'code', 1], ['function', 'db', 'function', 1], ['table', 'db', 'table', 2],
     ['auth', null, 'auth', 1],
   ]);
   assert.ok(r.lanes.every((l) => l.visible === true));
+  // P3-14a(SC-6): 층마다 선 노드 목록. 항목은 { id, kind, label, community, part } 만(파일 경로 같은 큰 값은 없다). 목록 길이가 count 다
+  for (const l of r.lanes) { assert.equal(l.nodes.length, l.count, l.id); for (const n of l.nodes) assert.deepEqual(Object.keys(n), ['id', 'kind', 'label', 'community', 'part'], `${l.id}/${n.id}`); }
+  const lane = (id) => r.lanes.find((l) => l.id === id).nodes;
+  assert.deepEqual(lane('screen'), [{ id: '/live', kind: 'screen', label: '/live', community: 1, part: 'web' }, { id: '/mocked', kind: 'screen', label: '/mocked', community: 1, part: 'web' }]);
+  assert.deepEqual(lane('api').map((n) => [n.id, n.community, n.part]), [['/api/login', 3, 'bff'], ['/api/resorts', 3, 'bff']]);
+  assert.deepEqual(lane('function'), [{ id: 'list_resorts', kind: 'function', label: 'list_resorts', community: 4, part: 'db' }]);
+  assert.deepEqual(lane('table').map((n) => [n.id, n.community]), [['app.items', null], ['app.resorts', 4]]);
+  assert.deepEqual(lane('auth'), [{ id: 'auth:token', kind: 'auth', label: 'auth:token', community: null, part: null }]);
+  assert.deepEqual(lane('pages').map((n) => [n.id, n.label, n.part]), [['web/src/pages/Live.tsx', 'Live.tsx', 'web'], ['web/src/pages/Mocked.tsx', 'Mocked.tsx', 'web']]);
+  assert.deepEqual(lane('bff').map((n) => n.id), ['app/server.mjs']);
   assert.deepEqual(r.laneLinks.filter((l) => !['pages', 'lib', 'mock'].includes(l.from)).map((l) => `${l.from}→${l.to}:${l.n}`).sort(), ['api→auth:1', 'api→function:1', 'function→table:2', 'screen→api:1']);
 });
 
@@ -229,6 +239,15 @@ test('SC-7 흐름: 단계와 좌표를 풀어 nodes·counts·status 를 만들�
   assert.deepEqual([f.id, f.name, f.status, f.step, f.broken], ['live-flow', '동작 장면', 'live', 'j1/s1', []]);
   assert.deepEqual(f.counts, { screen: 1, file: 1, api: 1, auth: 0, fn: 1, table: 2 });
   assert.deepEqual(f.nodes, ['screen:/live', 'module:web/src/pages/Live.tsx', 'api:/api/resorts', 'function:list_resorts', 'table:app.items', 'table:app.resorts']);
+  // P3-14a(SC-7): 길 위 노드 사이의 실측 엣지. from·to 는 nodes 와 같은 id 공간, kind 는 그래프 엣지 종류 그대로. (from, kind, to) 순
+  assert.deepEqual(f.edges, [
+    { from: 'api:/api/resorts', to: 'function:list_resorts', kind: 'invokes' },
+    { from: 'function:list_resorts', to: 'table:app.items', kind: 'touches' },
+    { from: 'function:list_resorts', to: 'table:app.resorts', kind: 'touches' },
+    { from: 'screen:/live', to: 'api:/api/resorts', kind: 'calls' },
+    { from: 'screen:/live', to: 'module:web/src/pages/Live.tsx', kind: 'renders' },
+  ]);
+  assert.ok(f.edges.every((e) => f.nodes.includes(e.from) && f.nodes.includes(e.to)));
   assert.deepEqual(f.path.map((p) => p.node), ['screen:/live', 'symbol:web/src/pages/Live.tsx:Live', 'api:/api/resorts', 'function:list_resorts', 'table:app.resorts']);
   assert.ok(g.get('flow', 'live-flow'));
   assert.equal(g.edges.filter((e) => e.from === 'flow:live-flow' && e.kind === 'contains').length, 5);
