@@ -829,3 +829,87 @@ test('SC-7 neighbors: 층 노드와 기능 실측 선의 1홉 이웃도 낸다',
   // 필드가 없으면 지금 그대로다
   assert.deepEqual(neighbors(ARCH, 'web/src/lib/api.ts').out, ['web/src/lib/util.ts']);
 });
+
+// ---- P5-15b 함수 수준 배선(SC-8): map/.out/architecture.json 의 심볼과 심볼 사이 엣지로 층 배치를 다시 그린다.
+// symbols[].module 이 파일 수준 노드 id 와 같은 공간이고 그것이 두 수준을 잇는 유일한 열쇠다.
+// edges[] 의 끝점에는 symbol: 접두가 붙고 symbols[].id 에는 안 붙는다(엔진 실측) ----
+const SYM = (id, module, community, line = 1) => ({ id, module, line, callable: true, community });
+const FN = {
+  symbols: [
+    SYM('web/src/pages/A.tsx:A()', 'web/src/pages/A.tsx', 1, 10),
+    SYM('web/src/pages/A.tsx:helper()', 'web/src/pages/A.tsx', 1, 30),
+    SYM('web/src/lib/api.ts:get()', 'web/src/lib/api.ts', 2, 5),
+    SYM('web/src/lib/api.ts:post()', 'web/src/lib/api.ts', 2, 12),
+    SYM('web/src/lib/api.ts:req()', 'web/src/lib/api.ts', 2, 20),
+    SYM('web/src/lib/util.ts:fmt()', 'web/src/lib/util.ts', 2, 3),
+    SYM('web/src/lib/util.ts:parse()', 'web/src/lib/util.ts', 2, 9),
+  ],
+  edges: [
+    { from: 'symbol:web/src/pages/A.tsx:A()', to: 'symbol:web/src/lib/api.ts:get()', kind: 'calls', confidence: 'EXTRACTED' },
+    { from: 'symbol:web/src/pages/A.tsx:A()', to: 'symbol:web/src/lib/api.ts:post()', kind: 'calls', confidence: 'EXTRACTED' },
+    { from: 'symbol:web/src/pages/A.tsx:helper()', to: 'symbol:web/src/lib/util.ts:fmt()', kind: 'calls', confidence: 'EXTRACTED' },
+    { from: 'symbol:web/src/lib/api.ts:get()', to: 'symbol:web/src/lib/api.ts:req()', kind: 'calls', confidence: 'EXTRACTED' },
+    { from: 'symbol:web/src/lib/api.ts:post()', to: 'symbol:web/src/lib/api.ts:req()', kind: 'calls', confidence: 'EXTRACTED' },
+    { from: 'symbol:web/src/lib/api.ts:req()', to: 'symbol:web/src/lib/util.ts:fmt()', kind: 'calls', confidence: 'EXTRACTED' },
+    { from: 'symbol:web/src/lib/util.ts:fmt()', to: 'symbol:web/src/lib/util.ts:parse()', kind: 'reads', confidence: 'EXTRACTED' },
+    { from: 'symbol:web/src/pages/A.tsx:helper()', to: 'symbol:web/src/lib/util.ts:parse()', kind: 'calls', confidence: 'EXTRACTED' },
+    // 끝점 하나가 화폭 밖이라 그리지 않는다
+    { from: 'symbol:web/src/lib/api.ts:post()', to: 'symbol:tests/a.test.mjs:t()', kind: 'calls', confidence: 'EXTRACTED' },
+  ],
+};
+
+test('SC-8 laneLayout 함수 수준: 같은 초점에서 노드 수와 선 수가 파일 수준보다 늘어난다', () => {
+  const file = laneLayout(ARCH, { mode: 'nodes', focus: 'part:web' });
+  const fn = laneLayout(ARCH, { mode: 'nodes', focus: 'part:web', fn: FN });
+  assert.ok(fn.boxes.length > file.boxes.length, `노드 ${file.boxes.length} → ${fn.boxes.length}`);
+  assert.ok(fn.lines.length > file.lines.length, `선 ${file.lines.length} → ${fn.lines.length}`);
+  assert.equal(fn.level, 'fn');
+  assert.equal(file.level, 'file');
+  // 심볼이 있는 파일은 심볼로 펼치고, 심볼이 없는 파일(B.tsx)은 그 파일 상자 그대로 둔다
+  const ids = fn.boxes.map((b) => b.id).sort();
+  assert.deepEqual(ids, [
+    'web/src/lib/api.ts:get()', 'web/src/lib/api.ts:post()', 'web/src/lib/api.ts:req()',
+    'web/src/lib/util.ts:fmt()', 'web/src/lib/util.ts:parse()',
+    'web/src/pages/A.tsx:A()', 'web/src/pages/A.tsx:helper()', 'web/src/pages/B.tsx',
+  ]);
+  // 층 배정은 그 심볼이 속한 파일의 층을 따른다
+  const laneOf = Object.fromEntries(fn.boxes.map((b) => [b.id, b.lane]));
+  assert.equal(laneOf['web/src/pages/A.tsx:A()'], 'pages');
+  assert.equal(laneOf['web/src/lib/util.ts:fmt()'], 'lib');
+  assert.equal(laneOf['web/src/pages/B.tsx'], 'pages');
+  // 선은 심볼 사이 엣지이고 양 끝이 보이는 것만. 화폭 밖으로 가는 한 줄은 그리지 않는다
+  assert.equal(fn.lines.filter((l) => l.kind === 'symbol').length, 8);
+  assert.equal(fn.lines.some((l) => String(l.to).includes('tests/')), false);
+  const sym = fn.boxes.find((b) => b.id === 'web/src/lib/util.ts:fmt()');
+  assert.deepEqual([sym.kind, sym.name, sym.community, sym.module], ['symbol', 'fmt()', 2, 'web/src/lib/util.ts']);
+});
+
+test('SC-8 laneLayout 함수 수준: fn 을 주지 않으면 파일 수준 배치가 한 글자도 바뀌지 않는다', () => {
+  // 회귀 고정. 이 검사가 떨어지면 함수 수준을 더하다가 파일 수준을 건드린 것이다
+  for (const focus of ['sys', 'part:web', 'community:2', 'group:lib', 'web/src/lib/util.ts']) {
+    const base = laneLayout(ARCH, { mode: 'nodes', focus });
+    assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus, fn: null }), base, focus);
+    assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus, fn: undefined }), base, focus);
+    // 심볼이 없는 자료(옛 판)도 파일 수준 그대로다
+    assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus, fn: { symbols: [], edges: [] } }), base, focus);
+  }
+  // 층 요약도 그대로다
+  assert.deepEqual(laneLayout(ARCH, { fn: FN }), laneLayout(ARCH, {}));
+});
+
+test('SC-8 laneLayout 함수 수준 접기: 묶음이 여럿인 열은 접히고 하나뿐인 열은 안 접힌다(DEC-41)', () => {
+  // lib 층에 묶음 둘로 나뉜 심볼 24개를 둔다
+  const many = { symbols: [], edges: [] };
+  for (let i = 0; i < 24; i++) many.symbols.push(SYM(`web/src/lib/util.ts:f${String(i).padStart(2, '0')}()`, 'web/src/lib/util.ts', i < 14 ? 2 : 7));
+  const folded = laneLayout(ARCH, { mode: 'nodes', focus: 'group:lib', fn: many, foldMax: 10 });
+  assert.deepEqual(folded.boxes.map((b) => [b.id, b.n, b.folded]), [['fold:lib:2', 14, true], ['fold:lib:7', 10, true]]);
+  assert.equal(folded.folded, 24);
+  assert.equal(folded.boxes[0].focusTo, 'community:2');
+  // 묶음이 하나뿐이면 접지 않는다(P3-14b 규칙 그대로)
+  const one = { symbols: many.symbols.map((s) => ({ ...s, community: 2 })), edges: [] };
+  const kept = laneLayout(ARCH, { mode: 'nodes', focus: 'group:lib', fn: one, foldMax: 10 });
+  assert.equal(kept.folded, 0);
+  assert.equal(kept.boxes.every((b) => !b.folded), true);
+  // 결정적이다
+  assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus: 'group:lib', fn: many, foldMax: 10 }), folded);
+});
