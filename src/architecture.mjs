@@ -227,7 +227,10 @@ export function architectureStage(g, fs, cfg, sem = { journeys: [] }) {
   const resolve = (kind, ref) => {
     if (kind === 'api') { const hit = apis.find((a) => a.label === ref || a.id === ref) ?? apis.find((a) => a.id === ref.replace(/^[A-Z]+\s+/, '')); return hit ? key(hit) : null; }
     const k = `${kind}:${ref}`;
-    return g.nodes.has(k) ? k : null;
+    if (g.nodes.has(k)) return k;
+    // Graphify 는 호출 가능한 심볼 라벨에 () 를 붙인다(MyBooking()). 선언은 () 없이 적어도 된다(스펙 예 `함수 web/src/pages/Pay.tsx:Pay`)
+    if (kind === 'symbol' && !ref.endsWith('()') && g.nodes.has(`${k}()`)) return `${k}()`;
+    return null;
   };
   const flows = [];
   for (const c of containers) for (const f of c.flowDecls) {

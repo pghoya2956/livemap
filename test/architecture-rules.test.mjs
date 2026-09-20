@@ -224,6 +224,13 @@ test('SC-7 흐름: 단계와 좌표를 풀어 nodes·counts·status 를 만들�
   assert.ok(g.get('flow', 'live-flow'));
   assert.equal(g.edges.filter((e) => e.from === 'flow:live-flow' && e.kind === 'contains').length, 5);
   assert.deepEqual(codes(g, 'architecture.flow-step-missing'), []);
+  // 호출 가능한 심볼은 Graphify 라벨에 () 가 붙는다. 선언이 () 없이 적어도 맞춘다
+  const g3 = graph();
+  g3.add('symbol', 'web/src/pages/Live.tsx:load()', 'load()', { module: 'web/src/pages/Live.tsx', line: 7, callable: true, class: false, graphifyId: 'l', community: 1, communityName: 'App.tsx' });
+  g3.link('symbol', 'web/src/pages/Live.tsx:Live', 'calls', 'symbol', 'web/src/pages/Live.tsx:load()', { confidence: 'EXTRACTED' });
+  run({ ...DECL, [`${DIR}/web.md`]: WEB().replace('함수 web/src/pages/Live.tsx:Live → API', '함수 web/src/pages/Live.tsx:Live → 함수 web/src/pages/Live.tsx:load → API') }, g3);
+  assert.deepEqual(codes(g3, 'architecture.flow-step-missing'), []);
+  assert.equal(g3.architecture.stage.flows[0].path[2].node, 'symbol:web/src/pages/Live.tsx:load()');
   const g2 = graph();
   run({ ...DECL, [`${DIR}/web.md`]: WEB().replace('- 단계: j1/s1', '- 단계: j1/zz').replace('테이블 app.resorts', '테이블 app.nope') }, g2);
   assert.deepEqual(codes(g2, 'architecture.flow-step-missing').map((i) => [i.level, i.subject.id]), [['error', 'live-flow'], ['error', 'live-flow']]);
