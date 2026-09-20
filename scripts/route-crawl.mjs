@@ -366,14 +366,48 @@ export function whenFacts(served, data) {
 }
 
 export const KNOWN_EXPECT = new Set(['hrefs', 'ariaCurrent', 'hrefIn', 'pattern', 'patternIn', 'visible', 'hostFrom', 'rel', 'ariaPressedToggles', 'stopsAnimation', 'ariaPressed',
-  'filtersRowsByKind', 'syncsSelection', 'keys', 'hidesLayer', 'dblclickClearsFocus', 'escapeKey', 'switchesCapture', 'stopsRotation', 'switchesDetail', 'togglesDetails', 'cursor', 'title']);
+  'filtersRowsByKind', 'syncsSelection', 'keys', 'hidesLayer', 'dblclickClearsFocus', 'escapeKey', 'switchesCapture', 'stopsRotation', 'switchesDetail', 'togglesDetails', 'cursor', 'title',
+  // 2.1.0 「구조」 화면: 누른 뒤 해시·스크롤·강조·목록이 어떻게 바뀌는지 본다
+  'setsFocus', 'setsFlow', 'hashPattern', 'queryParam', 'focusUnchanged', 'scrollYUnchanged', 'highlightsTouchingEdges', 'movesFocusUp', 'switchesView', 'growsList', 'defaultOff', 'chipText', 'ariaLabel']);
+
+const hashPath = (h) => String(h).split('?')[0];
+const hashSegs = (h) => hashPath(h).replace(/^#\/?/, '').split('/').filter(Boolean);
+/** 해시의 초점 칸(두 번째 조각). 화면이 encodeURIComponent 로 싣는다 */
+const focusSeg = (h) => { const p = hashSegs(h); try { return p.length > 1 ? decodeURIComponent(p[1]) : ''; } catch { return p[1] ?? ''; } };
+/** 표의 setsFocus 값(예: "part:<container>")에서 literal 접두만 뽑는다. 접두가 없으면 아무 초점이나 받는다 */
+const focusPrefixes = (v) => (Array.isArray(v) ? v : [v]).map((t) => String(t).split('<')[0].trim()).map((t) => t.replace(/\s*(또는|or)\s*$/, '').trim());
+/** 표의 chipText 값(예: "건수 N 미만 M 숨김")을 정규식으로. 홑 대문자는 수 자리다 */
+const chipRegex = (tpl) => new RegExp(String(tpl).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/(^|\s)[A-Z](?=\s|$)/g, '$1\\d+'));
+const shownCount = async (page, sel) => (await shownIdx(page, sel)).length;
+/** growsList: 목록 상자 안 요소 수. 「이웃 펼치기」처럼 같은 상자가 길어지는 것을 잰다 */
+const listSize = (page, sel) => page.locator(sel).evaluateAll((es) => es.reduce((n, e) => n + e.querySelectorAll('*').length, 0));
+/** switchesView: 주어진 선택자 중 지금 화면에 선 것 */
+async function presentView(page, sels) {
+  const out = [];
+  for (const s of sels) if (await shownCount(page, s)) out.push(s);
+  return out;
+}
 
 /** 표 요소 하나를 판정한다. 매번 개요를 새로 연다. scope가 있으면 이동 요소는 그 화면으로 가는 주소만, 제자리·외부·비대화형 요소는 개요 범위에서만 본다. */
 export async function checkOverviewTarget(page, log, ctx, t, { base, served, overviewOnly, budgetSel, scope = () => true, open = null, screen = 'overview' }) {
-  const reopen = open || (() => reloadOverview(page, base));
   const x = t.expect || {};
   const out = { name: t.name, selector: t.selector, kind: t.kind, source: t.source, optional: !!t.optional };
   if (t.kind !== 'route' && !scope(screen)) return { ...out, pass: null, skipped: '--only 범위 밖' };
+  // 행이 자기 주소를 가지면 그 주소에서 잰다. 표의 화면 주소에는 그 요소가 없는 자리가 있다(예: 초점을 골라야 서는 노드 상자).
+  // 주소에 <개체> 자리가 있으면 그 패턴의 개체를 차례로 열어 요소가 있는 첫 자리에서 잰다
+  let reopen = open || (() => reloadOverview(page, base));
+  if (t.hash) {
+    const hashes = t.hash.includes('<') ? [...(ctx.entities.get(t.hash)?.byHash.keys() || [])] : [t.hash];
+    if (!hashes.length) return { ...out, pass: null, skipped: `행 주소의 개체 없음(${t.hash})` };
+    let picked = null;
+    for (const h of hashes.slice(0, 12)) {
+      await openScreen(page, base, h, screen);
+      if ((await shownIdx(page, t.selector).catch(() => [])).length) { picked = h; break; }
+    }
+    out.hash = picked ?? hashes[0];
+    const at = out.hash;
+    reopen = () => openScreen(page, base, at, screen);
+  }
   await reopen();
   const unknownKeys = Object.keys(x).filter((k) => !KNOWN_EXPECT.has(k));
   if (unknownKeys.length) out.unimplemented = unknownKeys;
@@ -442,6 +476,12 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
     if (x.title) checks.title = r.every((e) => e.title);
   } else if (t.kind === 'inplace') {
     const i0 = idx[0];
+    // 처음 연 화면의 눌림 상태. 아래 토글 확인이 두 번 눌러 되돌리기 전에 먼저 잰다
+    if (x.defaultOff) checks.defaultOff = (await attr(i0, 'aria-pressed')) === 'false';
+    if (x.ariaLabel) {
+      const labels = await page.locator(t.selector).evaluateAll((es) => es.map((e) => (e.getAttribute('aria-label') || '').trim()));
+      checks.ariaLabel = labels.length > 0 && labels.every((l) => l.length > 0);
+    }
     if (x.ariaPressedToggles) {
       const p0 = await attr(i0, 'aria-pressed');
       // 클릭 뒤 포인터가 요소 위에 남으면 :hover 정지 규칙이 섞인다. 재기 전에 포인터를 치운다.
@@ -535,6 +575,64 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
       const d = await loc(k).evaluate((e) => (e.closest('.panel')?.querySelector('.detail')?.textContent || '').replace(/\s+/g, ' '));
       out.detail = { label, detailHasLabel: d.includes(label) };
       checks.switchesDetail = !!label && d.includes(label);
+    }
+
+    // 「구조」 화면(2.1.0): 상태를 해시로 옮기는 요소. 한 번 눌러 해시·스크롤·강조·목록이 어떻게 바뀌는지 함께 잰다
+    const movesState = x.setsFocus || x.setsFlow || x.hashPattern || x.queryParam || x.focusUnchanged
+      || x.scrollYUnchanged || x.highlightsTouchingEdges || x.movesFocusUp || x.switchesView || x.growsList || x.chipText;
+    if (movesState) {
+      await reopen();
+      const fresh = await shownIdx(page, t.selector);
+      if (!fresh.length) { out.reason = '다시 연 화면에 요소 없음'; checks.movesState = false; }
+      else {
+        // 토글은 켜는 쪽을 본다. 이미 눌린 것을 누르면 아무것도 바뀌지 않는다
+        const pressed = await page.locator(t.selector).evaluateAll((es) => es.map((e) => e.getAttribute('aria-pressed')));
+        const j = fresh.find((i) => pressed[i] === 'false') ?? fresh[0];
+        const hashNow = () => page.evaluate(() => location.hash);
+        // scrollY 는 맨 위에서 재면 0 → 0 이라 아무것도 재지 않는다. 내릴 수 있는 만큼 내린 뒤 잰다
+        if (x.scrollYUnchanged) await page.evaluate(() => window.scrollTo(0, Math.min(120, Math.max(0, document.documentElement.scrollHeight - window.innerHeight))));
+        const h0 = await hashNow(), y0 = await page.evaluate(() => window.scrollY);
+        const view0 = x.switchesView ? await presentView(page, x.switchesView) : null;
+        const edge0 = x.highlightsTouchingEdges ? await shownCount(page, x.highlightsTouchingEdges) : null;
+        const list0 = x.growsList ? await listSize(page, x.growsList) : null;
+        await clickLoc(loc(j)); await quiet(page);
+        const h1 = await hashNow(), y1 = await page.evaluate(() => window.scrollY);
+        out.state = { hash: [h0, h1], scrollY: [y0, y1] };
+
+        if (x.setsFocus) {
+          const pre = focusPrefixes(x.setsFocus), seg = focusSeg(h1);
+          checks.setsFocus = h1 !== h0 && hashSegs(h1)[0] === 'architecture' && !!seg && pre.some((p) => (p ? seg.startsWith(p) : true));
+          out.state.focus = seg;
+        }
+        if (x.setsFlow) { const segs = hashSegs(h1); checks.setsFlow = h1 !== h0 && segs[0] === 'architecture' && segs.length >= 3; }
+        if (x.hashPattern) checks.hashPattern = patternRegex(x.hashPattern).test(h1);
+        if (x.queryParam) { const q = new URLSearchParams(String(h1).split('?')[1] || ''); checks.queryParam = q.has(x.queryParam); out.state.query = String(h1).split('?')[1] || ''; }
+        if (x.focusUnchanged) checks.focusUnchanged = h1 === h0;
+        if (x.scrollYUnchanged) checks.scrollYUnchanged = y1 === y0;
+        if (x.highlightsTouchingEdges) { const edge1 = await shownCount(page, x.highlightsTouchingEdges); out.state.highlight = [edge0, edge1]; checks.highlightsTouchingEdges = edge0 === 0 && edge1 > 0; }
+        if (x.movesFocusUp) { checks.movesFocusUp = h1 !== h0 && hashSegs(h1).length < hashSegs(h0).length; }
+        if (x.switchesView) {
+          const view1 = await presentView(page, x.switchesView);
+          out.state.view = [view0, view1];
+          checks.switchesView = view0.length === 1 && view1.length === 1 && view0[0] !== view1[0];
+        }
+        if (x.growsList) { const list1 = await listSize(page, x.growsList); out.state.list = [list0, list1]; checks.growsList = list1 > list0; }
+        if (x.chipText) {
+          const re = chipRegex(x.chipText);
+          const texts = await page.locator('.am-bar .chip').evaluateAll((es) => es.map((e) => (e.textContent || '').replace(/\s+/g, ' ').trim()));
+          out.state.chips = texts;
+          checks.chipText = texts.some((tx) => re.test(tx));
+        }
+        // 키보드로도 같은 일이 일어나는지. 다시 열고 초점을 준 뒤 누른다
+        for (const key of (x.setsFocus || x.setsFlow) ? x.keys || [] : []) {
+          await reopen();
+          const kf = await shownIdx(page, t.selector);
+          if (!kf.length) { checks[`key ${JSON.stringify(key)}`] = false; continue; }
+          const k0 = await hashNow();
+          await loc(kf[0]).focus(); await page.keyboard.press(key === ' ' ? 'Space' : key); await quiet(page);
+          checks[`key ${JSON.stringify(key)}`] = (await hashNow()) !== k0;
+        }
+      }
     }
   } else checks.kind = false;
   out.checks = checks;
@@ -659,6 +757,8 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
   let data = null;
   try { data = await fetchJson(`${base}data/data.json`); } catch (e) { data = null; }
   const ctx = buildRouteIndex(targets, [{ name: 'data.json', data: data || {} }, { name: 'overview.json', data: served }]);
+  // 표의 when 이 보는 값. 개요 자료에 data.json 의 구조 절 수를 얹는다
+  const facts = whenFacts(served, data);
   const { ctx: bctx, page, log } = await openCrawlContext(browser, { generatedAt: served.generatedAt, blockFonts });
   const timing = {};
   try {
@@ -667,7 +767,7 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
     const inter = scope('overview') ? await C(page, 'interactive', selectors) : { interactive: null, unlisted: [], skipped: '--only 범위 밖' };
     let t = Date.now();
     const overviewTargets = [];
-    for (const target of targets.overview) overviewTargets.push(await checkOverviewTarget(page, log, ctx, target, { base, served, overviewOnly, budgetSel: targets.clickBudget[0], scope }));
+    for (const target of targets.overview) overviewTargets.push(await checkOverviewTarget(page, log, ctx, target, { base, served: facts, overviewOnly, budgetSel: targets.clickBudget[0], scope }));
     timing.overviewTargets = Date.now() - t; t = Date.now();
     const budgetScreen = targetScreen(ctx, targets.overview.find((o) => o.selector === targets.clickBudget[1]));
     const clickBudget = scope(budgetScreen) ? await measureClickBudget(page, base, targets.clickBudget, ctx) : { pass: null, skipped: '--only 범위 밖' };
@@ -677,11 +777,13 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
     const screens = {};
     for (const [screen, spec] of Object.entries(targets.screens || {})) {
       if (overviewOnly || !scope(screen)) { screens[screen] = { skipped: overviewOnly ? '--overview-only' : '--only 범위 밖' }; continue; }
+      // 화면 조건: 그 화면이 없는 프로젝트(예: 구조 절이 없는 자료)에서는 표를 돌리지 않는다
+      if (spec.when && !whenHolds(spec.when, facts)) { screens[screen] = { skipped: `조건 불충족(${spec.when})` }; continue; }
       const open = () => openScreen(page, base, spec.hash, screen);
       await open();
       const si = await C(page, 'interactive', spec.targets.map((x) => x.selector));
       const rows = [];
-      for (const target of spec.targets) rows.push(await checkOverviewTarget(page, log, ctx, target, { base, served, overviewOnly, budgetSel: targets.clickBudget[0], scope, open, screen }));
+      for (const target of spec.targets) rows.push(await checkOverviewTarget(page, log, ctx, target, { base, served: facts, overviewOnly, budgetSel: targets.clickBudget[0], scope, open, screen }));
       screens[screen] = { hash: spec.hash, interactive: si.interactive, unlisted: si.unlisted, targets: rows };
     }
     timing.screens = Date.now() - t; t = Date.now();

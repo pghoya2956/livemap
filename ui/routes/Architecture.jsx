@@ -125,7 +125,7 @@ export function Architecture({ ov, data, params }) {
             <Chip on={show.includes('tests')} onClick={() => toggleShow('tests')}>검사</Chip>
             <Chip on={show.includes('lanes')} onClick={() => toggleShow('lanes')}>숨긴 층</Chip>
             <Chip on={!show.includes('nomock')} onClick={() => toggleShow('nomock')}>목업</Chip>
-            {view === 'community' && <Chip on={show.includes('thin')} onClick={() => toggleShow('thin')}>드문 선 숨김</Chip>}
+            {view === 'community' && <Chip className="am-thin" on={show.includes('thin')} onClick={() => toggleShow('thin')}>드문 선 숨김</Chip>}
           </span>
           {flow && <Chip on onClick={() => onFlow(null)}>기능 <Proj>{fp?.name ?? flow}</Proj> ✕</Chip>}
         </div>

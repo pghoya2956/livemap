@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from '../src/cli.mjs';
 import { serve } from '../src/serve.mjs';
-import { launchBrowser, openCrawlContext, fetchJson, buildRouteIndex, visitHash, checkOverviewTarget, KNOWN_EXPECT, whenHolds, whenFacts, openScreen, CRAWL_LIB } from '../scripts/route-crawl.mjs';
+import { launchBrowser, openCrawlContext, fetchJson, buildRouteIndex, visitHash, checkOverviewTarget, KNOWN_EXPECT, whenHolds, whenFacts, openScreen } from '../scripts/route-crawl.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TARGETS = join(HERE, '..', 'scripts', 'click-targets.json');
@@ -88,19 +88,15 @@ test('SC-18 when 판정: 구조 조건은 data.json 의 구조 절에서 읽는�
 });
 
 test('SC-18 구조 표: 열여섯 행이 모두 판정되고 실패가 없다', async () => {
-  const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const p2 = await ctx2.newPage();
-  const log2 = { console: [], pageerror: [] };
-  p2.on('console', (m) => { if (m.type() === 'error') log2.console.push({ text: m.text() }); });
-  p2.on('pageerror', (e) => log2.pageerror.push(String(e.message)));
-  await p2.addInitScript(CRAWL_LIB());
+  // 이 파일의 기본 page 는 data.json 응답을 늦추는 route 가 걸려 있다. 구조 표는 늦춤 없는 새 창에서 잰다
+  const { ctx: bctx2, page: p2, log: log2 } = await openCrawlContext(browser, { generatedAt: served.generatedAt });
   const spec = targets.screens.architecture;
   const facts = whenFacts(served, data);
   const open = () => openScreen(p2, base, spec.hash, 'architecture');
   await open();
   const rows = [];
   for (const t of spec.targets) rows.push(await checkOverviewTarget(p2, log2, ctx, t, { base, served: facts, overviewOnly: false, budgetSel: targets.clickBudget[0], open, screen: 'architecture' }));
-  await ctx2.close();
+  await bctx2.close();
   const fails = rows.filter((r) => r.pass === false).map((r) => `${r.name}: ${r.reason || JSON.stringify(r.checks)}${r.unimplemented ? ` 미구현 ${r.unimplemented}` : ''}`);
   assert.deepEqual(fails, [], fails.join('\n'));
   assert.equal(rows.filter((r) => r.unimplemented?.length).length, 0, '미구현 기대 키가 남아 있다');

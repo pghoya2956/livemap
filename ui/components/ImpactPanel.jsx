@@ -178,7 +178,8 @@ export function ImpactPanel({ arch, focus, bundle = null, onFocus, onFlow, expan
       <div className="am-sec">들어오는 호출 {n.in.length}</div>
       <div className="am-list"><Names ids={expanded ? n.in : n.in.slice(0, 8)} max={expanded ? 999 : 8} onPick={onFocus} /></div>
       {m && <Row k="안에 든 것">함수 {m.symbols}</Row>}
-      <button type="button" className="chip am-expand" aria-pressed={expanded} onClick={() => onExpand?.(!expanded)}>이웃 펼치기</button>
+      {/* 접힌 이웃이 있을 때만 단추를 둔다. 펼칠 것이 없는데 단추가 있으면 눌러도 아무 일이 없다 */}
+      {n.in.length > 8 && <button type="button" className="chip am-expand" aria-pressed={expanded} onClick={() => onExpand?.(!expanded)}>이웃 펼치기 {n.in.length - 8}</button>}
       <Rules violations={n.violations} part={n.container} dir={dir} />
     </Panel>
   );
