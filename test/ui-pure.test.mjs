@@ -13,7 +13,7 @@ import { isNewer } from '../ui/lib/visit.js';
 import { parseRoute, archHash, NAV } from '../ui/lib/route.js';
 import { buildTree, pathOf, geometry, crossings } from '../ui/lib/tree.js';
 import { visibleCaptures } from '../ui/lib/capture.js';
-import { LANE_ORDER, laneLayout, communityLayout, flowPath, neighbors, foldByCommunity } from '../ui/lib/arch.js';
+import { LANE_ORDER, laneLayout, communityLayout, flowPath, neighbors, foldByCommunity, focusScope, laneColumns } from '../ui/lib/arch.js';
 
 const G = '2026-09-16T17:29:52.070Z';
 const plus = (min) => Date.parse(G) + min * 60000;
@@ -914,4 +914,57 @@ test('SC-8 laneLayout 함수 수준 접기: 묶음이 여럿인 열은 접히고
   assert.equal(kept.boxes.every((b) => !b.folded), true);
   // 결정적이다
   assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus: 'group:lib', fn: many, foldMax: 10 }), folded);
+});
+
+// ---- P5-15c 심볼 초점(초점 여섯째 단계): 스펙 본문·SC-9·DEC-30 이 초점을 「시스템 › 부품 › 묶음 › 층 › 파일 › 함수」로 못 박는다.
+// 함수가 여섯째 단계다. 심볼의 이웃은 파일 사이 import 가 아니라 심볼 사이 엣지로 찾는다 ----
+test('SC-9 focusScope 심볼 초점: 심볼 사이 엣지로 1홉 이웃을 찾는다', () => {
+  const L = laneColumns(ARCH, {});
+  // fn 을 주지 않으면 지금 그대로다 — 심볼을 모르니 자기 자신만 남는다
+  assert.deepEqual(focusScope(ARCH, 'web/src/lib/api.ts:get()', L), ['web/src/lib/api.ts:get()']);
+  // fn 을 주면 들어오는 것과 나가는 것을 심볼 엣지에서 찾는다. get() 은 A() 가 부르고 req() 를 부른다
+  const scope = focusScope(ARCH, 'web/src/lib/api.ts:get()', L, FN);
+  assert.deepEqual([...scope].sort(), ['web/src/lib/api.ts:get()', 'web/src/lib/api.ts:req()', 'web/src/pages/A.tsx:A()']);
+  // 파일 초점과 같은 모양: [자기, 들어오는 것, 나가는 것]
+  assert.equal(scope[0], 'web/src/lib/api.ts:get()');
+});
+
+test('SC-9 laneLayout 심볼 초점: 상자가 하나로 끝나지 않고 선이 선다', () => {
+  // 부모 실측 재현: 파일 초점은 이웃을 보여 주는데 심볼 초점은 상자 1 · 선 0 이었다
+  const file = laneLayout(ARCH, { mode: 'nodes', focus: 'web/src/lib/api.ts', fn: FN });
+  const sym = laneLayout(ARCH, { mode: 'nodes', focus: 'web/src/lib/api.ts:get()', fn: FN });
+  assert.ok(sym.boxes.length > 1, `심볼 초점 상자 ${sym.boxes.length}`);
+  assert.ok(sym.lines.length > 0, `심볼 초점 선 ${sym.lines.length}`);
+  assert.equal(sym.level, 'fn');
+  assert.deepEqual(sym.boxes.map((b) => b.id).sort(), ['web/src/lib/api.ts:get()', 'web/src/lib/api.ts:req()', 'web/src/pages/A.tsx:A()']);
+  // 이웃 심볼은 각자의 파일이 선언한 층에 선다
+  const laneOf = Object.fromEntries(sym.boxes.map((b) => [b.id, b.lane]));
+  assert.deepEqual([laneOf['web/src/pages/A.tsx:A()'], laneOf['web/src/lib/api.ts:get()']], ['pages', 'lib']);
+  assert.ok(file.boxes.length > 0);
+  // 같은 입력이면 같은 좌표다
+  assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus: 'web/src/lib/api.ts:get()', fn: FN }), sym);
+});
+
+test('SC-9 laneLayout 심볼 초점: 이웃이 없는 심볼은 상자 하나로 서고 왜 하나뿐인지 남긴다', () => {
+  const lonely = { symbols: [...FN.symbols, SYM('web/src/lib/util.ts:alone()', 'web/src/lib/util.ts', 2, 99)], edges: FN.edges };
+  const L = laneLayout(ARCH, { mode: 'nodes', focus: 'web/src/lib/util.ts:alone()', fn: lonely });
+  assert.deepEqual(L.boxes.map((b) => b.id), ['web/src/lib/util.ts:alone()']);
+  assert.equal(L.lines.length, 0);
+  // 빈 화면이 아니라 까닭이 남는다: 이 심볼을 아무도 부르지 않고 이 심볼도 아무것도 부르지 않는다
+  assert.equal(L.lonelySymbol, true);
+  assert.equal(laneLayout(ARCH, { mode: 'nodes', focus: 'web/src/lib/api.ts:get()', fn: FN }).lonelySymbol, false);
+});
+
+test('SC-9 focusScope·laneLayout 회귀 고정: fn 이 없으면 초점 다섯이 한 글자도 안 바뀐다', () => {
+  const L = laneColumns(ARCH, {});
+  for (const focus of ['sys', 'part:web', 'community:2', 'group:lib', 'web/src/lib/util.ts']) {
+    const base = focusScope(ARCH, focus, L);
+    assert.deepEqual(focusScope(ARCH, focus, L, null), base, focus);
+    assert.deepEqual(focusScope(ARCH, focus, L, undefined), base, focus);
+    // fn 을 줘도 파일·묶음·층·부품·시스템 초점의 범위는 그대로다(심볼 갈래만 새로 생긴다)
+    assert.deepEqual(focusScope(ARCH, focus, L, { symbols: [], edges: [] }), base, focus);
+    const lay = laneLayout(ARCH, { mode: 'nodes', focus });
+    assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus, fn: null }), lay, focus);
+    assert.deepEqual(laneLayout(ARCH, { mode: 'nodes', focus, fn: { symbols: [], edges: [] } }), lay, focus);
+  }
 });
