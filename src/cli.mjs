@@ -20,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { checkProblems, stagedTargets, stagedProblems, stagedText } from './check.mjs';
 import { linkScreenApis } from './link.mjs';
 import { bridgeArchitecture } from './bridge.mjs';
+import { architectureStage } from './architecture.mjs';
 import { applyStrict, problemsJson, sortProblems, textLines } from './lib/issues.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -82,6 +83,8 @@ export async function buildGraph(root = process.cwd(), { semantic = null } = {})
   try { bridgeArchitecture(g, fs, cfg); } catch (e) { g.issue('error', '다리 단계', String(e?.message || e)); }
   // 여정 정본: 디렉터리면 역할별 md(2.0.0), .json이면 한 파일(1.x 호환). 설정에 semantic 키가 없으면 여정 입력이 없다
   const sem = readSemantic(fs, cfg);
+  // architecture 단계(2.1.0): 다리가 놓인 그래프에 선언(map/architecture/)을 대조한다. 설정 architecture.dir 이 없으면 partial 이다. 실패는 오류 이슈로 남긴다
+  try { architectureStage(g, fs, cfg, sem); } catch (e) { g.issue('error', '구조 단계', String(e?.message || e)); }
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);
   const data = derive(g, sem, cfg, { captureExists });
   return { g, cfg, sem, data, fs, shadowed };
@@ -188,7 +191,8 @@ export async function main(argv = []) {
     const { data: d, shadowed } = await build(root, out, { semantic: opt('semantic', null) });
     notifyShadow(shadowed);
     const bad = d.adapters.filter((a) => a.status !== 'ok');
-    console.log(`map build → ${out}: 화면 ${d.summary.routes} · API ${d.summary.apis} · 함수 ${d.summary.dbFunctions} · 작업 ${d.tasks.length} · 커밋 ${d.summary.commits} · 경고 ${d.summary.warnings} · 고아 ${d.summary.orphans}`);
+    const arch = d.architecture ? ` · 부품 ${d.summary.containers} · 묶음 ${d.summary.communities}` : '';
+    console.log(`map build → ${out}: 화면 ${d.summary.routes} · API ${d.summary.apis} · 함수 ${d.summary.dbFunctions}${arch} · 작업 ${d.tasks.length} · 커밋 ${d.summary.commits} · 경고 ${d.summary.warnings} · 고아 ${d.summary.orphans}${d.architecture ? ` · 어긋남 ${d.summary.boundaryViolations}` : ''}`);
     for (const a of bad) console.log(`  ${a.status === 'failed' ? '✗' : '△'} ${a.name}: ${a.error}`);
     return 0;
   }

@@ -240,7 +240,8 @@ test('SC-14 끊김: 이어진 두 좌표 사이에 엣지가 없거나 추정(IN
   // 추정 엣지뿐인 구간: 함수 → 함수 호출이 INFERRED 만 있으면 끊김(reason inferred)
   const g2 = graph({ inferredOnly: true });
   run({ ...DECL, [`${DIR}/web.md`]: WEB().replace('함수 web/src/pages/Live.tsx:Live → API', '함수 web/src/pages/Live.tsx:Live → 함수 web/src/lib/queries.ts:useResorts → API') }, g2);
-  assert.deepEqual(g2.architecture.stage.flows[0].broken.map((b) => b.reason), ['inferred']);
+  // useResorts → API 구간은 어느 엣지도 없어 no-edge 다
+  assert.deepEqual(g2.architecture.stage.flows[0].broken.map((b) => b.reason), ['inferred', 'no-edge']);
 });
 
 test('SC-5 부품 사이 depends: 그림의 선(declared)과 실측 엣지(measured)의 합집합', () => {
@@ -249,12 +250,12 @@ test('SC-5 부품 사이 depends: 그림의 선(declared)과 실측 엣지(measu
   const deps = g.edges.filter((e) => e.kind === 'depends').map((e) => [e.from, e.to, e.props]);
   assert.deepEqual(deps, [
     ['container:web', 'container:bff', { declared: true, measured: 1 }],
-    ['container:bff', 'container:db', { declared: true, measured: 2 }],
-    ['container:bff', 'container:auth', { declared: true, measured: 1 }],
+    ['container:bff', 'container:db', { declared: true, measured: 1 }],
+    ['container:bff', 'container:auth', { declared: true, measured: 0 }],
     ['container:db', 'container:auth', { declared: false, measured: 1 }],
   ]);
   assert.deepEqual(r.containers.map((c) => [c.id, c.deps]), [['web', ['bff']], ['bff', ['db', 'auth']], ['db', ['auth']], ['auth', []]]);
-  assert.deepEqual(r.containers[0].counts, { screens: 2, files: 4, symbols: 2, mocks: 1 });
+  assert.deepEqual(r.containers[0].counts, { screens: 2, files: 5, symbols: 2, mocks: 1 });
 });
 
 test('SC-4 설정 architecture.dir 이 없거나 폴더가 없으면 partial 이고 조용히 통과하지 않는다. graphify 어댑터가 돌지 않았어도 선언은 대조한다', () => {

@@ -183,7 +183,7 @@ function archProject() {
     'map/config.json': JSON.stringify({ engine: 2, adapters: ['probe'], semantic: 'map/semantic/journeys.json', architecture: { dir: 'map/architecture', graph: 'graphify-out/graph.json', skillFile: '.claude/skills/sample-architecture/SKILL.md' } }),
     'map/semantic/journeys.json': JSON.stringify({ journeys: [] }),
     'map/adapters/probe.mjs': "export default function probe(g) { g.issue('warn', '구조 규칙', 'web/src/lib/a.ts → web/src/pages/B.tsx: 층 lib 는 pages 를 가져올 수 없다', { code: 'architecture.layer-violation', subject: { kind: 'module', id: 'web/src/lib/a.ts' }, anchors: [{ file: 'web/src/lib/a.ts' }] }); g.issue('warn', '작업', '무관한 경고', { code: 'tasks.stage-unknown', subject: { kind: 'task', id: '20260101-x' } }); return null; }\n",
-    'map/architecture/README.md': md('# 시스템 그림', '', '```mermaid', 'flowchart LR', '  web["웹"]', '```'),
+    'map/architecture/README.md': md('# 시스템 그림', '', '```mermaid', 'flowchart LR', '  web["웹"]', '```', '', '| 부품 | 파일 | 이름 | 종류 |', '|---|---|---|---|', '| web | [web.md](web.md) | 웹 | 우리 코드 |'),
     'map/architecture/web.md': md('# 웹', '- id: web', '- 폴더: web/src'),
     '.claude/skills/sample-architecture/SKILL.md': md('# 구조', '사본'),
     'web/src/lib/a.ts': '// 코드\n',
