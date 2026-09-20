@@ -142,7 +142,9 @@ export function Architecture({ ov, data, params }) {
             {view === 'lanes' && <LaneSummary arch={arch} hidden={hidden} focus={focus} onFocus={onFocus} />}
             {view === 'community' && <CommunityMap arch={arch} focus={focus} onFocus={onFocus} hideTests={!show.includes('tests')} thin={show.includes('thin')} />}
             {view === 'nodes' && (
+              // 수준이 함수이고 자료를 받았을 때만 함수 수준으로 그린다. null(파일 없음)·undefined(받는 중)는 파일 수준에 머문다
               <LaneMap arch={arch} focus={focus} flow={flow} hidden={hidden} hubMin={HUB_MIN} neighbourIds={near}
+                fn={level === 'fn' && fnData ? fnData : null}
                 onFocus={(id) => { const l = id && String(id); if (l) onFocus(l); }} />
             )}
           </Panel>

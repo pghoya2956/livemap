@@ -902,8 +902,10 @@ test('SC-8 laneLayout 함수 수준 접기: 묶음이 여럿인 열은 접히고
   const many = { symbols: [], edges: [] };
   for (let i = 0; i < 24; i++) many.symbols.push(SYM(`web/src/lib/util.ts:f${String(i).padStart(2, '0')}()`, 'web/src/lib/util.ts', i < 14 ? 2 : 7));
   const folded = laneLayout(ARCH, { mode: 'nodes', focus: 'group:lib', fn: many, foldMax: 10 });
-  assert.deepEqual(folded.boxes.map((b) => [b.id, b.n, b.folded]), [['fold:lib:2', 14, true], ['fold:lib:7', 10, true]]);
-  assert.equal(folded.folded, 24);
+  // 같은 열의 api.ts 는 심볼이 없어 파일 상자로 남고 자기 묶음(2) 자리에 함께 접힌다 — 파일·심볼이 섞여도 묶음이 기준이다
+  assert.deepEqual(folded.boxes.map((b) => [b.id, b.n, b.folded]), [['fold:lib:2', 15, true], ['fold:lib:7', 10, true]]);
+  assert.equal(folded.folded, 25);
+  assert.ok(folded.boxes[0].members.includes('web/src/lib/api.ts'));
   assert.equal(folded.boxes[0].focusTo, 'community:2');
   // 묶음이 하나뿐이면 접지 않는다(P3-14b 규칙 그대로)
   const one = { symbols: many.symbols.map((s) => ({ ...s, community: 2 })), edges: [] };
