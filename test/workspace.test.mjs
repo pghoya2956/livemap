@@ -463,3 +463,29 @@ test('repos.* 여덟 코드가 코드 표와 docs/issue-codes.md 에 같은 집�
   const warn = { level: 'warn', code: 'repos.listed-only', msg: 'x', subject: null, anchors: [], resolutions: ['source'] };
   assert.equal(applyStrict([warn], true)[0].level, 'warn');
 });
+
+// ── init 워크스페이스 틀(2.2.0) ─────────────────────────────────────────────
+
+test('init: 표식 파일이 있는 폴더는 워크스페이스 설정 틀을 쓰고 여정·구조 틀은 만들지 않으며, 그 틀로 build·check 가 돈다', async () => {
+  const W = await ws();
+  rmSync(join(W, 'map/config.json'));
+  const r = run(W, ['init']);
+  assert.equal(r.code, 0, r.out + r.err);
+  const cfg = readJson(join(W, 'map/config.json'));
+  assert.deepEqual(['workspace', 'tasks', 'wiki', 'git', 'budget'].filter((k) => !(k in cfg)), []);
+  assert.equal('floors' in cfg, false);
+  assert.equal(cfg.workspace.repos, MARKER);
+  for (const p of ['map/semantic/journeys.json', 'map/architecture']) assert.equal(existsSync(join(W, p)), false, p);
+  assert.ok(existsSync(join(W, 'map/README.md')));
+  assert.match(run(W, ['init']).out, /livemap init: 변경 없음/);
+  const b = run(W, ['build']);
+  assert.equal(b.code, 0, b.out + b.err);
+  assert.match(b.out, / · 저장소 3 · 어긋남 0/);
+  const j = checkJson(W);
+  assert.deepEqual([j.code, j.errors], [0, 0], JSON.stringify(j.problems.filter((p) => p.level === 'error')));
+  // 표식 파일이 없는 폴더는 지금처럼 기본 틀(여정·구조 틀 포함, floors 있음)
+  const plain = tmp('init 기본');
+  assert.equal(run(plain, ['init']).code, 0);
+  assert.ok('floors' in readJson(join(plain, 'map/config.json')));
+  assert.ok(existsSync(join(plain, 'map/semantic/journeys.json')));
+});

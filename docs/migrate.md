@@ -36,6 +36,15 @@
 | 읽기 상태 강제 | `partial`·`stale`·`unknown`을 기본으로 오류로 셀지 정한다 | `livemap check --strict`로 과거 작업 채우기가 끝났는지 본다 |
 | `config.json` `engine` | `2` | 2.0.0으로 올리는 커밋에서 바꾼다. 엔진은 major가 다르면 멈추고 이 문서를 가리킨다 |
 
+## 2.1.x → 2.2.0
+
+minor 판이라 `engine`은 그대로 `2`다. 설정을 바꾸지 않아도 2.1.x와 같이 돈다. `workspace` 키가 없는 프로젝트의 `graph.json`·`data.json`·`overview.json`은 `generatedAt`을 빼면 2.1.x와 같다. 삭제와 이름 변경은 없다.
+
+1. `npm i -D -E @pghoya2956/livemap@2.2.0`.
+2. `livemap build` → `livemap check`. 새 이슈 코드는 `repos.*`뿐이고 `workspace` 키가 없으면 나오지 않는다.
+
+여러 저장소 워크스페이스는 선택이다. 상위 폴더에 표식 파일 `.agent/repos.yaml`이 있고 그 폴더에 상황판을 둘 때 켠다. 절차와 설정은 `workspace.md`에 있다. 요약하면 상위 `map/config.json`에 `"workspace": { "repos": ".agent/repos.yaml" }`를 더하거나, 설정이 없는 상위 폴더에서 `livemap init`을 돌려 워크스페이스 틀을 받는다. 상위에 여정이 없으면 예산 검사 「기능 지도 선택」은 skip한다(`view-budget.md`).
+
 ## 2.0.x → 2.1.0
 
 minor 판이라 `engine`은 그대로 `2`이고 엔진이 멈추지 않는다. 아무것도 하지 않아도 2.0.x와 같이 돌지만, 구조 지도를 켜려면 아래를 한다. 삭제와 이름 변경은 없다.
