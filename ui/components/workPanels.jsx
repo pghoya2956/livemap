@@ -95,13 +95,13 @@ export function WorkTasksPanel({ d, at }) {
             ))}
           </div>
         )}
-        <div className={`rows fit${chips.length ? ' rows-gap' : ''}`} ref={ref}>
+        {list.length > 0 && <div className={`rhead${chips.length ? ' rows-gap' : ''}`}><span>날짜</span><span>작업</span><span>단계</span><span>계획</span></div>}
+        <div className="rows fit" ref={ref}>
           {!list.length && emptyRow('진행 중인 작업이 없습니다')}
           {list.slice(0, n).map((t) => (
             <a className="row" key={t.id} href={`#/tasks/${encodeURIComponent(t.id)}`}>
               <span className="dt num">{t.date ? t.date.slice(5) : '—'}</span>
-              <div className="body"><div className="tt" title={t.title}><Proj>{t.title}</Proj></div></div>
-              {t.repo ? <span className="tag t-repo" data-repo-tag={t.repo}><Proj>{t.repo}</Proj></span> : <span />}
+              <div className="body"><span className="tt" title={t.title}><Proj>{t.title}</Proj></span>{t.repo && <span className="tag t-repo" data-repo-tag={t.repo}><Proj>{t.repo}</Proj></span>}</div>
               <span className={`stg${t.stage === '실행' ? ' run' : ''}`}><Proj>{t.stage || '—'}</Proj></span>
               <span className="plan num">{t.pnDone + t.pnOpen ? `${t.pnDone}/${t.pnDone + t.pnOpen}` : '—'}</span>
             </a>
