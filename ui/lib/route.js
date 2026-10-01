@@ -3,7 +3,8 @@
 // #/more[/<tab>[/<detail>]](기본 탭 decisions), 알 수 없는 경로는 개요이고 내비 선택이 없다.
 // 2.1.0: #/architecture[/<초점>[/<기능>]][?level=&split=&show=] — 초점·기능·수준·나눔이 모두 해시에 실린다(SC-9).
 export const NAV = ['overview', 'journeys', 'architecture', 'roadmap', 'tasks', 'more'];
-export const MORE_TABS = ['changes', 'decisions', 'screens', 'backend', 'tests', 'about'];
+// 2.2.0: repos(저장소)는 워크스페이스 상위에만 탭 막대에 보인다(data.repos 가 있을 때). 내비는 여섯 그대로다
+export const MORE_TABS = ['changes', 'decisions', 'screens', 'backend', 'tests', 'about', 'repos'];
 export const ARCH_LEVELS = ['file', 'fn'];
 export const ARCH_SPLITS = ['human', 'code'];
 

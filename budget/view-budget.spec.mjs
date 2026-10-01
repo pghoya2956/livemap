@@ -63,6 +63,8 @@ test('첫 화면에는 시스템 식별자가 없다', async ({ page }) => {
 
 test('기능 지도 선택 → a.open → 단계 상세까지 3번 안에 닿는다', async ({ page }) => {
   await openOverview(page);
+  // 여정이 0건인 프로젝트(여러 저장소 워크스페이스 상위 등)는 기능 지도가 비어 누를 것이 없다(DEC-25). 여정이 있으면 그대로 잰다
+  test.skip(await page.locator('.jrow').count() === 0, '여정이 0건이라 기능 지도가 비었다');
   await page.locator('.jrow').first().click();
   await page.locator('a.open').click();
   await page.waitForSelector('.scene');

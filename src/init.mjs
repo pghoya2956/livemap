@@ -15,6 +15,14 @@ export const INIT_FILES = [
   ['templates/architecture/README.md', 'map/architecture/README.md'],
   ['templates/architecture/web.md', 'map/architecture/web.md'],
 ];
+// 여러 저장소 워크스페이스(2.2.0): 현재 폴더에 표식 파일이 있으면 설정은 워크스페이스 틀을 쓰고 여정·구조 틀은 만들지 않는다.
+// 상위 폴더에는 화면·API 가 없어 기본 틀의 floors(screen·api 바닥값)가 floor.below 오류를 내고, 제품 축은 각 자식 상황판에 있다
+export const WORKSPACE_MARKER = '.agent/repos.yaml';
+export const WORKSPACE_FILES = [
+  ['templates/config.workspace.json', 'map/config.json'],
+  ['templates/README.md', 'map/README.md'],
+  ['templates/captures-README.md', 'map/captures/README.md'],
+];
 export const IGNORE_LINE = 'map/.out/';
 export const BUDGET_SCRIPT = 'playwright test --config node_modules/@pghoya2956/livemap/budget/playwright.config.mjs';
 export const SCRIPTS = {
@@ -76,7 +84,8 @@ const hasPlaywright = (root, pkg) => existsSync(join(root, 'node_modules/@playwr
 export function init({ root, pkgRoot }) {
   const created = [];
   const kept = [];
-  for (const [from, to] of INIT_FILES) {
+  const files = existsSync(join(root, WORKSPACE_MARKER)) ? WORKSPACE_FILES : INIT_FILES;
+  for (const [from, to] of files) {
     const dst = join(root, to);
     if (existsSync(dst)) continue;
     mkdirSync(dirname(dst), { recursive: true });

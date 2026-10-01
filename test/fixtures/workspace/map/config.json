@@ -1,0 +1,46 @@
+{
+  "engine": 2,
+  "project": {
+    "name": "Workspace"
+  },
+  "adapters": [
+    "tasks",
+    "git"
+  ],
+  "tasks": {
+    "dir": "tasks",
+    "index": "tasks/index.md"
+  },
+  "git": {
+    "branch": "main",
+    "sinceDays": 14,
+    "areas": [
+      [
+        "tasks/",
+        "문서"
+      ],
+      [
+        "map/",
+        "상황판"
+      ]
+    ],
+    "runtimePaths": []
+  },
+  "budget": {
+    "viewport": [
+      1440,
+      900
+    ],
+    "maxPanels": 8,
+    "maxRowsPerPanel": 6,
+    "navItems": 6
+  },
+  "workspace": {
+    "repos": ".agent/repos.yaml",
+    "children": {
+      "app": {
+        "board": "https://example.test/map/"
+      }
+    }
+  }
+}

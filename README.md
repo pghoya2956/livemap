@@ -62,6 +62,10 @@ npx --no livemap init                 # map/ 초안·.gitignore·npm 스크립�
 1.x 동안은 설정에 있으면 계속 읽고, `livemap check`가 항목마다 지워도 되는지(`router.hookapi-redundant`) 리터럴로 안 잡히는지(`router.hookapi-only`) 알린다.
 2.0.0에서 키를 지운다([docs/migrate.md](docs/migrate.md)).
 
+## 여러 저장소
+
+상위 폴더 하나가 자식 저장소 여럿을 묶는 프로젝트(표식 파일 `.agent/repos.yaml`)에서는 상위 `map/config.json`에 `workspace` 키를 두면 상위 상황판 하나가 상위와 자식들의 작업·결정·최근 변경을 저장소 표시를 붙여 합치고, 저장소마다 빌드 상태·어긋남·상황판 링크를 더보기 「저장소」 탭에 보인다(2.2.0). 제품 화면·API·DB·여정은 합치지 않고 각 자식 상황판으로 링크한다. 자식 저장소는 읽기만 한다. 표식 파일이 있는 폴더에서 `livemap init`을 돌리면 워크스페이스 설정 틀을 쓴다. 설정·접두 규칙·저장소 절·`repos.*` 이슈는 [docs/workspace.md](docs/workspace.md).
+
 ## 커밋 전 훅
 
 `livemap init`은 git 저장소 루트에서 `.githooks/pre-commit`(`npx --no livemap check --staged`)을 만들고 `git config core.hooksPath .githooks`를 둔다. 작업 폴더 문서나 `map/judgments/` 판정 파일을 스테이징한 커밋에서, 그 파일에 걸린 `tasks.*`·`judgment.*` 문제가 있으면 종료 코드 1로 커밋을 멈춘다. 출력에는 문제 코드, 근거 줄, 판정 초안이 나온다. 에이전트 세션이 원문을 규칙대로 고치거나 판정 파일을 써서 스테이징하고 다시 커밋한다. `--no-verify`로 넘기지 않는다.
@@ -82,6 +86,7 @@ npx --no livemap init                 # map/ 초안·.gitignore·npm 스크립�
 | [docs/test-results.md](docs/test-results.md) | 검사 결과 JSON·최신 판정·리포터·CI 배선 |
 | [docs/hosting-and-csp.md](docs/hosting-and-csp.md) | export·정적 서빙·CSP·CI |
 | [docs/view-budget.md](docs/view-budget.md) | 화면 예산 규칙 |
+| [docs/workspace.md](docs/workspace.md) | 여러 저장소 워크스페이스: 설정·자식 설정 세 갈래·접두 규칙·저장소 절·저장소 어긋남 |
 | [docs/migrate.md](docs/migrate.md) | major 이행 |
 
 ## 버전

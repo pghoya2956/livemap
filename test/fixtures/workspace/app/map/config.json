@@ -1,0 +1,8 @@
+{
+  "engine": 2,
+  "project": { "name": "App" },
+  "adapters": ["tasks", "wiki", "git", "note"],
+  "tasks": { "dir": "tasks", "index": "tasks/index.md" },
+  "wiki": { "index": ".agent/wiki/index.md" },
+  "git": { "branch": "main", "sinceDays": 14, "areas": [["src/", "코드"], ["tasks/", "문서"]], "runtimePaths": ["src"] }
+}

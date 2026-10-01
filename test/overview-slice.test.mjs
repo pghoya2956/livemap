@@ -8,7 +8,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildGraph } from '../src/cli.mjs';
-import { overviewSlice } from '../src/derive.mjs';
+import { derive, overviewSlice } from '../src/derive.mjs';
+import { readSemantic } from '../src/cli.mjs';
+import { makeWorkspace } from './helpers/workspace-fixture.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), 'livemap 개요 검사-'));
@@ -206,4 +208,51 @@ test('counts·signals 새 키와 1.0.1 키 유지, roadmap[] 원소 키는 1.0.1
   for (const k of KEYS_101.signals) assert.ok(k in o.signals, `signals.${k}`);
   assert.equal(o.roadmap.length, 2);
   assert.deepEqual(Object.keys(o.roadmap[0]), ['id', 'title', 'status', 'mode', 'live', 'total', 'waiting']);
+});
+
+// ── 워크스페이스(2.2.0) ──
+test('워크스페이스 개요: repos 는 상위 + 자식의 여덟 키만, 제품 축이 비면 productEmpty, 어긋남 수는 signals.reposDrift', async () => {
+  const W = await makeWorkspace({ dir });
+  const { data: wd } = await buildGraph(W);
+  const o = overviewSlice(wd);
+  assert.deepEqual(o.repos.map((r) => Object.keys(r)), Array(3).fill(['name', 'role', 'build', 'commits', 'running', 'stepsLive', 'stepsTotal', 'drift']));
+  assert.deepEqual(o.repos.map((r) => [r.name, r.build, r.commits, r.running, r.drift]), [['Workspace', 'ok', 1, 1, 0], ['app', 'ok', 1, 1, 0], ['svc', 'ok', 1, 0, 0]]);
+  assert.deepEqual([o.repos[1].stepsLive, o.repos[1].stepsTotal], [0, 0]);
+  assert.equal(o.productEmpty, true);
+  assert.equal(o.signals.reposDrift, 0);
+  // 개요에는 HEAD·상황판 주소·경로가 없다(개요 식별자 검사)
+  const text = JSON.stringify(o.repos);
+  for (const bad of ['example.test', 'head', 'board', 'path']) assert.equal(text.includes(bad), false, bad);
+  for (const r of wd.repos.slice(1)) assert.equal(text.includes(r.head), false, r.head);
+  // 빌드하지 못한 자식의 동작 단계는 모름(null)
+  const broken = overviewSlice({ ...wd, repos: wd.repos.map((r) => (r.name === 'app' ? { ...r, build: 'failed', summary: null } : r)) });
+  assert.deepEqual([broken.repos[1].build, broken.repos[1].stepsLive], ['failed', null]);
+});
+
+test('워크스페이스 뷰 행: 작업·결정·커밋·장부에 repo(상위 "."), 작업은 접두를 뗀 이름 순이고 같은 이름이면 상위가 먼저', async () => {
+  const W = await makeWorkspace({ dir });
+  const { data: wd } = await buildGraph(W);
+  for (const k of ['tasks', 'decisions', 'commits']) assert.ok(wd[k].length && wd[k].every((x) => typeof x.repo === 'string'), k);
+  assert.ok([...wd.ledger.running, ...wd.ledger.waiting].every((x) => typeof x.repo === 'string'));
+  assert.deepEqual(wd.tasks.map((t) => [t.name, t.repo]), [
+    ['app:20260103-app-only', 'app'], ['20260102-parent-only', '.'], ['20260101-shared', '.'], ['app:20260101-shared', 'app'],
+  ]);
+  assert.deepEqual(wd.decisions.map((x) => [x.slug, x.repo]), [['app:app-choice', 'app']]);
+  // 워크스페이스가 아닌 프로젝트는 repo 를 싣지 않는다(산출이 2.1.x 와 같다)
+  assert.ok(data.tasks.every((t) => !('repo' in t)) && data.commits.every((c) => !('repo' in c)) && data.decisions.every((x) => !('repo' in x)));
+  const o = overviewSlice(data);
+  for (const k of ['repos', 'productEmpty']) assert.equal(k in o, false, k);
+  assert.equal('reposDrift' in o.signals, false);
+});
+
+test('위키 결정 단계 참조 수는 같은 저장소의 같은 파일만 센다', async () => {
+  const d0 = mkdtempSync(join(dir, 'refs-'));
+  cpSync(join(HERE, 'fixtures', 'mini'), d0, { recursive: true });
+  const { g, cfg, fs } = await buildGraph(d0);
+  // 자식 저장소에 같은 상대 경로의 결정 파일이 있다
+  g.add('decision', 'app:sample', '자식 결정', { kind: 'wiki', file: '.agent/wiki/decisions/sample.md', status: 'current', summary: 'x', repo: 'app' });
+  const d = derive(g, readSemantic(fs, cfg), cfg, { captureExists: () => null, repos: [{ path: '.' }] });
+  const refs = Object.fromEntries(d.decisions.map((x) => [x.slug, x.refs]));
+  assert.ok(refs.sample >= 1);
+  assert.equal(refs['app:sample'], 0);
 });

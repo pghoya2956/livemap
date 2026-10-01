@@ -1,0 +1,7 @@
+/*
+!/.gitignore
+!/.agent/
+!/map/
+!/tasks/
+!/README.md
+/map/.out/

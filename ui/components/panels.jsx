@@ -236,6 +236,8 @@ export function SignalsPanel({ roadmapItems, milestones, signals, generatedAt, a
   if (signals.tests === 'fail') sig('tests', '검사', 'hot', `검사 실패 ${signals.lastRun?.failures ?? ''}`.trim(), '마지막 검사 리포트', '#/more/tests');
   if (signals.adapters === 'fail') sig('adapters', '자료', 'hot', '자료 일부 누락', '읽지 못한 자료가 있음');
   // 구조 어긋남(2.1.0): 선언한 경계를 넘은 호출. 어디가 어긋났는지는 구조 화면 영향 패널에 있다(개요에는 수만 둔다)
+  // 저장소 어긋남(2.2.0): 워크스페이스 표식 목록과 디스크·색인·원격이 다르다. 어느 저장소인지는 더보기 저장소 탭에 있다
+  if (signals.reposDrift > 0) sig('repos', '저장소', 'hot', `저장소 어긋남 ${signals.reposDrift}`, '표식 목록과 실제 저장소가 다름', '#/more/repos');
   if (signals.boundaryViolations > 0) sig('boundary', '구조', 'hot', `구조 어긋남 ${signals.boundaryViolations}`, '선언한 경계를 넘은 호출', '#/architecture');
   if (signals.deploy === 'ok' && signals.deployBehindAll > 0) sig('board', '뒤', '', `상황판 ${signals.deployBehindAll}커밋 뒤`, '제품 배포는 최신');
   [...milestones, ...roadmapItems].filter((r) => r.status !== '완료' && (r.waitingOn || r.waitingWhat)).forEach((r) => rows.push({

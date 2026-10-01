@@ -2,6 +2,35 @@
 
 버전마다 `## [X.Y.Z] - YYYY-MM-DD` 절을 둔다. 릴리스 워크플로가 태그 버전의 절이 있는지 확인한다.
 
+## [2.2.0] - 2026-10-01
+
+상위 폴더 하나가 자식 저장소 여럿을 묶는 프로젝트에서, 상위 상황판 하나가 상위와 자식들의 작업·결정·최근 변경과 저장소 상태를 저장소 표시를 붙여 한 그래프로 합친다. 제품 화면·API·DB·여정은 합치지 않고 각 자식 상황판으로 링크한다. 자식 저장소는 읽기만 한다. 설정에 `workspace` 키가 없는 프로젝트의 산출은 2.1.2와 같다. 설명은 `docs/workspace.md`.
+
+### 더함
+
+- **설정 키 `workspace`.** 상위 `map/config.json`의 `workspace.repos`가 표식 파일(`.agent/repos.yaml`)을 가리키고, `workspace.children.<path>`에 자식 상황판 주소(`board`)와 자식 설정이 없을 때의 대체 설정(`config`)을 적는다. 표식 파일이 있어도 키가 없으면 한 루트 빌드다. 검사: `test/workspace.test.mjs` 「workspace 키가 없으면」.
+- **표식 읽개와 저장소 어긋남 판정**(`src/lib/repos-marker.mjs`): 표식 파일을 관리하는 하네스 스킬의 점검 스크립트와 같은 고정 문법을 JS로 읽고(런타임 의존성 0 유지), R1 목록에만 있음·R2 디스크에만 있음·R3 상위 색인에 있음·R4 원격 불일치를 같은 기준으로 판정한다. git은 호출마다 5초 제한이고, git을 못 돌린 경우와 git이 실패한 경우를 갈라 R4를 건너뛰거나 낸다. 상위가 연결된 워크트리면 판정을 건너뛴다. 검사: `test/workspace.test.mjs` 「표식 읽개」·「어긋남 판정」.
+- **워크스페이스 단계**(`src/workspace.mjs`): 어댑터 루프 뒤·연결 단계 앞에서 자식마다 자기 루트와 자기 설정으로 한 루트 빌드를 하고, `task`·`decision`·`commit`·`ledger` 넷만 `<path>:` 접두를 붙여 합친다. 번호 정의의 `definers`·`definedAt[].task`에도 같은 접두를 붙이고, 두 끝이 모두 온 `defines` 엣지만 옮긴다. 자식 이슈·배지·`deploy`·제품 축 노드는 합치지 않는다. 자식 설정은 자식 `map/config.json` → 자동 설정 위에 대체 설정 병합(`git`·`tasks`·`wiki`는 안쪽 키 단위) → 자동 설정 순으로 고르고, 자식 엔진 major가 다르면 자동 설정으로 대신 돈다. 검사: SC-2·SC-3, 「자식 설정 세 갈래」.
+- **저장소 절**: `data.json`의 `repos`(상위가 첫 행, 빌드 상태·설정 출처·엔진 설치판과 사용판·상황판 주소·14일 커밋·작업 상태별 수·자식 오류·경고 수·어긋남)와 `overview.json`의 `repos`(이름·역할·빌드·커밋·진행 작업·동작 단계·어긋남만)·`productEmpty`·`signals.reposDrift`. 워크스페이스일 때만 작업·결정·커밋·장부 뷰 행에 `repo`(상위 `.`)가 붙는다. 어댑터 목록에는 자식마다 `repo:<path>`(ok 또는 partial)가 생긴다. 검사: SC-1, `test/overview-slice.test.mjs` 「워크스페이스 개요」·「워크스페이스 뷰 행」.
+- **이슈 코드 여덟**: `repos.listed-only`·`repos.disk-only`·`repos.parent-index`·`repos.remote-mismatch`·`repos.child-build-failed`·`repos.child-engine-mismatch`(경고)와 `repos.marker-missing`·`repos.marker-unreadable`(오류). 처리 값은 계약 값만 쓰고 할 일은 문구에 적는다. `repos.`는 `--strict`에서도 오류로 오르지 않는다. 검사: SC-5, 「repos.* 여덟 코드」.
+- **화면**: 더보기 「저장소」 탭(`#/more/repos`, 행 `data-repo`), 작업 화면의 저장소 필터 칩(`data-repo-filter`)과 행 태그, 변화 탭 커밋 태그, 개요 전광판의 저장소 항목, 특보 「저장소 어긋남 n」, 여정이 없는 상위의 기능 지도 빈 상태 문구와 저장소 탭 링크. 내비는 여섯 그대로이고, 워크스페이스가 아니면 새 표면이 하나도 보이지 않는다. 자식 경로(계획·판정 파일)는 `<repo>/`를 붙여 보인다. 검사: `test/ui-pure.test.mjs` 「저장소 화면 순수 함수」, 스모크 `워크스페이스:` 단계.
+- **`livemap init` 워크스페이스 틀**: 현재 폴더에 `.agent/repos.yaml`이 있으면 `templates/config.workspace.json`(키 `workspace`·`tasks`·`wiki`·`git`·`budget`, `floors` 없음)을 쓰고 여정·구조 틀은 만들지 않는다. 검사: 「init: 표식 파일이 있는 폴더는」.
+- 스모크(`scripts/smoke.sh`)에 워크스페이스 픽스처 단계 다섯(설치, 요약 줄, 예산, 클릭 경로, 저장소 탭 상황판 링크).
+
+### 고침
+
+- **클릭 대상 표의 작업 라우트가 작업 이름을 인코딩하지 않았다.** `#/tasks/<task>` 행의 개체가 `tasks[].name` 그대로라, 화면 링크(`encodeURIComponent`)와 이름에 `:`·`/`가 든 작업에서 주소가 갈려 크롤러가 따라간 링크마다 자료에 없는 개체로 판정하고 크롤 전체가 실패했다. 이제 `tasks[].name (encodeURIComponent)`로 편다. 지금까지는 작업 이름에 그런 글자가 없어 드러나지 않았다.
+- **여정이 0건인 프로젝트에서 예산 검사가 반드시 실패했다.** 「기능 지도 선택 → a.open → 단계 상세」가 `.jrow`를 바로 눌러 30초 뒤 시간 초과로 떨어졌다. 이제 `.jrow`가 0개면 skip한다. 여정이 있는 프로젝트의 검사는 그대로다.
+- **클릭 경로 크롤러가 여정·로드맵이 없는 자료를 실패로 셌다.** 표의 `when`을 개요 행에서만 보던 것을 라우트 행에도 적용해, 조건이 거짓인 패턴은 개체를 펴서 방문하지 않고 개체가 없어도 실패로 세지 않는다. 여정에 기대는 개요 행·라우트에 `journeys >= 1`, 로드맵에 기대는 행에 `roadmapItems >= 1`, 화면 상세 라우트에 `screens >= 1`을 달았고, 여정이 0건이면 클릭 예산과 키보드 경로 1·2단계를 건너뛴다. 여정·로드맵이 있는 프로젝트의 판정은 그대로다(`docs/view-budget.md` 「여정 0건과 워크스페이스」).
+
+### 값이 바뀌는 것
+
+- 설정 변경 없이 돈다. `engine`은 그대로 `2`다. 새 필드(`repos`, 뷰 행 `repo`, 개요 `repos`·`productEmpty`·`signals.reposDrift`)와 새 이슈 코드(`repos.*`)는 `workspace` 키가 있을 때만 생긴다.
+- `buildGraph(root, { semantic, workspace = true, config })`: `workspace: false`면 워크스페이스 단계를 건너뛰고, `config`를 주면 설정 파일 대신 그 객체를 쓴다. `check --staged`와 `affected`는 `workspace: false`로 빌드해 자식을 빌드하지 않는다(SC-11).
+- 워크스페이스 상위에서는 전광판 「14일 변경」, 활동 막대, 진행 작업·장부 목록, 「확정 결정」이 저장소 전체 합이 된다. 상위에 여정·화면·API·DB 함수가 없으면 전광판의 제품 축 항목(0/0)을 빼고 저장소 항목으로 대신한다.
+- `Chip` 컴포넌트가 나머지 속성(`data-*` 등)을 칩 요소에 그대로 붙인다.
+- 삭제와 이름 변경은 없다.
+
 ## [2.1.2] - 2026-09-21
 
 ### 고침

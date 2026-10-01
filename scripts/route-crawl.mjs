@@ -257,8 +257,9 @@ export async function visitHash(page, log, ctx, hash) {
     screenAttr, screen: screens, screenOk, check: chk?.kind, content, errors, csp, finalHash };
 }
 
-/** 라우트 패턴의 모든 개체를 방문하고, 방문한 화면의 #/ 링크를 따라간다. scope(screen)이 거짓인 화면의 패턴과 링크는 건너뛴다. */
-export async function crawlRoutes(page, log, ctx, { maxFollow = 400, scope = () => true } = {}) {
+/** 라우트 패턴의 모든 개체를 방문하고, 방문한 화면의 #/ 링크를 따라간다. scope(screen)이 거짓인 화면의 패턴과 링크는 건너뛴다.
+ *  facts 를 주면 표의 when 이 거짓인 패턴은 개체를 펴서 방문하지 않는다(2.2.0: 여정 0건 워크스페이스 상위의 기능 패턴, 워크스페이스 밖의 저장소 탭). 화면 링크로 닿으면 따라간다 */
+export async function crawlRoutes(page, log, ctx, { maxFollow = 400, scope = () => true, facts = null } = {}) {
   const t0 = Date.now();
   const visited = new Map(), offPattern = new Set(), queue = [], discovered = new Set();
   const byPattern = [];
@@ -273,7 +274,7 @@ export async function crawlRoutes(page, log, ctx, { maxFollow = 400, scope = () 
     }
     return v;
   };
-  for (const r of ctx.routes.filter((x) => scope(x.screen))) {
+  for (const r of ctx.routes.filter((x) => scope(x.screen) && (!facts || !x.when || whenHolds(x.when, facts)))) {
     const e = ctx.entities.get(r.pattern);
     const hashes = r.params ? e.tuples.map((t) => fillPattern(r.pattern, t)) : [r.pattern];
     let passed = 0, sample = null;
@@ -670,14 +671,15 @@ async function tabTo(page, sel, max = 250) {
 }
 
 /** 키보드 경로: 선택자는 clickBudget[0]·[1], stopsAnimation·stopsRotation을 가진 표 요소에서 가져온다. */
-export async function measureKeyboard(page, base, targets) {
+export async function measureKeyboard(page, base, targets, { noJourneys = false } = {}) {
   const find = (k) => targets.overview.find((t) => t.expect?.[k]);
   const byPattern = (sel) => targets.overview.find((t) => t.selector === sel);
   const steps = [], rings = [];
   const [selPick, selOpen] = targets.clickBudget;
-  // 1. Tab → 선택 요소, Enter → 선택 동기
-  await reloadOverview(page, base);
-  {
+  // 1. Tab → 선택 요소, Enter → 선택 동기. 여정이 0건이면 1·2단계는 누를 것이 없어 건너뛴다(2.2.0)
+  if (noJourneys) steps.push({ step: `Tab → ${selPick}, Enter · Tab → ${selOpen}, Enter`, pass: null, skipped: '여정 0건' });
+  else await reloadOverview(page, base);
+  if (!noJourneys) {
     const tabs = await tabTo(page, selPick);
     const r = { step: `Tab → ${selPick}, Enter`, tabs };
     if (tabs == null) Object.assign(r, { pass: false, reason: 'Tab으로 닿지 않음' });
@@ -693,7 +695,7 @@ export async function measureKeyboard(page, base, targets) {
     steps.push(r);
   }
   // 2. Tab → 기능 화면 링크, Enter → 패턴
-  {
+  if (!noJourneys) {
     const tabs = await tabTo(page, selOpen);
     const pat = byPattern(selOpen)?.expect?.pattern;
     const r = { step: `Tab → ${selOpen}, Enter`, tabs, expectPattern: pat };
@@ -774,8 +776,10 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
     for (const target of targets.overview) overviewTargets.push(await checkOverviewTarget(page, log, ctx, target, { base, served: facts, overviewOnly, budgetSel: targets.clickBudget[0], scope }));
     timing.overviewTargets = Date.now() - t; t = Date.now();
     const budgetScreen = targetScreen(ctx, targets.overview.find((o) => o.selector === targets.clickBudget[1]));
-    const clickBudget = scope(budgetScreen) ? await measureClickBudget(page, base, targets.clickBudget, ctx) : { pass: null, skipped: '--only 범위 밖' };
-    const keyboard = scope('overview') ? await measureKeyboard(page, base, targets) : { pass: null, skipped: '--only 범위 밖' };
+    // 여정이 0건이면(2.2.0, 여러 저장소 워크스페이스 상위 등) 기능 지도에 누를 것이 없어 클릭 예산과 키보드 1·2단계를 건너뛴다(예산 검사의 DEC-25 와 같은 조건)
+    const noJourneys = !(served.journeys || []).length;
+    const clickBudget = noJourneys ? { pass: null, skipped: '여정 0건' } : scope(budgetScreen) ? await measureClickBudget(page, base, targets.clickBudget, ctx) : { pass: null, skipped: '--only 범위 밖' };
+    const keyboard = scope('overview') ? await measureKeyboard(page, base, targets, { noJourneys }) : { pass: null, skipped: '--only 범위 밖' };
     timing.clickBudgetKeyboard = Date.now() - t; t = Date.now();
     // 1.3.0: 개요 밖 화면(targets.screens)도 대화형 요소를 표와 대조하고 그 화면의 행을 판정한다. 개요만 보는 실행에서는 건너뛴다
     const screens = {};
@@ -795,9 +799,9 @@ export async function runRoutes(browser, { base, served, targetsPath, overviewOn
     if (overviewOnly) { routes = { skipped: '--overview-only' }; patternsMissing = { skipped: '--overview-only' }; }
     else {
       await reloadOverview(page, base);
-      routes = await crawlRoutes(page, log, ctx, { scope });
-      // 표에서 optional인 패턴(예: 마일스톤을 쓰지 않는 프로젝트의 마일스톤 경로)은 개체가 없어도 실패로 세지 않는다
-      const optionalPat = new Set(targets.routes.filter((r) => r.optional).map((r) => r.pattern));
+      routes = await crawlRoutes(page, log, ctx, { scope, facts });
+      // 표에서 optional인 패턴(예: 마일스톤을 쓰지 않는 프로젝트의 마일스톤 경로)과 when 이 거짓인 패턴은 개체가 없어도 실패로 세지 않는다
+      const optionalPat = new Set(targets.routes.filter((r) => r.optional || (r.when && !whenHolds(r.when, facts))).map((r) => r.pattern));
       patternsMissing = routes.byPattern.filter((p) => p.entities === 0 && !optionalPat.has(p.pattern)).map((p) => ({ pattern: p.pattern, reason: '자료에 개체 없음(방문 못 함)' }));
       timing.routes = Date.now() - t;
     }

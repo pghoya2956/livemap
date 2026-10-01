@@ -73,7 +73,8 @@ function layout(journeys, W, H) {
  * folded: 지도에 올리지 못한 기능 수, foldedIncomplete: 그중 미완성이 있는지(바닥 칩 문구)
  * next: { id, title, waitingOn, waitingWho } 다음 안내(#/roadmap/<id> 링크)
  */
-export function FeatureMap({ journeys, links = [], selected, onSelect, next = null, stepCounts, folded = 0, foldedIncomplete = false, badgeJourneys }) {
+// workspace(2.2.0): 워크스페이스 상위면 빈 상태 문구가 제품 기능이 있는 자리(각 저장소 상황판)와 저장소 탭 링크를 가리킨다
+export function FeatureMap({ journeys, links = [], selected, onSelect, next = null, stepCounts, folded = 0, foldedIncomplete = false, badgeJourneys, workspace = false }) {
   const ref = React.useRef(null);
   const { w, h } = useSize(ref);
   const [on, setOn] = React.useState({ live: true, mock: true, planned: true, next: true, links: true });
@@ -92,6 +93,9 @@ export function FeatureMap({ journeys, links = [], selected, onSelect, next = nu
   const all = badgeJourneys || journeys;
   const badge = (k, cls, word) => { const n = all.filter((j) => j.status === k).length; return n ? <span key={k} className={`badge ${cls}`}>{word} 기능 {n}</span> : null; };
 
+  if (!all.length && workspace) {
+    return <div className="mapwrap empty"><p className="mapempty">제품 기능은 각 저장소 상황판에 있습니다. <a className="mapempty-repos" href="#/more/repos">저장소 탭</a>에서 상황판으로 갑니다</p></div>;
+  }
   if (!all.length) {
     return <div className="mapwrap empty"><p className="mapempty">아직 기능이 없습니다. 여정 파일에 적으면 여기에 보입니다</p></div>;
   }

@@ -1,0 +1,13 @@
+{
+  "engine": 2,
+  "project": { "name": "프로젝트 이름" },
+  "adapters": ["tasks", "wiki", "git"],
+  "tasks": { "dir": "tasks", "index": "tasks/index.md" },
+  "wiki": { "index": ".agent/wiki/index.md" },
+  "git": { "branch": "main", "sinceDays": 14, "areas": [["tasks/", "문서"], [".agent/", "위키"], ["map/", "상황판"], [".md", "문서"]], "runtimePaths": [] },
+  "budget": { "viewport": [1440, 900], "maxPanels": 8, "maxRowsPerPanel": 6, "navItems": 6 },
+  "workspace": {
+    "repos": ".agent/repos.yaml",
+    "children": {}
+  }
+}

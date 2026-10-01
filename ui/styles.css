@@ -412,6 +412,11 @@ a.row:hover .tt,button.row:hover .tt{color:#fff}
 .rd-judged{font-size:12px}
 .rd-ok{margin:0;font-size:12px}
 .t-judged{color:var(--cyan);background:var(--cyan-soft)}
+/* 2.2.0 워크스페이스: 저장소 태그·저장소 필터·저장소 탭 */
+.t-repo{color:var(--muted);background:transparent;border:1px solid var(--line2)}
+[data-screen="tasks"] .tk-repos{margin:-4px 0 12px}
+[data-screen="more"] .mm-repo{color:var(--ink)}
+.mapempty a{color:var(--cyan)}
 
 /* routes: more */
 [data-screen="more"] .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}

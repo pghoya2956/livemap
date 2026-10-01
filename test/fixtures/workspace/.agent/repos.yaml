@@ -1,0 +1,8 @@
+# 여러 저장소 표식(검사 픽스처). url 을 비워 두어 원격 대조(R4)를 건너뛴다
+repos:
+  - path: app
+    branch: main
+    role: "앱 저장소"
+  - path: svc
+    branch: main
+    role: 서비스 저장소

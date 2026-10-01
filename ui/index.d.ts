@@ -46,6 +46,8 @@ export interface Signals {
   adapters: 'ok' | 'partial' | 'fail'; adapterNotes: string[]; orphans: number; gated: number;
   /** 선언한 경계를 넘은 호출 수(2.1.0). 구조 절이 없는 프로젝트는 null 이고 그때 개요는 그 줄을 빼고 그린다 */
   boundaryViolations?: number | null;
+  /** 2.2.0 워크스페이스 상위에만: 저장소 어긋남(R1~R4) 항목 수. 특보 「저장소 어긋남 n」 */
+  reposDrift?: number;
 }
 /**
  * 읽기 상태(1.2.0): observed 구조화된 출력에서 읽음, rule 규칙으로 다 읽음, judged 판정 파일이 채움,
@@ -65,10 +67,14 @@ export interface Counts extends Record<string, unknown> {
   reading?: CountsReading;
   steps: StatusCounts; journeys: number; journeysLive: number; tasksRunning: number;
 }
+/** 2.2.0 개요 저장소 행. HEAD·상황판 주소·경로는 개요 식별자 예산 때문에 싣지 않는다. 동작 단계는 빌드하지 못한 자식이면 null */
+export interface OverviewRepo { name: string; role: string | null; build: 'ok' | 'failed' | 'missing' | 'skipped'; commits: number; running: number; stepsLive: number | null; stepsTotal: number | null; drift: number }
 export interface OverviewData {
   generatedAt: string; project: Project; signals: Signals; counts: Counts;
   journeys: Journey[]; roadmapItems: RoadmapItem[]; milestones: Milestone[]; currentMilestone: string | null;
   activity: Activity; changes: Change[]; links: Link[]; captures: Capture[];
+  /** 2.2.0 워크스페이스 상위에만: 저장소 행(상위가 첫 행)과 상위 제품 축이 비었는지(전광판이 제품 축 항목 대신 저장소 항목을 쓴다) */
+  repos?: OverviewRepo[]; productEmpty?: boolean;
   /** 1.0.1 필드(화면은 쓰지 않지만 생성물에 남는다) */
   headDate?: string; line?: string; running?: unknown[]; roadmap?: unknown[]; roadmapDone?: number; roadmapTotal?: number;
   waiting?: unknown[]; tasks?: unknown; areas?: unknown[]; recent?: unknown[]; openQuestions?: unknown;
@@ -89,7 +95,7 @@ export interface PanelProps {
 /** 다크 모니터 패널 틀. 머리줄(아이콘·제목·보조 문구·기준 시각·외 n)과 본문. 본문 여백은 자식에 `pb` 클래스를 준다. */
 export declare function Panel(props: PanelProps): ReactElement;
 
-export interface ChipProps { on?: boolean; count?: ReactNode; onClick?: () => void; /** chip 뒤에 붙는 추가 class(2.1.0). 같은 모양의 칩을 골라 잡을 때 쓴다 */ className?: string; children?: ReactNode }
+export interface ChipProps { on?: boolean; count?: ReactNode; onClick?: () => void; /** chip 뒤에 붙는 추가 class(2.1.0). 같은 모양의 칩을 골라 잡을 때 쓴다 */ className?: string; children?: ReactNode; /** 2.2.0: 나머지 속성(data-* 등)은 칩 요소에 그대로 붙는다 */ [attr: `data-${string}`]: string | undefined }
 /** 칩. onClick이 있으면 aria-pressed 버튼, on이면 청록 강조. */
 export declare function Chip(props: ChipProps): ReactElement;
 
@@ -137,6 +143,8 @@ export interface FeatureMapProps {
   folded?: number; foldedIncomplete?: boolean;
   /** 오른쪽 아래 다음 안내(#/roadmap/<id> 링크) */
   next?: Pick<RoadmapItem, 'id' | 'title' | 'waitingOn' | 'waitingWho'> | null;
+  /** 2.2.0: 워크스페이스 상위면 빈 상태 문구가 각 저장소 상황판과 저장소 탭(#/more/repos)을 가리킨다 */
+  workspace?: boolean;
 }
 /** 기능 지도. 레인별 구역에 기능 허브와 단계 표식 경로, 말줄임 HTML 라벨, 함께 바뀐 기능 연결선, 레이어 토글. 부모 높이를 채운다. */
 export declare function FeatureMap(props: FeatureMapProps): ReactElement;

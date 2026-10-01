@@ -4,8 +4,8 @@
   "routes": [
     { "pattern": "#/overview", "screen": "overview", "check": "빈 해시와 같음, .panel 8개 이하" },
     { "pattern": "#/journeys", "screen": "journeys", "check": "기능 카드 수 = data.semantic.journeys 수" },
-    { "pattern": "#/journeys/<journey>", "screen": "journeys", "params": { "journey": "semantic.journeys[].id" }, "check": ".scene 수 = 그 기능 단계 수" },
-    { "pattern": "#/journeys/<journey>/<step>", "screen": "journeys", "params": { "journey": "semantic.journeys[].id", "step": "semantic.journeys[].steps[].id" }, "check": ".scene.on 1개, .detail 보임" },
+    { "pattern": "#/journeys/<journey>", "screen": "journeys", "when": "journeys >= 1", "params": { "journey": "semantic.journeys[].id" }, "check": ".scene 수 = 그 기능 단계 수" },
+    { "pattern": "#/journeys/<journey>/<step>", "screen": "journeys", "when": "journeys >= 1", "params": { "journey": "semantic.journeys[].id", "step": "semantic.journeys[].steps[].id" }, "check": ".scene.on 1개, .detail 보임" },
     { "pattern": "#/architecture", "screen": "architecture", "optional": true, "when": "architecture >= 1", "check": "초점 sys · 나눔 「사람이 그린 것」. 부품 상자 수 = architecture.containers 수, 층 상자 수 = 보이는 층 수" },
     { "pattern": "#/architecture/part%3A<part>", "screen": "architecture", "optional": true, "when": "containers >= 1", "params": { "part": "architecture.containers[].id (encodeURIComponent)" }, "check": "빵부스러기 마지막 칸이 그 부품, 층 배치에 그 부품의 노드 상자" },
     { "pattern": "#/architecture/community%3A<community>", "screen": "architecture", "optional": true, "when": "communities >= 1", "params": { "community": "architecture.communities[].id" }, "check": "영향 패널이 그 묶음, 나눔 「코드가 보이는 것」이면 닿는 선이 진해진다" },
@@ -16,19 +16,20 @@
     { "pattern": "#/architecture?level=fn", "screen": "architecture", "optional": true, "when": "architecture >= 1", "check": "함수 수준. architecture.json 이 없으면 「함수 수준 자료 없음」과 파일 수준 유지" },
     { "pattern": "#/architecture/part%3A<part>?level=fn", "screen": "architecture", "optional": true, "when": "containers >= 1", "params": { "part": "architecture.containers[].id (encodeURIComponent)" }, "check": "그 부품의 함수 수준 층 배치. 바닥 칩이 「함수 노드 N · 선 M」" },
     { "pattern": "#/roadmap", "screen": "roadmap", "check": "항목 카드 수 = data.roadmap 수" },
-    { "pattern": "#/roadmap/<item>", "screen": "roadmap", "params": { "item": "roadmap[].id" }, "check": "#rm-<id> 강조·뷰포트 안" },
+    { "pattern": "#/roadmap/<item>", "screen": "roadmap", "when": "roadmapItems >= 1", "params": { "item": "roadmap[].id" }, "check": "#rm-<id> 강조·뷰포트 안" },
     { "pattern": "#/roadmap/<milestone>", "optional": true, "when": "milestones >= 1", "screen": "roadmap", "params": { "milestone": "milestones[].id" }, "check": "그 마일스톤 details[open]" },
     { "pattern": "#/tasks", "screen": "tasks", "check": "표 행 1개 이상(작업이 있을 때), 결정 열 없음, 읽기 상태가 부분·낡음·모름인 칸은 ?와 이유 분류" },
-    { "pattern": "#/tasks/<task>", "screen": "tasks", "params": { "task": "tasks[].name" }, "check": ".detail 보임, 강조 행, 읽기 상태 이유 문장·근거 줄·판정 글자" },
+    { "pattern": "#/tasks/<task>", "screen": "tasks", "params": { "task": "tasks[].name (encodeURIComponent)" }, "check": ".detail 보임, 강조 행, 읽기 상태 이유 문장·근거 줄·판정 글자" },
     { "pattern": "#/changes", "screen": "more", "check": "#/more/changes와 같은 탭 선택" },
     { "pattern": "#/more", "screen": "more", "check": "기본 탭 decisions 선택" },
     { "pattern": "#/more/changes", "screen": "more", "check": "탭 선택, 커밋 목록" },
     { "pattern": "#/more/decisions", "screen": "more", "check": "탭 선택" },
     { "pattern": "#/more/screens", "screen": "more", "check": "탭 선택" },
-    { "pattern": "#/more/screens/<screen>", "screen": "more", "params": { "screen": "screens[].path (encodeURIComponent)" }, "check": ".detail 보임, 강조 행" },
+    { "pattern": "#/more/screens/<screen>", "screen": "more", "when": "screens >= 1", "params": { "screen": "screens[].path (encodeURIComponent)" }, "check": ".detail 보임, 강조 행" },
     { "pattern": "#/more/backend", "screen": "more", "check": "탭 선택" },
     { "pattern": "#/more/tests", "screen": "more", "check": "탭 선택" },
     { "pattern": "#/more/about", "screen": "more", "check": "탭 선택, 읽기 상태 요약·?인 작업 이유(#/tasks/<task> 링크)·판정 수·이슈 코드 묶음" },
+    { "pattern": "#/more/repos", "screen": "more", "optional": true, "when": "repos >= 1", "check": "탭 선택, 저장소 행([data-repo]) 수 = data.repos 수, 상황판 링크는 설정 board" },
     { "pattern": "#/no-such-route", "screen": "overview", "check": "개요로 렌더, 내비 선택 없음, 콘솔 오류 0" }
   ],
   "overview": [
@@ -38,24 +39,25 @@
     { "name": "패널 머리 외 n", "selector": ".ph a.more", "kind": "route", "expect": { "hrefIn": ["#/roadmap", "#/more/changes", "#/journeys"] }, "source": "spec", "optional": true },
     { "name": "완료 마일스톤 접은 행", "selector": "a.row.fold[href^='#/roadmap/']", "kind": "route", "expect": { "pattern": "#/roadmap/<milestone>" }, "source": "spec", "optional": true, "when": "milestones >= 1" },
     { "name": "완료 항목 접은 행", "selector": "a.row.fold[href='#/roadmap']", "kind": "route", "expect": { "pattern": "#/roadmap" }, "source": "spec", "optional": true, "when": "milestones == 0" },
-    { "name": "마일스톤 패널 항목·뒤 마일스톤 행", "selector": ".ms a.row:not(.fold)", "kind": "route", "expect": { "patternIn": ["#/roadmap/<item>", "#/roadmap/<milestone>"] }, "source": "proposal" },
+    { "name": "마일스톤 패널 항목·뒤 마일스톤 행", "selector": ".ms a.row:not(.fold)", "kind": "route", "expect": { "patternIn": ["#/roadmap/<item>", "#/roadmap/<milestone>"] }, "source": "proposal", "when": "roadmapItems >= 1" },
     { "name": "로드맵 없음 진행 중인 작업", "selector": "a.tasks-link", "kind": "route", "expect": { "pattern": "#/tasks" }, "source": "proposal", "optional": true },
     { "name": "최근 변경 종류 칩", "selector": ".changes button.chip", "kind": "inplace", "expect": { "ariaPressed": true, "filtersRowsByKind": true }, "source": "spec", "optional": true, "when": "changes >= 1" },
     { "name": "최근 변경 커밋 행", "selector": ".changes a.row", "kind": "route", "expect": { "pattern": "#/more/changes" }, "source": "proposal", "optional": true, "when": "changes >= 1" },
-    { "name": "기능 지도 기능 묶음", "selector": "g.jrow", "kind": "inplace", "expect": { "syncsSelection": [".mk.row", ".wt.row"], "keys": ["Enter", " "] }, "source": "spec" },
-    { "name": "기능 지도 단계 표식", "selector": "g.jrow circle", "kind": "none", "expect": { "cursor": "default-or-inherit", "title": true }, "source": "spec" },
-    { "name": "기능 지도 레이어 버튼", "selector": "button.lyr", "kind": "inplace", "expect": { "ariaPressedToggles": true, "hidesLayer": true }, "source": "spec" },
-    { "name": "기능 지도 빈 곳 더블클릭", "selector": ".mapwrap", "kind": "inplace", "expect": { "dblclickClearsFocus": true, "escapeKey": true }, "source": "proposal", "event": "dblclick" },
+    { "name": "기능 지도 기능 묶음", "selector": "g.jrow", "kind": "inplace", "expect": { "syncsSelection": [".mk.row", ".wt.row"], "keys": ["Enter", " "] }, "source": "spec", "when": "journeys >= 1" },
+    { "name": "기능 지도 단계 표식", "selector": "g.jrow circle", "kind": "none", "expect": { "cursor": "default-or-inherit", "title": true }, "source": "spec", "when": "journeys >= 1" },
+    { "name": "기능 지도 레이어 버튼", "selector": "button.lyr", "kind": "inplace", "expect": { "ariaPressedToggles": true, "hidesLayer": true }, "source": "spec", "when": "journeys >= 1" },
+    { "name": "기능 지도 빈 곳 더블클릭", "selector": ".mapwrap", "kind": "inplace", "expect": { "dblclickClearsFocus": true, "escapeKey": true }, "source": "proposal", "when": "journeys >= 1", "event": "dblclick" },
     { "name": "기능 지도 바닥 칩", "selector": "a.mapfold", "kind": "route", "expect": { "pattern": "#/journeys" }, "source": "spec", "optional": true, "when": "journeys >= 13" },
     { "name": "기능 지도 다음 안내", "selector": "a.mapnote", "kind": "route", "expect": { "pattern": "#/roadmap/<item>" }, "source": "spec", "optional": true },
-    { "name": "기능별 변경 행", "selector": "button.mk.row", "kind": "inplace", "expect": { "syncsSelection": ["g.jrow", ".wt.row"] }, "source": "spec" },
+    { "name": "기능별 변경 행", "selector": "button.mk.row", "kind": "inplace", "expect": { "syncsSelection": ["g.jrow", ".wt.row"] }, "source": "spec", "when": "journeys >= 1" },
     { "name": "특보 결정 대기 행", "selector": ".signals a.row.wait", "kind": "route", "expect": { "patternIn": ["#/roadmap/<item>", "#/roadmap/<milestone>"] }, "source": "proposal", "optional": true },
-    { "name": "특보 신호 행", "selector": ".signals a.row.sig", "kind": "route", "expect": { "hrefIn": ["#/more/tests", "#/more/about"] }, "source": "proposal", "optional": true },
+    { "name": "특보 신호 행", "selector": ".signals a.row.sig", "kind": "route", "expect": { "hrefIn": ["#/more/tests", "#/more/about", "#/more/repos"] }, "source": "proposal", "optional": true },
     { "name": "화면 썸네일", "selector": ".capture .thumbs button", "kind": "inplace", "expect": { "switchesCapture": true, "stopsRotation": true }, "source": "spec", "optional": true },
     { "name": "화면 캡처 겹침 단계 이름", "selector": ".live .ov a", "kind": "route", "expect": { "pattern": "#/journeys/<journey>/<step>" }, "source": "proposal", "optional": true },
-    { "name": "기능 현황 행", "selector": "button.wt.row", "kind": "inplace", "expect": { "switchesDetail": true }, "source": "spec" },
+    { "name": "기능 지도 빈 상태 저장소 링크", "selector": "a.mapempty-repos", "kind": "route", "expect": { "pattern": "#/more/repos" }, "source": "spec", "optional": true, "when": "repos >= 1" },
+    { "name": "기능 현황 행", "selector": "button.wt.row", "kind": "inplace", "expect": { "switchesDetail": true }, "source": "spec", "when": "journeys >= 1" },
     { "name": "기능 현황 접은 행", "selector": "a.wt.fold.row", "kind": "route", "expect": { "pattern": "#/journeys" }, "source": "spec", "optional": true },
-    { "name": "기능 현황 기능 화면", "selector": "a.open", "kind": "route", "expect": { "pattern": "#/journeys/<journey>", "visible": ".scene" }, "source": "spec" }
+    { "name": "기능 현황 기능 화면", "selector": "a.open", "kind": "route", "expect": { "pattern": "#/journeys/<journey>", "visible": ".scene" }, "source": "spec", "when": "journeys >= 1" }
   ],
   "screens": {
     "architecture": {
@@ -81,8 +83,20 @@
         { "name": "영향 패널 이웃 링크", "hash": "#/architecture/community%3A<community>", "selector": ".am-names button.am-link", "kind": "inplace", "expect": { "setsFocus": "<node>", "hashPattern": "#/architecture/<node>" }, "source": "spec", "optional": true, "when": "communities >= 1" }
       ]
     },
+    "tasks": {
+      "hash": "#/tasks",
+      "when": "repos >= 1",
+      "targets": [
+        { "name": "작업 상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/architecture", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/tasks" }, "source": "spec" },
+        { "name": "작업 호스트 알약", "selector": "a.pill[target=_blank]", "kind": "external", "expect": { "hostFrom": "project.host", "rel": "noopener noreferrer" }, "source": "spec", "optional": true },
+        { "name": "작업 상태 필터 칩", "selector": ".tk-filter button.chip", "kind": "inplace", "expect": { "ariaPressed": true }, "source": "spec" },
+        { "name": "작업 저장소 필터 칩", "selector": ".tk-repos button.chip", "kind": "inplace", "expect": { "ariaPressed": true }, "source": "spec" },
+        { "name": "작업 행 링크", "selector": "td a[href^='#/tasks/']", "kind": "route", "expect": { "pattern": "#/tasks/<task>" }, "source": "spec", "optional": true }
+      ]
+    },
     "roadmap": {
       "hash": "#/roadmap",
+      "when": "roadmapItems >= 1",
       "targets": [
         { "name": "로드맵 상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/architecture", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/roadmap" }, "source": "spec" },
         { "name": "로드맵 호스트 알약", "selector": "a.pill[target=_blank]", "kind": "external", "expect": { "hostFrom": "project.host", "rel": "noopener noreferrer" }, "source": "spec", "optional": true },
