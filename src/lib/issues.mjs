@@ -105,6 +105,16 @@ export const ISSUE_CODES = {
   'architecture.skill-stale': code('warn', '설정', ['source']),
   'architecture.out-too-long': code('warn', '설정', ['config']),
   'budget.nav-items-low': code('warn', '설정', ['config']),
+  // 2.2.0 여러 저장소 워크스페이스(docs/issue-codes.md 「2.2.0 새 코드」). 어긋남 넷은 경고이고 repos. 는 --strict 에서도 승격하지 않는다(STRICT_PREFIXES 밖).
+  // 처리 값은 계약 값만 쓴다. 할 일(자식 연결·목록 갱신·색인에서 빼기·origin 맞추기)은 문구에 적는다
+  'repos.listed-only': code('warn', '저장소', ['source']),
+  'repos.disk-only': code('warn', '저장소', ['source']),
+  'repos.parent-index': code('warn', '저장소', ['source']),
+  'repos.remote-mismatch': code('warn', '저장소', ['source', 'config']),
+  'repos.marker-missing': code('error', '설정', ['config', 'source']),
+  'repos.marker-unreadable': code('error', '설정', ['config', 'source']),
+  'repos.child-build-failed': code('warn', '저장소', ['config']),
+  'repos.child-engine-mismatch': code('warn', '저장소', ['config']),
 };
 export const NEW_CODES = new Set(Object.keys(ISSUE_CODES).filter((c) => ISSUE_CODES[c].isNew));
 

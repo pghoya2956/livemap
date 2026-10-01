@@ -81,6 +81,21 @@ g.issue('warn', '작업 문서', '완료 작업에 닫히지 않은 잔여 질�
 - `subject`·`anchors`·`resolutions`를 빼면 `null`·`[]`·표의 처리 값이 들어간다. 표에 없는 프로젝트 코드는 처리 기본값이 `[]`다.
 - 넷째 인자를 준 문제만 `graph.json`·`data.json` `issues[]`에 `code`·`subject`·`anchors`·`resolutions`(있으면 `judgmentDraft`)가 더해진다.
 
+## 2.2.0 새 코드
+
+여러 저장소 워크스페이스(상위 `map/config.json`의 `workspace` 키)의 코드 여덟이다. `workspace` 키가 없는 프로젝트에서는 나오지 않는다. `subject`는 저장소(`{ kind: 'repo', id: <표식의 path, 상위는 "."> }`)이거나 설정 키(`{ kind: 'config', id: 'workspace.repos' }`)다. 저장소 어긋남 넷은 표식 파일을 관리하는 하네스 스킬의 점검 스크립트와 같은 기준으로 판정하고, 그 스크립트처럼 경고로만 낸다. `repos.` 접두는 `--strict`에서도 오류로 오르지 않는다. 표식 파일을 읽지 못하면 워크스페이스가 서지 않으므로 오류다. 자식 저장소의 문제는 자식 `check`가 맡고 상위 `check`를 막지 않는다. 그래서 자식 빌드 실패는 `adapter.failed`가 아니라 경고이고, 어댑터 목록에는 `repo:<path>`가 `partial`로 남는다. 엔진은 어긋남을 고치지 않는다. 할 일은 문구 끝에 적는다.
+
+| 코드 | 수준 | 대상 | 처리 | 뜻 |
+|---|---|---|---|---|
+| `repos.listed-only` | warn | 저장소 | source | 목록에만 있음: 표식 목록의 자식 폴더가 없거나 `.git`이 없다. `root.url`이 있는데 상위에 `.git`이 없을 때도 난다(`id`는 `.`). 이 머신에 자식 저장소를 연결하거나 쓰지 않는 저장소면 목록에서 뺀다 |
+| `repos.disk-only` | warn | 저장소 | source | 디스크에만 있음: 상위 바로 아래 점으로 시작하지 않는 폴더가 `.git`을 가졌는데 목록에 없다(깊이 1만 본다). 목록에 더하거나 상위 폴더 밖으로 옮긴다 |
+| `repos.parent-index` | warn | 저장소 | source | 상위 색인에 있음: 상위 저장소 색인에 자식 경로의 파일이나 gitlink가 있다(`git ls-files -z -- <paths>` 1회). 상위 색인에서 뺀다(`git rm -r --cached`) |
+| `repos.remote-mismatch` | warn | 저장소 | source·config | 원격 불일치: 목록 `url`과 실제 `origin`이 다르다(상위 포함). `url`이 빈 항목과 git을 돌리지 못한 경우(실행 파일 없음, 5초 초과)는 건너뛰고, git은 돌았는데 `origin`이 없으면 빈 값이 목록과 달라 낸다. 목록 `url`이나 그 저장소의 `origin`을 맞춘다 |
+| `repos.marker-missing` | error | 설정 | config·source | `workspace.repos`가 비었거나 그 경로에 표식 파일이 없다. 상위만 빌드한다 |
+| `repos.marker-unreadable` | error | 설정 | config·source | 표식 파일에 형식 밖 줄이 있다(근거 줄에 줄 번호). 받는 줄은 빈 줄·`#` 주석, `root:`·`repos:` 절, 두 칸 `url`·`branch`, `  - path:` 항목과 네 칸 `url`·`branch`·`role`뿐이고 값의 앞뒤 따옴표 한 쌍은 벗긴다. 상위만 빌드한다 |
+| `repos.child-build-failed` | warn | 저장소 | config | 자식 `map/config.json`이 깨졌거나 자식 빌드가 던졌다. 그 자식은 합치지 않고 저장소 행 `build`가 `failed`, 어댑터 목록 `repo:<path>`가 `partial`이다. 자식 설정(없으면 `workspace.children.<path>.config`)을 고친다 |
+| `repos.child-engine-mismatch` | warn | 저장소 | config | 자식 `map/config.json`의 `engine`이 상위 엔진 major와 다르다. 그 자식은 자동 설정(`tasks`·`wiki`·`git`)으로 대신 읽고 저장소 행 `config`가 `auto`다. 자식 저장소의 엔진을 상위와 같은 major로 맞춘다 |
+
 ## 2.1.0 새 코드
 
 구조 지도(Graphify 어댑터·다리·선언 대조)의 코드 열여섯이다. 기본은 경고이고 `livemap check --strict`에서 `architecture.` 접두 코드가 오류로 승격된다(`tasks.`·`judgment.`와 같다). `budget.nav-items-low`는 접두가 `budget.`이라 승격되지 않고 경고로 남는다. 소비 프로젝트의 설정값 차이가 배포를 막을 일이 아니기 때문이다. 1.2.0 새 코드처럼 6건 이상을 한 줄로 묶지 않는다. `subject`는 대상 노드(`module`·`container`·`flow`·`table`)이거나 설정 키(`{ kind: 'config', id: 'architecture.graph' }`·`architecture.lane.<층 id>`·`architecture.external.<스키마>`)다.
