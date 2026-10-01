@@ -30,6 +30,13 @@ export function subjectPlain(subject, n) {
   if ([...s].length < 2) s = `${kind} 변경`;
   return plain(s, n);
 }
+// 개요 식별자: 예산 검사(budget/view-budget.spec.mjs 의 IDENT)와 같은 패턴. 두 벌이라 단위 검사가 패턴 문자열을 대조한다
+export const OVERVIEW_IDENT = /\/api\/|\.tsx\b|\.mjs\b|\.sql\b|\bweb\/src\b|\b[0-9a-f]{7,40}\b/;
+// 개요 자유 글자 정리(2.3.0): 공백 낱말마다 개요 식별자 정규식을 적용해 걸린 낱말을 통째로 지운다(「26a3f40,」·「icons.tsx를」도).
+// 마크다운 링크 대상의 작업 폴더 날짜가 걸리므로 plain 뒤에 부른다. 커밋 제목(subjectPlain)은 기존 낱말 규칙 그대로다
+export function dropIdents(text) {
+  return String(text ?? '').split(/\s+/).filter((w) => w && !OVERVIEW_IDENT.test(w)).join(' ');
+}
 // Asia/Seoul 날짜(YYYY-MM-DD). 커밋 시각의 Z·+09:00 혼용을 Date로 통일한다
 const seoulDay = (t) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
 const STEP_STATUS = ['live', 'mock', 'planned', 'next'];

@@ -8,8 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildGraph } from '../src/cli.mjs';
-import { derive, overviewSlice } from '../src/derive.mjs';
-import * as derived from '../src/derive.mjs';
+import { derive, dropIdents, OVERVIEW_IDENT, overviewSlice } from '../src/derive.mjs';
 import { readSemantic } from '../src/cli.mjs';
 import { makeWorkspace } from './helpers/workspace-fixture.mjs';
 
@@ -390,7 +389,6 @@ test('빈 축 SC-4 워크스페이스: work 행과 changes 행의 repo는 저장
 const DIRTY = 'Phase 5는 26a3f40, Phase 4는 1dc3636. icons.tsx를 (943626062616)으로 [폴더](20260929-x/README.md) route-crawl.mjs /api/x web/src/a';
 
 test('빈 축 SC-5 dropIdents: 식별자 낱말(구두점·조사가 붙은 것 포함)을 통째로 지우고 나머지 글자는 남긴다', () => {
-  const { dropIdents, OVERVIEW_IDENT } = derived;
   const cases = [
     ['완료 c7f59cf 반영', '완료 반영'],
     ['20261001 회의', '회의'],
@@ -414,8 +412,8 @@ test('빈 축 SC-5 dropIdents: 식별자 낱말(구두점·조사가 붙은 것 
 
 test('빈 축 SC-5 OVERVIEW_IDENT.source는 예산 파일 IDENT 패턴과 같다', () => {
   const budget = readFileSync(join(HERE, '..', 'budget', 'view-budget.spec.mjs'), 'utf8').match(/const IDENT = \/(.+)\/;/)[1];
-  assert.equal(derived.OVERVIEW_IDENT.source, budget);
-  assert.equal(derived.OVERVIEW_IDENT.flags, '');
+  assert.equal(OVERVIEW_IDENT.source, budget);
+  assert.equal(OVERVIEW_IDENT.flags, '');
 });
 
 test('빈 축 SC-5 work 글자(작업 제목·장부 작업·소유자·메모·결정 제목)에 개요 식별자 정규식이 0건 걸린다', () => {
@@ -426,7 +424,7 @@ test('빈 축 SC-5 work 글자(작업 제목·장부 작업·소유자·메모·
   }));
   const texts = [...o.work.tasks.map((t) => t.title), ...o.work.ledger.flatMap((r) => [r.work, r.owner, r.note]), ...o.work.decisions.map((x) => x.title)];
   assert.equal(texts.length, 5);
-  for (const t of texts) assert.equal(derived.OVERVIEW_IDENT.test(t), false, t);
+  for (const t of texts) assert.equal(OVERVIEW_IDENT.test(t), false, t);
   assert.equal(o.work.tasks[0].title, 'Task Plan: Phase 5는 Phase 4는 폴더');
   assert.equal(o.work.ledger[0].note, '…Phase 5는 Phase 4는 폴더 남은 것');
   // 작업 이름은 정리 전 원문 칸에서 찾는다
