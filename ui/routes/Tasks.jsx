@@ -7,6 +7,7 @@ import React from 'react';
 import { Screen, Card, Table, Empty, StatusChip, RoadmapTag } from './common.jsx';
 import { Proj, Tag, Chip } from '../components/primitives.jsx';
 import { readingText, whyText, unsure, issuesByTask, FIELD_WORD, READING_WORD, RESOLUTION_WORD } from '../lib/reading.js';
+import { repoLabel, repoPath, bareTask, repoFilters } from '../lib/repos.js';
 
 const STAGES = ['스펙 초안', '검토', '스펙 확정', '계획', '실행', '검증'];
 const ACTIVE = new Set(['진행', '대기']);
@@ -92,7 +93,7 @@ function ReadingDetail({ t, issues }) {
           <span>{j?.by === 'human' ? '사람' : j?.by === 'agent' ? '에이전트' : j?.by || ''} 판정</span>
           {j && <span className="jmuted"> · 적용 {j.applied ?? 0} · 낡음 {j.stale ?? 0} · 무효 {j.invalid ?? 0}</span>}
           {j?.note && <div className="rd-note">{j.note}</div>}
-          <div className="src">{t.judged}</div>
+          <div className="src">{repoPath(t.repo, t.judged)}</div>
         </div>
       )}
     </>
@@ -100,7 +101,7 @@ function ReadingDetail({ t, issues }) {
 }
 
 /** 작업 상세: 파이프라인, 계획 항목·열린 질문 등 지표, 읽기 상태, 닿는 여정, 추적하는 로드맵 항목. */
-function TaskDetail({ t, roadmapById, issues }) {
+function TaskDetail({ t, roadmapById, issues, projectName }) {
   const total = t.pnDone + t.pnOpen;
   const r = t.reading || {};
   const codes = issues.map((x) => x.code);
@@ -112,6 +113,7 @@ function TaskDetail({ t, roadmapById, issues }) {
         <Proj>{t.title}</Proj>
         <Tag kind={t.status}>{t.status}</Tag>
         {t.judged && <Tag kind="judged">판정</Tag>}
+        {t.repo && <span className="tag t-repo" data-repo-tag={t.repo}><Proj>{repoLabel(t.repo, projectName)}</Proj></span>}
         <span className="tk-name">{t.name}</span>
       </h3>
       <Pipe t={t} />
@@ -156,7 +158,7 @@ function TaskDetail({ t, roadmapById, issues }) {
           <ReadingDetail t={t} issues={issues} />
         </div>
       )}
-      <div className="src tk-src">{t.plan || t.planFile || `tasks/${t.name}`}</div>
+      <div className="src tk-src">{repoPath(t.repo, t.plan || t.planFile || `tasks/${bareTask(t.name, t.repo)}`)}</div>
     </div>
   );
 }
@@ -168,6 +170,9 @@ export function Tasks({ ov, data, params }) {
   const byTask = React.useMemo(() => issuesByTask(data.issues), [data.issues]);
   const sel = params.task || null;
   const [filter, setFilter] = React.useState('진행·대기');
+  // 저장소 필터(2.2.0, 워크스페이스 상위에만): null 은 전체 저장소
+  const [repo, setRepo] = React.useState(null);
+  const projectName = ov.project?.name;
 
   if (!T.length) {
     return (
@@ -179,7 +184,7 @@ export function Tasks({ ov, data, params }) {
 
   const activeCount = T.filter((t) => ACTIVE.has(t.status)).length;
   // 경로로 고른 작업은 필터와 무관하게 보인다(스크롤 대상이 사라지지 않게).
-  const visible = (t) => filter === '전체' || ACTIVE.has(t.status) || t.name === sel;
+  const visible = (t) => t.name === sel || ((filter === '전체' || ACTIVE.has(t.status)) && (repo == null || (t.repo ?? '.') === repo));
   const shown = T.filter(visible);
   const t = sel ? T.find((x) => x.name === sel) : null;
 
@@ -189,7 +194,15 @@ export function Tasks({ ov, data, params }) {
         <Chip on={filter === '진행·대기'} count={activeCount} onClick={() => setFilter('진행·대기')}>진행·대기</Chip>
         <Chip on={filter === '전체'} count={T.length} onClick={() => setFilter('전체')}>전체</Chip>
       </div>
-      {t && <TaskDetail t={t} roadmapById={roadmapById} issues={byTask.get(t.name) || []} />}
+      {data.repos && (
+        <div className="chips tk-repos" aria-label="저장소">
+          <Chip on={repo == null} count={T.length} onClick={() => setRepo(null)}>모든 저장소</Chip>
+          {repoFilters(data.repos, T, projectName).map((f) => (
+            <Chip key={f.repo} data-repo-filter={f.repo} on={repo === f.repo} count={f.count} onClick={() => setRepo(f.repo)}><Proj>{f.label}</Proj></Chip>
+          ))}
+        </div>
+      )}
+      {t && <TaskDetail t={t} roadmapById={roadmapById} issues={byTask.get(t.name) || []} projectName={projectName} />}
       <Card>
         <Table head={['날짜', '작업', '파이프라인', '단계', '상태', '계획 항목', '열린 질문', '14일']}>
           {shown.map((x) => {
@@ -201,7 +214,7 @@ export function Tasks({ ov, data, params }) {
             return (
               <tr key={x.name} className={sel === x.name ? 'hl' : ''}>
                 <td className="tk-date">{x.date}</td>
-                <td><b><a href={`#/tasks/${encodeURIComponent(x.name)}`}><Proj>{x.title}</Proj></a></b></td>
+                <td><b><a href={`#/tasks/${encodeURIComponent(x.name)}`}><Proj>{x.title}</Proj></a></b>{x.repo && <> <span className="tag t-repo" data-repo-tag={x.repo}><Proj>{repoLabel(x.repo, projectName)}</Proj></span></>}</td>
                 <td><Pipe t={x} /></td>
                 <td><ReadVal value={x.stage} state={r.stage} why={why('stage')} keep proj /></td>
                 <td><Tag kind={x.status}>{x.status}</Tag></td>

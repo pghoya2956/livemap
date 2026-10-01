@@ -9,8 +9,9 @@ import { Proj, Chip, Tag } from '../components/primitives.jsx';
 import { MORE_TABS } from '../lib/route.js';
 import { isNewer, readLastVisit } from '../lib/visit.js';
 import { readingText, whyText, unsure, issuesByTask, READING_WORD, READING_ORDER, FIELD_WORD, RESOLUTION_WORD } from '../lib/reading.js';
+import { repoLabel, repoPath, boardHref, BUILD_WORD, CONFIG_WORD, DRIFT_WORD } from '../lib/repos.js';
 
-const TAB_LABEL = { changes: '변화', decisions: '결정', screens: '화면', backend: 'API·DB', tests: '검사', about: '이 상황판' };
+const TAB_LABEL = { changes: '변화', decisions: '결정', screens: '화면', backend: 'API·DB', tests: '검사', about: '이 상황판', repos: '저장소' };
 const DECISION_STATUS = { current: 'live', adopted: 'live', accepted: 'live', proposed: 'mock', draft: 'mock' };
 const DECISION_WORD = { current: '채택', adopted: '채택', accepted: '채택', proposed: '제안', draft: '제안', superseded: '대체됨', deprecated: '보류', archived: '보류', rejected: '반려' };
 const isBot = (c) => /\[bot\]$/.test(c.author || '');
@@ -20,11 +21,11 @@ function TestsList({ ts }) {
   return ts && ts.length ? <>{ts.join(', ')}</> : <span className="jmuted">없음</span>;
 }
 
-/** 탭 막대. `a[href="#/more/<tab>"]` 링크라 크롤러가 그대로 따라간다. */
-function TabBar({ tab }) {
+/** 탭 막대. `a[href="#/more/<tab>"]` 링크라 크롤러가 그대로 따라간다. 저장소 탭은 워크스페이스 상위(data.repos)에만 보인다(2.2.0). */
+function TabBar({ tab, workspace }) {
   return (
     <div className="tabs" role="tablist">
-      {MORE_TABS.map((id) => (
+      {MORE_TABS.filter((id) => id !== 'repos' || workspace).map((id) => (
         <a key={id} role="tab" aria-selected={tab === id} className={`chip${tab === id ? ' on' : ''}`} href={`#/more/${id}`}>
           {TAB_LABEL[id]}
         </a>
@@ -34,7 +35,7 @@ function TabBar({ tab }) {
 }
 
 /** 변화 탭(#/more/changes, #/changes). 영역 필터, 최신순 정렬, 자동 커밋 숨김(기본 켬), 마지막 방문 점. */
-function ChangesTab({ data }) {
+function ChangesTab({ data, projectName }) {
   const commits = data.commits || [];
   const sorted = React.useMemo(() => [...commits].sort((a, b) => Date.parse(b.date) - Date.parse(a.date)), [commits]);
   const lastVisit = React.useMemo(() => readLastVisit(), []);
@@ -82,6 +83,7 @@ function ChangesTab({ data }) {
                       <span className="jmuted"> · {c.files}파일</span>
                     </div>
                     <div className="mm-tags">
+                      {c.repo && <span className="mm-area mm-repo" data-repo-tag={c.repo}><Proj>{repoLabel(c.repo, projectName)}</Proj></span>}
                       {c.areas.map((a) => <span key={a} className="mm-area">{a}</span>)}
                       {c.journeys.map((x, i) => (
                         <a key={i} className="mm-jlink" href={`#/journeys/${encodeURIComponent(x.journey)}/${encodeURIComponent(x.step)}`}>
@@ -110,7 +112,7 @@ function DecisionsTab({ data }) {
         {D.map((x) => (
           <tr key={x.slug}>
             <td><StatusChip status={DECISION_STATUS[x.status] || 'planned'} /> <span className="jmuted mm-rawstatus">{DECISION_WORD[x.status] || x.status}</span></td>
-            <td><b>{x.title}</b><br /><span className="src">{x.file}</span></td>
+            <td><b>{x.title}</b><br /><span className="src">{repoPath(x.repo, x.file)}</span></td>
             <td className="jmuted">{x.summary}</td>
             <td className="mm-mono">{x.refs || <span className="jmuted">0</span>}</td>
           </tr>
@@ -306,6 +308,7 @@ function ReadingCards({ data }) {
   const tasks = data.tasks || [];
   const byTask = issuesByTask(data.issues);
   const J = data.judgments || [];
+  const repoOf = new Map(tasks.map((t) => [t.name, t.repo]));
   const unsureN = ['partial', 'stale', 'unknown'].reduce((n, k) => n + (rd.values?.[k] || 0), 0);
   const fields = Object.entries(rd.fields || {});
   const rows = tasks.flatMap((t) => {
@@ -365,7 +368,7 @@ function ReadingCards({ data }) {
                 <td className={`mm-mono${j.stale ? ' mm-warn' : ''}`}>{j.stale ?? 0}</td>
                 <td className={`mm-mono${j.invalid ? ' mm-warn' : ''}`}>{j.invalid ?? 0}</td>
                 <td className="mm-wrap">{j.note || ''}</td>
-                <td className="src">{j.file}</td>
+                <td className="src">{repoPath(repoOf.get(j.task), j.file)}</td>
               </tr>
             ))}
           </Table>
@@ -507,7 +510,43 @@ const HEAD = {
   backend: ['더보기', '증거 층. 기능 단계에서 내려오면 여기에 닿는다'],
   tests: ['더보기', '증거 층. 기능 단계에서 내려오면 여기에 닿는다'],
   about: ['더보기', '증거 층. 기능 단계에서 내려오면 여기에 닿는다'],
+  repos: ['저장소', '표식 파일에 묶인 저장소마다 빌드 상태·변경·작업과 그 저장소 상황판'],
 };
+
+/** 저장소 탭(#/more/repos, 2.2.0). 워크스페이스 상위의 저장소 절(data.repos)을 한 표로. 행마다 data-repo="<path>".
+ *  제품 기능·화면은 자식 상황판에 있고 상위는 요약 수와 링크만 싣는다. 상황판 주소가 http:·https: 가 아니면 글자로 보인다 */
+function ReposTab({ data, projectName }) {
+  const R = data.repos || [];
+  if (!R.length) return <Empty>이 상황판은 여러 저장소 워크스페이스가 아닙니다. map/config.json 의 workspace 키가 표식 파일을 가리키면 저장소가 여기에 보입니다.</Empty>;
+  const note = (path) => (data.adapters || []).find((a) => a.name === `repo:${path}`)?.error || null;
+  const running = (r) => r.tasks?.['진행'] ?? 0;
+  return (
+    <Card title="저장소" sub={`저장소 ${R.length} · 어긋남 ${R.reduce((n, r) => n + (r.drift?.length || 0), 0)}`}>
+      <Table head={['저장소', '역할', '브랜치', 'HEAD', '빌드', '설정', '14일 변경', '진행 작업', '자식 오류', '어긋남', '엔진 판', '상황판']}>
+        {R.map((r) => {
+          const href = boardHref(r.board);
+          const why = note(r.path);
+          return (
+            <tr key={r.path} data-repo={r.path}>
+              <td><b><Proj>{repoLabel(r.path, projectName)}</Proj></b>{r.path !== '.' && r.path !== r.name ? <><br /><span className="src">{r.path}</span></> : null}</td>
+              <td><Proj>{r.role || ''}</Proj></td>
+              <td className="mm-mono">{r.branch || '—'}</td>
+              <td className="mm-mono">{r.head || '—'}</td>
+              <td className={r.build === 'ok' ? '' : 'mm-warn'}>{BUILD_WORD[r.build] || r.build}{why && <div className="jmuted mm-fs12">{why}</div>}</td>
+              <td>{r.path === '.' ? '—' : CONFIG_WORD[r.config] || '—'}</td>
+              <td className="mm-mono">{r.commits ?? 0}</td>
+              <td className="mm-mono">{running(r)}</td>
+              <td className={`mm-mono${r.summary?.errors ? ' mm-warn' : ''}`}>{r.path === '.' ? '—' : r.summary ? r.summary.errors : '—'}</td>
+              <td className={r.drift?.length ? 'mm-warn' : 'mm-mono'}>{r.drift?.length ? r.drift.map((x) => DRIFT_WORD[x.rule] || x.rule).join(', ') : '0'}</td>
+              <td className="mm-mono">{r.path === '.' ? '—' : <>{r.engine?.installed || '설치 안 됨'} · 사용 {r.engine?.used || '—'}</>}</td>
+              <td>{href ? <a className="mm-board" href={href} target="_blank" rel="noopener noreferrer">상황판 ↗</a> : r.board ? <span className="src">{r.board}</span> : <span className="jmuted">—</span>}</td>
+            </tr>
+          );
+        })}
+      </Table>
+    </Card>
+  );
+}
 
 /** ov: overview.json, data: data.json, params: parseRoute 결과의 params({tab, detail}) */
 export function More({ ov, data, params }) {
@@ -515,13 +554,14 @@ export function More({ ov, data, params }) {
   const [title, sub] = HEAD[tab] || HEAD.decisions;
   return (
     <Screen ov={ov} screen="more" nav={5} title={title} sub={sub}>
-      <TabBar tab={tab} />
-      {tab === 'changes' && <ChangesTab data={data} />}
+      <TabBar tab={tab} workspace={!!data.repos} />
+      {tab === 'changes' && <ChangesTab data={data} projectName={ov.project?.name} />}
       {tab === 'decisions' && <DecisionsTab data={data} />}
       {tab === 'screens' && <ScreensTab data={data} detail={params.detail} />}
       {tab === 'backend' && <BackendTab data={data} />}
       {tab === 'tests' && <TestsTab data={data} />}
       {tab === 'about' && <AboutTab ov={ov} data={data} />}
+      {tab === 'repos' && <ReposTab data={data} projectName={ov.project?.name} />}
     </Screen>
   );
 }

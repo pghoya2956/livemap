@@ -23,11 +23,11 @@ export function Proj({ children }) {
   return children == null || children === '' ? null : <span data-text="project">{children}</span>;
 }
 
-/** 누를 수 있는 필터 칩. `on`이면 강조한다. */
-export function Chip({ on = false, count, onClick, className = '', children }) {
+/** 누를 수 있는 필터 칩. `on`이면 강조한다. 나머지 속성(data-* 등)은 칩 요소에 그대로 붙는다(2.2.0). */
+export function Chip({ on = false, count, onClick, className = '', children, ...rest }) {
   const Tag = onClick ? 'button' : 'span';
   return (
-    <Tag className={`chip ${on ? 'on' : ''}${className ? ` ${className}` : ''}`} onClick={onClick} aria-pressed={onClick ? on : undefined}>
+    <Tag {...rest} className={`chip ${on ? 'on' : ''}${className ? ` ${className}` : ''}`} onClick={onClick} aria-pressed={onClick ? on : undefined}>
       {children}
       {count != null && <span className="n">{count}</span>}
     </Tag>

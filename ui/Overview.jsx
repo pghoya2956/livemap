@@ -7,6 +7,7 @@ import { hm, sum } from './lib/format.js';
 import { mapJourneys } from './lib/fit.js';
 import { readLastVisit } from './lib/visit.js';
 import { readingText, whyText, unsure } from './lib/reading.js';
+import { repoTickerItems } from './lib/repos.js';
 
 /** 개요 수치 하나: 읽기 상태가 부분·낡음·모름이면 값 뒤 "?"와 이유 분류(파일·줄 없음). 상태가 없으면 값 그대로. */
 const readItem = (label, value, field, reading) => {
@@ -15,20 +16,28 @@ const readItem = (label, value, field, reading) => {
 };
 
 /** 전광판 항목. 규모 숫자는 1.0.1 counts, 로드맵이 없으면 "로드맵 완료"를 뺀다.
- * 열린 질문은 1.2.0 counts.openQuestions(답이 없는 질문, DEC-12)이고 없으면 1.1.1 oq다. */
+ * 열린 질문은 1.2.0 counts.openQuestions(답이 없는 질문, DEC-12)이고 없으면 1.1.1 oq다.
+ * 워크스페이스 상위(2.2.0)는 자식마다 저장소 항목을 더하고, 상위에 여정·화면·API·DB 함수가 없으면(productEmpty) 측정하지 않은 제품 축 항목(0/0)을 뺀다(DEC-27). */
 export function tickerItems(d) {
   const c = d.counts, steps = c.steps, total = sum(Object.values(steps));
   const days = d.activity.days;
   const done = d.roadmapItems.filter((r) => r.status === '완료').length;
+  const product = !d.productEmpty;
   return [
-    { label: '동작 단계', value: `${steps.live}/${total}`, extra: `${total ? Math.round((steps.live / total) * 100) : 0}%` },
-    { label: '완성 기능', value: `${c.journeysLive}/${c.journeys}` },
+    ...(product ? [
+      { label: '동작 단계', value: `${steps.live}/${total}`, extra: `${total ? Math.round((steps.live / total) * 100) : 0}%` },
+      { label: '완성 기능', value: `${c.journeysLive}/${c.journeys}` },
+    ] : []),
+    ...repoTickerItems(d.repos),
     ...(d.roadmapItems.length ? [{ label: '로드맵 완료', value: `${done}/${d.roadmapItems.length}` }] : []),
     { label: '14일 변경', value: d.activity.total, extra: `최근 3일 ${sum(days.slice(-3).map((x) => x.commits))}` },
     { label: '자동 커밋', value: d.activity.bots },
     { label: '제품 코드 변경', value: d.activity.runtime },
-    { label: '실데이터 화면', value: `${c.screensLive}/${c.screens}` },
-    { label: 'API', value: c.apis }, { label: 'DB 함수', value: c.functions }, readItem('자동 검사', c.tests, 'tests', c.reading),
+    ...(product ? [
+      { label: '실데이터 화면', value: `${c.screensLive}/${c.screens}` },
+      { label: 'API', value: c.apis }, { label: 'DB 함수', value: c.functions },
+    ] : []),
+    readItem('자동 검사', c.tests, 'tests', c.reading),
     ...(d.signals.boundaryViolations == null ? [] : [{ label: '구조 어긋남', value: d.signals.boundaryViolations }]),
     { label: '확정 결정', value: c.decisions }, readItem('열린 질문', c.openQuestions ?? c.oq, 'openQuestions', c.reading),
     ...d.journeys.map((j) => ({ label: j.title, project: true, value: `${j.counts.live}/${j.steps.length}`, extra: `변경 ${j.commits}` })),
@@ -60,7 +69,7 @@ export function Overview({ data: d, captureBase, current = 0 }) {
         <div className="col c">
           <Panel icon={Icons.map} title="기능 지도" sub={`기능 ${d.counts.journeys} · 단계 ${sum(Object.values(d.counts.steps))}`} at={at} budget="matrix">
             <FeatureMap journeys={onMap.shown} badgeJourneys={d.journeys} folded={onMap.folded} foldedIncomplete={onMap.foldedIncomplete}
-              links={d.links} selected={selected} onSelect={pick} stepCounts={d.counts.steps} next={next} />
+              links={d.links} selected={selected} onSelect={pick} stepCounts={d.counts.steps} next={next} workspace={!!d.repos} />
           </Panel>
           <div className="split">
             <FeatureTrendPanel journeys={d.journeys} selected={selected} onSelect={pick} at={at} />

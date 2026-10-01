@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { freshness, waitDays, hm, mdKo, kst, hostOf } from '../ui/lib/format.js';
 import { fitCount, mapJourneys } from '../ui/lib/fit.js';
 import { isNewer } from '../ui/lib/visit.js';
-import { parseRoute, archHash, NAV } from '../ui/lib/route.js';
+import { parseRoute, archHash, NAV, MORE_TABS } from '../ui/lib/route.js';
+import { repoLabel, repoPath, bareTask, boardHref, repoTickerItems, repoFilters } from '../ui/lib/repos.js';
 import { buildTree, pathOf, geometry, crossings } from '../ui/lib/tree.js';
 import { visibleCaptures } from '../ui/lib/capture.js';
 import { LANE_ORDER, laneLayout, communityLayout, flowPath, neighbors, foldByCommunity, focusScope, laneColumns } from '../ui/lib/arch.js';
@@ -984,4 +985,21 @@ test('SC-9 neighbors 심볼: 영향 패널이 그림과 같은 자료를 읽는�
   assert.equal(L.lines.length, n.in.length + n.out.length);
   // 파일 초점은 한 글자도 안 바뀐다
   assert.deepEqual(neighbors(ARCH, 'web/src/lib/util.ts', FN), neighbors(ARCH, 'web/src/lib/util.ts'));
+});
+
+// ── 워크스페이스(2.2.0) ──
+test('저장소 화면 순수 함수: 이름·경로·접두 떼기·상황판 주소·전광판 항목·필터', () => {
+  assert.equal(NAV.length, 6);
+  assert.ok(MORE_TABS.includes('repos'));
+  assert.deepEqual(parseRoute('#/more/repos'), { screen: 'more', nav: 5, params: { tab: 'repos', detail: null } });
+  assert.deepEqual(parseRoute(`#/tasks/${encodeURIComponent('apps/web:20260101-x')}`).params, { task: 'apps/web:20260101-x' });
+  assert.deepEqual([repoLabel('.', 'Top'), repoLabel(undefined, 'Top'), repoLabel('app', 'Top')], ['Top', 'Top', 'app']);
+  assert.deepEqual([repoPath('.', 'tasks/x/plan.md'), repoPath(undefined, 'a'), repoPath('app', 'tasks/x/plan.md')], ['tasks/x/plan.md', 'a', 'app/tasks/x/plan.md']);
+  assert.deepEqual([bareTask('app:20260101-x', 'app'), bareTask('20260101-x', '.'), bareTask('apps/web:20260101-y', 'apps/web')], ['20260101-x', '20260101-x', '20260101-y']);
+  assert.deepEqual([boardHref('https://e.test/map/'), boardHref('HTTP://e.test'), boardHref('e.test/map/'), boardHref('javascript:alert(1)'), boardHref(null)], ['https://e.test/map/', 'HTTP://e.test', null, null, null]);
+  const repos = [{ name: 'Top', stepsLive: 0, stepsTotal: 0, commits: 9 }, { name: 'app', stepsLive: 3, stepsTotal: 5, commits: 2 }, { name: 'svc', stepsLive: null, stepsTotal: null, commits: 4 }];
+  assert.deepEqual(repoTickerItems(repos), [{ label: 'app 동작 단계', project: true, value: '3/5' }, { label: 'svc 14일 변경', project: true, value: 4 }]);
+  assert.deepEqual(repoTickerItems(undefined), []);
+  const rows = [{ repo: '.' }, { repo: 'app' }, { repo: 'app' }];
+  assert.deepEqual(repoFilters([{ path: '.' }, { path: 'app' }, { path: 'svc' }], rows, 'Top'), [{ repo: '.', label: 'Top', count: 1 }, { repo: 'app', label: 'app', count: 2 }, { repo: 'svc', label: 'svc', count: 0 }]);
 });
