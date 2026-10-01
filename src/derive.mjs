@@ -1,5 +1,6 @@
 // 파생: 그래프(코드 사실) + 여정 파일(뜻)을 합쳐 화면이 읽는 뷰 모델을 만든다. 화면은 여기서 만든 것만 그린다.
 import { combineReading, countReadings, readingOf } from './lib/reading.mjs';
+import { DRIFT_CODES } from './workspace.mjs';
 const ROADMAP_STATUS = ['완료', '진행', '다음', '대기', '이후'];
 const RANK = { live: 0, partial: 1, mixed: 1, mock: 2, planned: 3, next: 4, static: 5 };
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -214,23 +215,27 @@ function orphanSlice(g, { screenView, apiView, fnView, testView }, journeys, obs
 }
 
 // 커밋 영향. 화면의 steps(여정 조각이 채운 뒤)를 읽으므로 derive()가 장면을 덧붙인 다음 부른다
-function commitSlice(g, commits, screenView) {
+function commitSlice(g, commits, screenView, repoTag) {
   const byPath = Object.fromEntries(screenView.map((s) => [s.path, s]));
   const commitView = commits.map((c) => {
     const routes = g.out('commit', c.id, 'changes').filter((n) => n.kind === 'screen').map((n) => n.id);
     const js = [...new Map(routes.flatMap((p) => byPath[p]?.steps || []).map((x) => [x.journey + '/' + x.step, x])).values()];
-    return { sha: c.id, date: c.props.date, author: c.props.author, subject: c.label, files: c.props.files, areas: c.props.areas, runtime: c.props.runtime, routes, journeys: js, touchesApi: g.out('commit', c.id, 'changes').some((n) => n.kind === 'api'), touchesDb: g.out('commit', c.id, 'changes').some((n) => n.kind === 'migration') };
+    return { sha: c.id, ...repoTag(c), date: c.props.date, author: c.props.author, subject: c.label, files: c.props.files, areas: c.props.areas, runtime: c.props.runtime, routes, journeys: js, touchesApi: g.out('commit', c.id, 'changes').some((n) => n.kind === 'api'), touchesDb: g.out('commit', c.id, 'changes').some((n) => n.kind === 'migration') };
   });
   const areaCounts = {};
   for (const c of commitView) for (const a of c.areas) areaCounts[a] = (areaCounts[a] || 0) + 1;
   return { commitView, areaCounts };
 }
 
-// 작업·장부·결정
-function workSlice(g, tasks, decisions, journeys) {
-  const taskView = tasks.map((t) => ({ name: t.id, title: t.label, ...t.props, readLines: undefined, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {}, journeys: journeys.filter((j) => j.taskNames.includes(t.id)).map((j) => ({ id: j.id, title: j.title, status: j.status, steps: j.steps.filter((s) => s.taskNames.includes(t.id)).map((s) => s.label) })) })).sort((a, b) => b.name.localeCompare(a.name));
-  const ledger = { running: g.of('ledger').filter((l) => l.props.state === 'running').map((l) => ({ work: l.label, owner: l.props.owner, done: l.props.done })), waiting: g.of('ledger').filter((l) => l.props.state !== 'running').map((l) => ({ work: l.label, state: l.props.status, resume: l.props.resume, done: l.props.state === 'done' })) };
-  const decisionView = decisions.map((d) => ({ slug: d.id, title: d.label, file: d.props.file, status: d.props.status, summary: d.props.summary, refs: journeys.reduce((n, j) => n + j.steps.filter((s) => s.refNodes.some((r) => r.wiki && r.wiki.file === d.props.file)).length, 0) }));
+// 작업·장부·결정. 정렬은 저장소 접두를 뗀 이름의 내림차순(날짜가 앞이라 최신순)이고 같은 이름이면 상위가 먼저다.
+// 접두를 그대로 두면 워크스페이스에서 자식 작업(<path>:…)이 상위 작업(2026…) 앞에 몰린다
+const bareName = (t) => (t.repo && t.repo !== '.' && t.name.startsWith(`${t.repo}:`) ? t.name.slice(t.repo.length + 1) : t.name);
+function workSlice(g, tasks, decisions, journeys, repoTag) {
+  const taskView = tasks.map((t) => ({ name: t.id, title: t.label, ...t.props, ...repoTag(t), readLines: undefined, reading: t.props.reading || {}, readingNotes: t.props.readingNotes || {}, journeys: journeys.filter((j) => j.taskNames.includes(t.id)).map((j) => ({ id: j.id, title: j.title, status: j.status, steps: j.steps.filter((s) => s.taskNames.includes(t.id)).map((s) => s.label) })) })).sort((a, b) => bareName(b).localeCompare(bareName(a)) || (a.repo === '.' ? 0 : 1) - (b.repo === '.' ? 0 : 1));
+  const ledger = { running: g.of('ledger').filter((l) => l.props.state === 'running').map((l) => ({ work: l.label, ...repoTag(l), owner: l.props.owner, done: l.props.done })), waiting: g.of('ledger').filter((l) => l.props.state !== 'running').map((l) => ({ work: l.label, ...repoTag(l), state: l.props.status, resume: l.props.resume, done: l.props.state === 'done' })) };
+  // 위키 결정이 받은 단계 참조 수: 같은 저장소의 같은 파일만 센다(워크스페이스에서 두 저장소가 같은 상대 경로의 결정 파일을 가질 수 있다)
+  const repoOfSlug = (slug) => g.get('decision', slug)?.props.repo ?? '.';
+  const decisionView = decisions.map((d) => ({ slug: d.id, ...repoTag(d), title: d.label, file: d.props.file, status: d.props.status, summary: d.props.summary, refs: journeys.reduce((n, j) => n + j.steps.filter((s) => s.refNodes.some((r) => r.wiki && r.wiki.file === d.props.file && repoOfSlug(r.ref) === (d.props.repo ?? '.'))).length, 0) }));
   return { taskView, ledger, decisionView };
 }
 
@@ -328,7 +333,9 @@ function summarySlice(g, { screenView, apiView, fnView, testView }, journeys, or
 }
 
 // 조각을 순서대로 부르고 합친다. 순서가 뜻을 가진다: 여정 → 화면 steps 덧붙임 → 커밋 영향, 작업 → 로드맵 → 작업의 roadmapItems
-export function derive(g, sem, cfg, { captureExists }) {
+// repos: 워크스페이스 단계가 만든 저장소 절(2.2.0). 있으면 뷰에 싣고 작업·결정·커밋·장부 행마다 repo(상위 '.')를 단다. 없으면 산출이 2.1.x 와 같다
+export function derive(g, sem, cfg, { captureExists, repos = null }) {
+  const repoTag = repos ? (n) => ({ repo: n.props.repo ?? '.' }) : () => ({});
   const commits = g.of('commit').sort((a, b) => b.props.date.localeCompare(a.props.date));
   const tasks = g.of('task'), decisions = g.of('decision').filter((d) => d.props.kind === 'wiki'), specDefs = g.of('decision').filter((d) => d.props.kind !== 'wiki');
   const head = g.get('deploy', 'head')?.props || null;
@@ -341,8 +348,8 @@ export function derive(g, sem, cfg, { captureExists }) {
   const byPath = Object.fromEntries(views.screenView.map((s) => [s.path, s]));
   for (const [path, step] of screenSteps) byPath[path].steps.push(step);
   const { orphans, coverage } = orphanSlice(g, views, journeys, observedApis);
-  const { commitView, areaCounts } = commitSlice(g, commits, views.screenView);
-  const { taskView, ledger, decisionView } = workSlice(g, tasks, decisions, journeys);
+  const { commitView, areaCounts } = commitSlice(g, commits, views.screenView, repoTag);
+  const { taskView, ledger, decisionView } = workSlice(g, tasks, decisions, journeys, repoTag);
   const { roadmap, releases } = roadmapSlice(g, journeys, taskView);
   for (const t of taskView) t.roadmapItems = roadmap.filter((m) => m.tasks.some((x) => x.name === t.name)).map((m) => m.id);
   const milestoneView = milestoneSlice(releases, roadmap);
@@ -364,6 +371,8 @@ export function derive(g, sem, cfg, { captureExists }) {
     judgments: tasks.filter((t) => t.props.judged).map((t) => ({ task: t.id, file: t.props.judged, ...t.props.judgment })).sort((a, b) => a.task.localeCompare(b.task)),
     // 구조 절(2.1.0): graphify 어댑터가 돈 프로젝트에만 있다
     ...(architecture ? { architecture } : {}),
+    // 저장소 절(2.2.0): 워크스페이스 상위 빌드에만 있다. 상위가 첫 행
+    ...(repos ? { repos } : {}),
   };
 }
 
@@ -442,6 +451,7 @@ export function overviewSlice(d, opts = {}) {
   });
   const stepCounts = Object.fromEntries(STEP_STATUS.map((k) => [k, 0]));
   for (const j of d.semantic.journeys) for (const s of j.steps) if (s.status in stepCounts) stepCounts[s.status] += 1;
+  const ws = workspaceOverview(d);
   const lastRun = d.testreport ? { fresh: d.testreport.fresh, failures: d.testreport.failures, total: d.testreport.total, at: d.testreport.at } : null;
   return {
     generatedAt: d.generatedAt, project: d.project, headDate: d.head?.date || null,
@@ -472,6 +482,8 @@ export function overviewSlice(d, opts = {}) {
       // 묶음 이름과 파일 경로는 개요 식별자 검사(.tsx·.mjs·.sql·web/src)에 걸리므로 개요로 보내지 않는다.
       // 구조 절이 없는 프로젝트(graphify 어댑터 미설정)는 null 이고 전광판·특보에 줄이 서지 않는다
       boundaryViolations: d.architecture ? d.summary.boundaryViolations ?? 0 : null,
+      // 저장소 어긋남(2.2.0): 워크스페이스 상위에서만. R1~R4 항목 수 하나만 싣는다(저장소 경로는 개요 식별자 예산 밖)
+      ...(ws ? { reposDrift: ws.drift } : {}),
     },
     counts: { stepsLive: d.summary.stepsLive, stepsTotal: d.summary.stepsTotal, screensLive: d.summary.liveRoutes, screensFixed: d.summary.fixedRoutes, screens: d.summary.routes, apis: d.summary.apis, functions: d.summary.dbFunctions, tests: d.summary.tests, pnDone: d.summary.pnDone, pnTotal: d.summary.pnDone + d.summary.pnOpen, oq: d.summary.oq, openQuestions: d.summary.openQuestions, decisions: d.decisions.filter((x) => x.status === 'current').length, proposed: d.decisions.filter((x) => x.status === 'proposed').length, grades: d.summary.grades,
       steps: stepCounts, journeys: nJourneys, journeysLive: d.semantic.journeys.filter((j) => j.status === 'live').length, tasksRunning: d.tasks.filter((t) => t.status === '진행').length,
@@ -488,6 +500,24 @@ export function overviewSlice(d, opts = {}) {
     roadmapItems, milestones, currentMilestone,
     activity: { sinceDays: days, days: dates.map((date, i) => ({ date, commits: act.commits[i], runtime: act.runtime[i], bots: act.bots[i] })), total: sum(act.commits), runtime: sum(act.runtime), bots: sum(act.bots) },
     changes, links, captures,
+    ...(ws ? { repos: ws.repos, productEmpty: ws.productEmpty } : {}),
+  };
+}
+
+// 개요의 저장소 조각(2.2.0). 워크스페이스가 아니면 null. 행은 상위가 첫 행이고 이름·역할·빌드 상태·14일 커밋·진행 작업·동작 단계·어긋남 수만 싣는다 —
+// HEAD·상황판 주소·경로는 개요 식별자 검사(커밋 sha·경로 모양) 때문에 싣지 않는다. 동작 단계는 상위는 합친 그래프 값, 자식은 자식 빌드 값이고 빌드하지 못한 자식은 null.
+// productEmpty: 상위에 여정·화면·API·DB 함수가 하나도 없다. 전광판이 측정하지 않은 제품 축 항목(0/0) 대신 저장소 항목을 쓴다(DEC-27)
+function workspaceOverview(d) {
+  if (!d.repos) return null;
+  const s = d.summary;
+  const drift = Object.values(DRIFT_CODES);
+  return {
+    repos: d.repos.map((r, i) => ({
+      name: r.name, role: r.role ?? null, build: r.build, commits: r.commits ?? 0, running: r.tasks?.['진행'] ?? 0,
+      stepsLive: i === 0 ? s.stepsLive : r.summary?.stepsLive ?? null, stepsTotal: i === 0 ? s.stepsTotal : r.summary?.stepsTotal ?? null, drift: (r.drift || []).length,
+    })),
+    productEmpty: !s.stepsTotal && !s.routes && !s.apis && !s.dbFunctions,
+    drift: (d.issues || []).filter((x) => drift.includes(x.code)).length,
   };
 }
 

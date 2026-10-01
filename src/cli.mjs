@@ -92,8 +92,7 @@ export async function buildGraph(root = process.cwd(), { semantic = null, worksp
   // architecture 단계(2.1.0): 다리가 놓인 그래프에 선언(map/architecture/)을 대조한다. 설정 architecture.dir 이 없으면 partial 이다. 실패는 오류 이슈로 남긴다
   try { architectureStage(g, fs, cfg, sem); } catch (e) { g.issue('error', '구조 단계', String(e?.message || e)); }
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);
-  const data = derive(g, sem, cfg, { captureExists });
-  if (ws) data.repos = ws.repos;
+  const data = derive(g, sem, cfg, { captureExists, repos: ws?.repos ?? null });
   // 구조 산출물(2.1.0): architecture.md 본문·architecture.json·스킬 사본을 만들고 상한·낡음 판정을 이슈로 남긴다(check 가 본다). 절이 없는 프로젝트는 null
   const outputs = architectureOutputs(g, data, cfg, fs, { version: VERSION });
   if (outputs) { for (const i of outputs.issues) g.issue(i.level, i.label, i.message, i.detail); data.issues = g.issues.map((i) => ({ ...i })); }
