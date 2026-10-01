@@ -147,6 +147,47 @@ JS
 ws_board() { node "$T/ws-board.mjs" "$CRAWL" http://127.0.0.1:4189/map/ https://example.test/map/; }
 soft "워크스페이스: 저장소 탭 상황판 링크" ws_board
 
+# 빈 제품 축(2.3.0): 여정·화면·API가 없는 단일 저장소 픽스처(작업 폴더·장부·위키 결정만, 장부 한 행은 첫 칸에 작업 링크).
+# 개요가 저장소·작업 패널을 그리고 저장소 표 아래 여정 안내 한 줄을 보이는지, 예산·클릭 경로가 통과하는지 본다.
+# 이어 복사본에 로드맵 항목 하나를 더해 첫 자리가 마일스톤·로드맵 패널로 남고 진행 작업 분포가 빠지는지 패널 순서만 다시 본다(SC-3)
+step "빈 제품 축: 단일 저장소 픽스처와 팩 설치"
+EP="$T/empty-product"
+mkdir "$EP" && cp -R "$REPO/test/fixtures/empty-product/." "$EP/"
+gitc() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com git -C "$@"; }
+gitc "$EP" init -q -b main && gitc "$EP" add -A && gitc "$EP" commit -q -m "docs: 빈 제품 축 픽스처"
+(cd "$EP" && npm init -y >/dev/null && npm i --no-save --no-audit --no-fund "$TGZ" "@playwright/test@$PW" >/dev/null && node_modules/.bin/livemap build >/dev/null)
+cat > "$T/panel-order.mjs" <<'JS'
+// 개요 패널 클래스 순서(.panel 둘째 클래스, 없으면 -)가 기대와 같고, 안내 글자가 주어지면 개요에 있는지 본다
+const [crawl, url, want, hint] = process.argv.slice(2);
+const { launchBrowser, fetchJson } = await import(crawl);
+await fetchJson(`${url}data/overview.json`);
+const browser = await launchBrowser(url);
+let ok = false;
+try {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`${url}#/overview`);
+  await page.waitForSelector('main.grid .panel', { timeout: 15000 });
+  const r = await page.evaluate(() => ({ order: [...document.querySelectorAll('main.grid .panel')].map((p) => p.classList[1] || '-').join(' '), text: document.querySelector('main.grid').innerText }));
+  const hintOk = !hint || r.text.includes(hint);
+  console.log(`패널 ${r.order}${hint ? ` · 안내 ${hintOk ? '있음' : '없음'}` : ''}`);
+  ok = r.order === want && hintOk;
+} finally { await browser.close(); }
+process.exit(ok ? 0 : 1);
+JS
+ep_budget() { (cd "$EP" && npx --no playwright test --config "$CFG"); }
+soft "빈 제품 축: 단일 저장소 예산(serve)" ep_budget
+bg_serve "$EP" 4190
+ep_crawl() { node "$CRAWL" --url http://127.0.0.1:4190/map/ --targets "$TARGETS"; }
+soft "빈 제품 축: 단일 저장소 클릭 경로" ep_crawl
+ep_order() { node "$T/panel-order.mjs" "$CRAWL" http://127.0.0.1:4190/map/ "repos spread changes work-tasks repo-trend signals ledger decisions" "여정 파일에 적으면 기능 패널로 돌아갑니다"; }
+soft "빈 제품 축: 단일 저장소 패널 순서와 여정 안내" ep_order
+cp -R "$EP" "$EP-roadmap" && cd "$EP-roadmap"
+node -e 'const fs=require("fs"),f="map/config.json",c=JSON.parse(fs.readFileSync(f,"utf8"));c.adapters.push("roadmap");c.roadmap={file:"tasks/roadmap.md"};fs.writeFileSync(f,JSON.stringify(c,null,2));fs.writeFileSync("tasks/roadmap.md","# 로드맵\n\n## 첫 화면 세우기\n\n- id: first\n- 상태: 진행\n- 작업: 20260920-running\n")'
+node_modules/.bin/livemap build >/dev/null
+bg_serve "$EP-roadmap" 4191
+ep_roadmap_order() { node "$T/panel-order.mjs" "$CRAWL" http://127.0.0.1:4191/map/ "ms repos changes work-tasks repo-trend signals ledger decisions"; }
+soft "빈 제품 축: 단일 저장소 로드맵 복사본 패널 순서" ep_roadmap_order
+
 step "init 두 번(두 번째 무변경)"
 mkdir "$T/e" && cd "$T/e" && npm init -y >/dev/null && npm i --no-save --no-audit --no-fund "$TGZ" >/dev/null
 snap() { find . -path ./node_modules -prune -o -type f -print | sort | while IFS= read -r f; do shasum "$f"; done; }
