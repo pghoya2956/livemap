@@ -46,7 +46,7 @@ export function RepoTablePanel({ d, at }) {
       budget="list" className="repos" more={ws && rows.length > n ? { n: rows.length - n, href: '#/more/repos' } : null}>
       <div className="pb pb-tight">
         <div className="rhead"><span>저장소</span><span>14일</span><span>진행</span><span>상태</span></div>
-        <div className="rows fit" ref={ref}>
+        <div className={ws ? 'rows fit' : 'rows'} ref={ref}>
           {rows.slice(0, n).map((r) => (ws
             ? <a className="row slim" key={r.name} href="#/more/repos">{cells(r)}</a>
             : <div className="row slim static" key={r.name}>{cells(r)}</div>))}
@@ -153,7 +153,7 @@ function NoteTail({ text }) {
 export function LedgerPanel({ d }) {
   const { ledger } = workOf(d);
   const total = d.running?.length ?? ledger.length;
-  const [ref, n] = useFitRows(ledger.length, 90);
+  const [ref, n] = useFitRows(ledger.length, 88);
   const body = (r) => (
     <div className="body">
       <div className="lg-h"><span className="tt" title={r.work}><Proj>{r.work}</Proj></span>{r.repo && <span className="tag t-repo" data-repo-tag={r.repo}><Proj>{r.repo}</Proj></span>}</div>
