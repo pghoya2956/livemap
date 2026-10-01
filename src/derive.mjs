@@ -458,7 +458,7 @@ export function overviewSlice(d, opts = {}) {
   const changes = human.slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 20).map((c) => {
     const touched = new Set(c.journeys.map((x) => x.journey));
     const titles = d.semantic.journeys.filter((j) => touched.has(j.id)).map((j) => j.title).slice(0, 3);
-    return { date: new Date(c.date).toISOString(), kind: changeKind(c.subject), subject: subjectPlain(c.subject, 70), journeys: titles, journeysMore: touched.size - titles.length };
+    return { date: new Date(c.date).toISOString(), kind: changeKind(c.subject), subject: subjectPlain(c.subject, 70), journeys: titles, journeysMore: touched.size - titles.length, ...repoOf(c) };
   });
   const stepCounts = Object.fromEntries(STEP_STATUS.map((k) => [k, 0]));
   for (const j of d.semantic.journeys) for (const s of j.steps) if (s.status in stepCounts) stepCounts[s.status] += 1;

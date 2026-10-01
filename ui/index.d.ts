@@ -35,7 +35,7 @@ export interface Milestone {
   items: string[]; steps: { live: number; total: number }; plans: { done: number; total: number }; blocked: boolean;
 }
 export interface Activity { sinceDays: number; days: { date: string; commits: number; runtime: number; bots: number }[]; total: number; runtime: number; bots: number }
-export interface Change { /** UTC ISO */ date: string; kind: ChangeKind; subject: string; /** 닿은 기능 제목 최대 3 */ journeys: string[]; journeysMore: number }
+export interface Change { /** UTC ISO */ date: string; kind: ChangeKind; subject: string; /** 닿은 기능 제목 최대 3 */ journeys: string[]; journeysMore: number; /** 2.3.0 워크스페이스 상위에만: 저장소 이름(상위는 project.name) */ repo?: string }
 /** 캡처. journey·step은 id다. src는 미리보기용 직접 주소(없으면 base + file). */
 export interface Capture { file: string; journey: string; step: string; src?: string }
 export interface Link { a: string; b: string; n: number }
@@ -69,12 +69,27 @@ export interface Counts extends Record<string, unknown> {
 }
 /** 2.2.0 개요 저장소 행. HEAD·상황판 주소·경로는 개요 식별자 예산 때문에 싣지 않는다. 동작 단계는 빌드하지 못한 자식이면 null */
 export interface OverviewRepo { name: string; role: string | null; build: 'ok' | 'failed' | 'missing' | 'skipped'; commits: number; running: number; stepsLive: number | null; stepsTotal: number | null; drift: number }
+/**
+ * 2.3.0 제품 축이 빈 개요의 작업 조각: 진행 작업 전부, 장부 진행 행 최대 20, 결정(제안 먼저) 최대 20.
+ * 글자는 개요 식별자 낱말을 지운 것이고, repo는 워크스페이스일 때만 있는 저장소 이름(상위는 project.name)이다
+ */
+export interface OverviewWork {
+  /** id는 작업 폴더 이름(링크용, 자식은 <저장소 경로>: 접두). date는 YYYY-MM-DD */
+  tasks: { id: string; title: string; stage: string | null; date: string | null; pnDone: number; pnOpen: number; repo?: string }[];
+  /** note는 완료 기준 칸의 끝 120자(넘으면 첫 문장 끝 다음부터 「…」), task는 행의 작업 링크가 가리키는 작업 이름이고 없으면 null */
+  ledger: { work: string; owner: string; note: string; task: string | null; repo?: string }[];
+  decisions: { title: string; status: 'current' | 'proposed'; repo?: string }[];
+}
 export interface OverviewData {
   generatedAt: string; project: Project; signals: Signals; counts: Counts;
   journeys: Journey[]; roadmapItems: RoadmapItem[]; milestones: Milestone[]; currentMilestone: string | null;
   activity: Activity; changes: Change[]; links: Link[]; captures: Capture[];
-  /** 2.2.0 워크스페이스 상위에만: 저장소 행(상위가 첫 행)과 상위 제품 축이 비었는지(전광판이 제품 축 항목 대신 저장소 항목을 쓴다) */
-  repos?: OverviewRepo[]; productEmpty?: boolean;
+  /** 2.2.0 워크스페이스 상위에만: 저장소 행(상위가 첫 행) */
+  repos?: OverviewRepo[];
+  /** 2.3.0 제품 축(여정·단계·화면·API·DB 함수)이 모두 비면 참이고 아니면 키가 없다. 참이면 전광판이 제품 축 항목을 빼고 저장소 항목을 쓴다 */
+  productEmpty?: true;
+  /** 2.3.0 productEmpty일 때만 */
+  work?: OverviewWork;
   /** 1.0.1 필드(화면은 쓰지 않지만 생성물에 남는다) */
   headDate?: string; line?: string; running?: unknown[]; roadmap?: unknown[]; roadmapDone?: number; roadmapTotal?: number;
   waiting?: unknown[]; tasks?: unknown; areas?: unknown[]; recent?: unknown[]; openQuestions?: unknown;
