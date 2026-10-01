@@ -451,6 +451,10 @@ export function overviewSlice(d, opts = {}) {
       captures.push({ file: s.captureFile, journey: j.id, step: s.id });
     }
   }
+  // 저장소 이름(2.3.0, DEC-6): 뷰 행의 repo(경로, 상위 '.')를 저장소 이름(상위는 project.name)으로 바꾼다. 개요는 경로를 싣지 않는다.
+  // 워크스페이스가 아니면 repo 키를 달지 않는다
+  const repoName = d.repos ? new Map(d.repos.map((r) => [r.path, r.name])) : null;
+  const repoOf = (row) => (repoName ? { repo: repoName.get(row.repo ?? '.') ?? row.repo } : {});
   const changes = human.slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 20).map((c) => {
     const touched = new Set(c.journeys.map((x) => x.journey));
     const titles = d.semantic.journeys.filter((j) => touched.has(j.id)).map((j) => j.title).slice(0, 3);
@@ -511,7 +515,7 @@ export function overviewSlice(d, opts = {}) {
     activity: { sinceDays: days, days: dates.map((date, i) => ({ date, commits: act.commits[i], runtime: act.runtime[i], bots: act.bots[i] })), total: sum(act.commits), runtime: sum(act.runtime), bots: sum(act.bots) },
     changes, links, captures,
     ...(ws ? { repos: ws.repos } : {}),
-    ...(productEmpty ? { productEmpty: true } : {}),
+    ...(productEmpty ? { productEmpty: true, work: workOverview(d, repoOf) } : {}),
   };
 }
 
@@ -527,6 +531,39 @@ function workspaceOverview(d) {
       stepsLive: i === 0 ? s.stepsLive : r.summary?.stepsLive ?? null, stepsTotal: i === 0 ? s.stepsTotal : r.summary?.stepsTotal ?? null, drift: (r.drift || []).length,
     })),
     drift: (d.issues || []).filter((x) => drift.includes(x.code)).length,
+  };
+}
+
+// 개요의 작업 조각(2.3.0): 제품 축이 빈 프로젝트에서만 부른다. 진행 작업 전부, 장부 진행 행 최대 20, 결정(제안 먼저) 최대 20.
+// 자유 글자는 plain → dropIdents 순서로 정리하고(링크 대상의 작업 폴더 날짜가 식별자에 걸린다) n자로 줄인 뒤,
+// 줄인 끝 낱말이 식별자 모양이 되면 그것도 지운다. 장부 작업 이름은 정리 전 원문 칸에서 찾는다
+const LEDGER_TASK = /\((\d{8}-[^/()\s]+)(?:\/|\))/; // tasks 어댑터의 장부 판독 정규식과 같다
+const fit = (s, n) => dropIdents(plain(dropIdents(plain(s)), n));
+// 장부 메모(DEC-9·18): 진행이 쌓이는 칸이라 끝을 남긴다. 120자를 넘으면 끝 120자 안의 첫 문장 끝(. ! ? 뒤 공백) 다음부터,
+// 문장 끝이 없으면 첫 공백 다음부터 남기고 앞에 「…」을 붙인다. 공백도 없으면 끝 120자 그대로다
+function ledgerNote(text, n = 120) {
+  const cp = [...text];
+  if (cp.length <= n) return text;
+  const tail = cp.slice(-n).join('');
+  const m = tail.match(/[.!?]\s/) ?? tail.match(/\s/);
+  return dropIdents(`…${m ? tail.slice(m.index + m[0].length) : tail}`);
+}
+function workOverview(d, repoOf) {
+  const taskNames = new Set(d.tasks.map((t) => t.name));
+  // 장부 행의 작업(DEC-21): 원문 work 칸의 첫 작업 링크, 없으면 done 칸. 자식 행은 <저장소 경로>: 접두를 붙이고 작업 목록에 없으면 null
+  const ledgerTask = (r) => {
+    const m = String(r.work ?? '').match(LEDGER_TASK) ?? String(r.done ?? '').match(LEDGER_TASK);
+    const name = m && (r.repo && r.repo !== '.' ? `${r.repo}:${m[1]}` : m[1]);
+    return name && taskNames.has(name) ? name : null;
+  };
+  return {
+    // 날짜 내림차순, 같으면 최근 커밋 수 내림차순, 그래도 같으면 data.json 순서(안정 정렬). 행 수가 곧 진행 작업 수라 상한이 없다
+    tasks: d.tasks.filter((t) => t.status === '진행').sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.recentCommits || 0) - (a.recentCommits || 0))
+      .map((t) => ({ id: t.name, title: fit(t.title, 80), stage: t.stage ?? null, date: t.date ?? null, pnDone: t.pnDone, pnOpen: t.pnOpen, ...repoOf(t) })),
+    ledger: d.ledger.running.slice(0, 20).map((r) => ({ work: fit(r.work, 60), owner: fit(r.owner, 60), note: ledgerNote(fit(r.done)), task: ledgerTask(r), ...repoOf(r) })),
+    // 제안은 사람이 받아들일지 정할 항목이라 먼저, 그 안에서는 결정 뷰 순서(저장소 순, 위키 색인 줄 순)
+    decisions: [...d.decisions.filter((x) => x.status === 'proposed'), ...d.decisions.filter((x) => x.status === 'current')].slice(0, 20)
+      .map((x) => ({ title: fit(x.title, 80), status: x.status, ...repoOf(x) })),
   };
 }
 
