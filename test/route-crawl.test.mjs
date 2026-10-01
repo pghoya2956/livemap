@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from '../src/cli.mjs';
 import { execFileSync } from 'node:child_process';
 import { serve, DATA_FILES, OPTIONAL_DATA_FILES } from '../src/serve.mjs';
-import { launchBrowser, openCrawlContext, fetchJson, buildRouteIndex, visitHash, checkOverviewTarget, KNOWN_EXPECT, whenHolds, whenFacts, openScreen } from '../scripts/route-crawl.mjs';
+import { launchBrowser, openCrawlContext, fetchJson, buildRouteIndex, visitHash, checkOverviewTarget, KNOWN_EXPECT, whenHolds, whenFacts, openScreen, repoChipPick, rowsAllRepo } from '../scripts/route-crawl.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TARGETS = join(HERE, '..', 'scripts', 'click-targets.json');
@@ -116,4 +116,30 @@ test('SC-18 구조 표: 모든 행이 판정되고 실패가 없다', async () =
   // 초점 여섯째 단계(함수)가 표에서 실제로 밟힌다
   assert.equal(byName['층 배치 심볼 상자'].pass, true, JSON.stringify(byName['층 배치 심볼 상자']));
   assert.ok(rows.filter((r) => r.pass === true).length >= 10, `통과 행 ${rows.filter((r) => r.pass === true).length}`);
+});
+
+// ---- 2.3.0 빈 제품 축: 진행 중인 작업 저장소 칩(DEC-27) ----
+// filtersRowsByKind 는 둘째 칩을 누르고 첫 태그 글자를 비교해 행 0건 저장소 칩·단계 태그가 있는 행에서 틀린다. 저장소 칩은 속성으로 판정한다
+test('빈 축 SC-6 filtersRowsByRepo 칩 고르기: 건수 1 이상인 첫 저장소 칩, 전체 칩 제외, 0건·숨은 칩 건너뜀, 후보 없으면 -1', () => {
+  const all = { repo: null, count: 3, shown: true };
+  assert.equal(repoChipPick([all, { repo: '상위', count: 0, shown: true }, { repo: 'app', count: 2, shown: false }, { repo: 'svc', count: 1, shown: true }]), 3);
+  assert.equal(repoChipPick([all, { repo: '상위', count: 2, shown: true }, { repo: 'app', count: 1, shown: true }]), 1);
+  // 전체 칩만 건수가 있고 저장소 칩은 모두 0건이면 후보가 없다(크롤러는 실패로 적는다)
+  assert.equal(repoChipPick([all, { repo: '상위', count: 0, shown: true }, { repo: 'app', count: 0, shown: true }]), -1);
+  assert.equal(repoChipPick([]), -1);
+});
+
+test('빈 축 SC-6 filtersRowsByRepo 행 판정: 보이는 행이 하나 이상이고 모두 그 저장소 태그다', () => {
+  assert.equal(rowsAllRepo('app', ['app', 'app']), true);
+  assert.equal(rowsAllRepo('app', ['app', '상위']), false);
+  // 태그 없는 행(빈 상태 문구 등)이 섞이면 실패다
+  assert.equal(rowsAllRepo('app', ['app', null]), false);
+  assert.equal(rowsAllRepo('app', []), false);
+});
+
+test('빈 축 SC-6 when 사실: productEmpty 는 개요 자료에 있으면 1, 없으면 0', () => {
+  assert.equal('productEmpty' in served, false);
+  assert.equal(whenFacts(served, data).productEmpty, 0);
+  assert.equal(whenHolds('productEmpty == 1', whenFacts(served, data)), false);
+  assert.equal(whenHolds('productEmpty == 1', whenFacts({ ...served, productEmpty: true }, data)), true);
 });

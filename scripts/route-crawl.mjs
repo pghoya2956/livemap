@@ -363,11 +363,19 @@ export function whenFacts(served, data) {
     communities: a?.communities?.length ?? 0,
     flows: a?.flows?.length ?? 0,
     modules: a?.modules?.length ?? 0,
+    // 제품 축이 빈 개요(2.3.0): 개요 자료에 참일 때만 실린다. 표의 「productEmpty == 1」이 키 유무에 기대지 않게 수로 둔다
+    productEmpty: served?.productEmpty ? 1 : 0,
   };
 }
 
+/** filtersRowsByRepo(2.3.0, DEC-27) 칩 고르기: 저장소 칩(data-repo-filter 있음) 중 보이고 건수가 1 이상인 첫 칩의 자리.
+ *  전체 칩은 속성이 없어 빠지고 0건 칩은 건너뛴다. 후보가 없으면 -1 */
+export const repoChipPick = (chips) => chips.findIndex((c) => c.repo != null && c.repo !== '' && c.shown !== false && Number(c.count) >= 1);
+/** filtersRowsByRepo 행 판정: 칩을 누른 뒤 보이는 행이 하나 이상이고 모두 그 저장소 태그(data-repo-tag)인가 */
+export const rowsAllRepo = (repo, tags) => tags.length > 0 && tags.every((t) => t === repo);
+
 export const KNOWN_EXPECT = new Set(['hrefs', 'ariaCurrent', 'hrefIn', 'pattern', 'patternIn', 'visible', 'hostFrom', 'rel', 'ariaPressedToggles', 'stopsAnimation', 'ariaPressed',
-  'filtersRowsByKind', 'syncsSelection', 'keys', 'hidesLayer', 'dblclickClearsFocus', 'escapeKey', 'switchesCapture', 'stopsRotation', 'switchesDetail', 'togglesDetails', 'cursor', 'title',
+  'filtersRowsByKind', 'filtersRowsByRepo', 'syncsSelection', 'keys', 'hidesLayer', 'dblclickClearsFocus', 'escapeKey', 'switchesCapture', 'stopsRotation', 'switchesDetail', 'togglesDetails', 'cursor', 'title',
   // 2.1.0 「구조」 화면: 누른 뒤 해시·스크롤·강조·목록이 어떻게 바뀌는지 본다
   'setsFocus', 'setsFlow', 'hashPattern', 'queryParam', 'focusUnchanged', 'scrollYUnchanged', 'highlightsTouchingEdges', 'movesFocusUp', 'switchesView', 'growsList', 'defaultOff', 'chipText', 'ariaLabel']);
 
@@ -515,6 +523,22 @@ export async function checkOverviewTarget(page, log, ctx, t, { base, served, ove
         out.filter = r;
         checks.filtersRowsByKind = r.pressed === 'true' && r.rows > 0 && r.mismatched === 0;
       } else if (x.filtersRowsByKind) checks.filtersRowsByKind = false;
+      // 저장소 칩(2.3.0, DEC-27): 글자 모양이 아닌 속성으로 본다. 행 0건 저장소 칩과 단계 태그가 있는 행에서 filtersRowsByKind 가 틀리기 때문이다
+      if (x.filtersRowsByRepo) {
+        const chips = await page.locator(t.selector).evaluateAll((es) => es.map((e) => ({ repo: e.getAttribute('data-repo-filter'), count: Number(e.querySelector('.n')?.textContent ?? 0), shown: window.__crawl.shown(e) })));
+        const k = repoChipPick(chips);
+        if (k < 0) { checks.filtersRowsByRepo = false; out.reason = '건수가 1 이상인 저장소 칩 없음'; }
+        else {
+          await clickLoc(loc(k)); await quiet(page);
+          const r = await loc(k).evaluate((chip) => {
+            const panel = chip.closest('.panel') || document;
+            const rows = [...panel.querySelectorAll('.row')].filter((e) => window.__crawl.shown(e));
+            return { repo: chip.getAttribute('data-repo-filter'), pressed: chip.getAttribute('aria-pressed'), tags: rows.map((row) => row.querySelector('[data-repo-tag]')?.getAttribute('data-repo-tag') ?? null) };
+          });
+          out.repoFilter = r;
+          checks.filtersRowsByRepo = r.pressed === 'true' && rowsAllRepo(r.repo, r.tags);
+        }
+      }
     }
     if (x.syncsSelection) {
       // 선택되지 않은 요소를 먼저 누른다. 기능이 하나뿐이라 모두 이미 선택돼 있으면 그 요소를 다시 눌러 동기가 유지되는지 본다.

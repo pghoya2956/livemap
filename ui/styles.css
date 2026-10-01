@@ -634,3 +634,44 @@ button.am-row:hover{color:#fff}
 .am-into,.am-expand,.am-clear{margin:8px 12px 0;cursor:pointer}
 .am-into[disabled]{opacity:.4;cursor:default}
 @media (max-width:1100px){.am-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* 2.3.0 제품 축이 빈 개요: 저장소·작업 패널(클래스 = overviewSlots 키). 격자 트랙은 grid work 아래에서만 바꾼다(DEC-23):
+   왼쪽 둘째(max-content)와 오른쪽 첫(auto) 트랙을 비율 트랙으로 바꿔 맞춤 행 패널이 높이를 따라 줄게 한다. 좁은 화면 규칙은 그대로 둔다 */
+@media (min-width:1280px){
+  .grid.work .col.l{grid-template-rows:minmax(0,1.25fr) minmax(0,.9fr) minmax(0,1fr)}
+  .grid.work .col.r{grid-template-rows:minmax(0,1.95fr) minmax(0,1fr)}
+}
+.repos .rhead,.repos .row{display:grid;grid-template-columns:minmax(0,1fr) 40px 36px 84px;gap:8px;align-items:center}
+.repos .rhead{height:22px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);flex:none}
+.repos .rhead span:nth-child(2),.repos .rhead span:nth-child(3),.repos .row .num{text-align:right}
+.repos .row .nm{display:flex;align-items:center;gap:6px;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden}
+.repos .row .nm b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.repos .row .num{font-size:12px;color:#C9D2DB}
+.repos .row .st{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.repos .row .st.warn{color:var(--amber)}
+.repos .hint{margin:8px 0 0;font-size:11.5px;color:var(--muted);flex:none}
+.bars{display:flex;flex-direction:column;gap:4px}
+.bar{display:grid;grid-template-columns:84px minmax(0,1fr) 40px;gap:8px;align-items:center;height:16px;font-size:12px;line-height:16px}
+.bar .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#C9D2DB}
+.bar .track{height:8px;background:#141A22;border-radius:4px;overflow:hidden}
+.bar .fill{display:block;height:100%;background:var(--cyan)}
+.bar .n{text-align:right;font-size:11.5px;color:var(--muted)}
+.spread .sum,.repo-trend .sum{margin:6px 0 0;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}
+.work-tasks .rhead,.work-tasks .row{display:grid;grid-template-columns:40px minmax(0,1fr) 64px 44px;gap:10px;align-items:center}
+.work-tasks .rhead{height:22px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);flex:none}
+.work-tasks .rhead span:last-child{text-align:right}
+.work-tasks .row .body{display:flex;align-items:center;gap:8px}
+.work-tasks .row .body .tt{min-width:0}
+.work-tasks .row{height:auto;min-height:44px;max-height:56px;flex:1 1 44px}
+.work-tasks .row.static{display:flex}
+.work-tasks .row .dt,.work-tasks .row .plan{font-size:11px;color:var(--muted)}
+.work-tasks .row .plan{text-align:right}
+.work-tasks .row .stg{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work-tasks .row .stg.run{color:var(--green)}
+.ledger .row{height:88px;align-items:stretch;padding:6px 0}
+.ledger .lg-h{display:flex;align-items:center;gap:6px;min-width:0}
+.ledger .lg-h .tt{min-width:0}
+.ledger .note{margin-top:3px;height:34px;overflow:hidden;font-size:11.5px;line-height:17px;color:#C9D2DB;white-space:normal;overflow-wrap:anywhere}
+.decisions .row .tt{font-size:12.5px}
+.t-제안{color:var(--amber);background:var(--amber-soft)}
+.t-확정{color:var(--green);background:var(--green-soft)}

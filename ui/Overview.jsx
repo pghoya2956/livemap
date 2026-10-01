@@ -7,7 +7,8 @@ import { hm, sum } from './lib/format.js';
 import { mapJourneys } from './lib/fit.js';
 import { readLastVisit } from './lib/visit.js';
 import { readingText, whyText, unsure } from './lib/reading.js';
-import { repoTickerItems } from './lib/repos.js';
+import { repoTickerItems, overviewSlots } from './lib/repos.js';
+import { RepoTablePanel, SpreadPanel, WorkTasksPanel, RepoTrendPanel, LedgerPanel, DecisionsPanel } from './components/workPanels.jsx';
 
 /** 개요 수치 하나: 읽기 상태가 부분·낡음·모름이면 값 뒤 "?"와 이유 분류(파일·줄 없음). 상태가 없으면 값 그대로. */
 const readItem = (label, value, field, reading) => {
@@ -56,29 +57,50 @@ export function Overview({ data: d, captureBase, current = 0 }) {
   const cur = d.milestones.find((m) => m.id === d.currentMilestone) || null;
   const lastVisit = React.useMemo(readLastVisit, []);
   const onMap = React.useMemo(() => mapJourneys(d.journeys, d.currentMilestone), [d.journeys, d.currentMilestone]);
+  // 자리 8개(DEC-24): overviewSlots 키를 컴포넌트로 바꿔 그리기만 한다. 제품 축 있음은 2.2.0 DOM 그대로다
+  const slots = overviewSlots(d);
+  const panel = {
+    ms: () => <MilestonePanel roadmapItems={d.roadmapItems} milestones={d.milestones} currentMilestone={d.currentMilestone} generatedAt={d.generatedAt} tasksRunning={d.counts.tasksRunning} at={at} />,
+    progress: () => <ProgressPanel steps={d.counts.steps} journeysLive={d.counts.journeysLive} journeysTotal={d.counts.journeys} milestone={cur} at={at} />,
+    changes: () => <ChangesPanel changes={d.changes} activity={d.activity} generatedAt={d.generatedAt} lastVisit={lastVisit} at={at} />,
+    map: () => (
+      <Panel icon={Icons.map} title="기능 지도" sub={`기능 ${d.counts.journeys} · 단계 ${sum(Object.values(d.counts.steps))}`} at={at} budget="matrix">
+        <FeatureMap journeys={onMap.shown} badgeJourneys={d.journeys} folded={onMap.folded} foldedIncomplete={onMap.foldedIncomplete}
+          links={d.links} selected={selected} onSelect={pick} stepCounts={d.counts.steps} next={next} workspace={!!d.repos} />
+      </Panel>
+    ),
+    trend: () => <FeatureTrendPanel journeys={d.journeys} selected={selected} onSelect={pick} at={at} />,
+    signals: () => <SignalsPanel roadmapItems={d.roadmapItems} milestones={d.milestones} signals={d.signals} generatedAt={d.generatedAt} at={at} />,
+    capture: () => <CapturePanel captures={d.captures} journeys={d.journeys} base={captureBase} selected={selected} userPicked={userPicked} />,
+    table: () => <FeatureTablePanel journeys={d.journeys} activity={d.activity} selected={selected} onSelect={pick} />,
+    repos: () => <RepoTablePanel d={d} at={at} />,
+    spread: () => <SpreadPanel d={d} at={at} />,
+    'work-tasks': () => <WorkTasksPanel d={d} at={at} />,
+    'repo-trend': () => <RepoTrendPanel d={d} at={at} />,
+    ledger: () => <LedgerPanel d={d} />,
+    decisions: () => <DecisionsPanel d={d} />,
+  };
+  const slot = (i) => panel[slots[i]]();
   return (
     <div className="screen" data-screen="overview">
       <TopBar project={d.project} signals={d.signals} generatedAt={d.generatedAt} current={current} />
       <Ticker items={tickerItems(d)} />
-      <main className="grid">
+      <main className={d.productEmpty ? 'grid work' : 'grid'}>
         <div className="col l">
-          <MilestonePanel roadmapItems={d.roadmapItems} milestones={d.milestones} currentMilestone={d.currentMilestone} generatedAt={d.generatedAt} tasksRunning={d.counts.tasksRunning} at={at} />
-          <ProgressPanel steps={d.counts.steps} journeysLive={d.counts.journeysLive} journeysTotal={d.counts.journeys} milestone={cur} at={at} />
-          <ChangesPanel changes={d.changes} activity={d.activity} generatedAt={d.generatedAt} lastVisit={lastVisit} at={at} />
+          {slot(0)}
+          {slot(1)}
+          {slot(2)}
         </div>
         <div className="col c">
-          <Panel icon={Icons.map} title="기능 지도" sub={`기능 ${d.counts.journeys} · 단계 ${sum(Object.values(d.counts.steps))}`} at={at} budget="matrix">
-            <FeatureMap journeys={onMap.shown} badgeJourneys={d.journeys} folded={onMap.folded} foldedIncomplete={onMap.foldedIncomplete}
-              links={d.links} selected={selected} onSelect={pick} stepCounts={d.counts.steps} next={next} workspace={!!d.repos} />
-          </Panel>
+          {slot(3)}
           <div className="split">
-            <FeatureTrendPanel journeys={d.journeys} selected={selected} onSelect={pick} at={at} />
-            <SignalsPanel roadmapItems={d.roadmapItems} milestones={d.milestones} signals={d.signals} generatedAt={d.generatedAt} at={at} />
+            {slot(4)}
+            {slot(5)}
           </div>
         </div>
         <div className="col r">
-          <CapturePanel captures={d.captures} journeys={d.journeys} base={captureBase} selected={selected} userPicked={userPicked} />
-          <FeatureTablePanel journeys={d.journeys} activity={d.activity} selected={selected} onSelect={pick} />
+          {slot(6)}
+          {slot(7)}
         </div>
       </main>
     </div>

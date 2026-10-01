@@ -30,6 +30,13 @@ export function subjectPlain(subject, n) {
   if ([...s].length < 2) s = `${kind} 변경`;
   return plain(s, n);
 }
+// 개요 식별자: 예산 검사(budget/view-budget.spec.mjs 의 IDENT)와 같은 패턴. 두 벌이라 단위 검사가 패턴 문자열을 대조한다
+export const OVERVIEW_IDENT = /\/api\/|\.tsx\b|\.mjs\b|\.sql\b|\bweb\/src\b|\b[0-9a-f]{7,40}\b/;
+// 개요 자유 글자 정리(2.3.0): 공백 낱말마다 개요 식별자 정규식을 적용해 걸린 낱말을 통째로 지운다(「26a3f40,」·「icons.tsx를」도).
+// 마크다운 링크 대상의 작업 폴더 날짜가 걸리므로 plain 뒤에 부른다. 커밋 제목(subjectPlain)은 기존 낱말 규칙 그대로다
+export function dropIdents(text) {
+  return String(text ?? '').split(/\s+/).filter((w) => w && !OVERVIEW_IDENT.test(w)).join(' ');
+}
 // Asia/Seoul 날짜(YYYY-MM-DD). 커밋 시각의 Z·+09:00 혼용을 Date로 통일한다
 const seoulDay = (t) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
 const STEP_STATUS = ['live', 'mock', 'planned', 'next'];
@@ -444,14 +451,21 @@ export function overviewSlice(d, opts = {}) {
       captures.push({ file: s.captureFile, journey: j.id, step: s.id });
     }
   }
+  // 저장소 이름(2.3.0, DEC-6): 뷰 행의 repo(경로, 상위 '.')를 저장소 이름(상위는 project.name)으로 바꾼다. 개요는 경로를 싣지 않는다.
+  // 워크스페이스가 아니면 repo 키를 달지 않는다
+  const repoName = d.repos ? new Map(d.repos.map((r) => [r.path, r.name])) : null;
+  const repoOf = (row) => (repoName ? { repo: repoName.get(row.repo ?? '.') ?? row.repo } : {});
   const changes = human.slice().sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 20).map((c) => {
     const touched = new Set(c.journeys.map((x) => x.journey));
     const titles = d.semantic.journeys.filter((j) => touched.has(j.id)).map((j) => j.title).slice(0, 3);
-    return { date: new Date(c.date).toISOString(), kind: changeKind(c.subject), subject: subjectPlain(c.subject, 70), journeys: titles, journeysMore: touched.size - titles.length };
+    return { date: new Date(c.date).toISOString(), kind: changeKind(c.subject), subject: subjectPlain(c.subject, 70), journeys: titles, journeysMore: touched.size - titles.length, ...repoOf(c) };
   });
   const stepCounts = Object.fromEntries(STEP_STATUS.map((k) => [k, 0]));
   for (const j of d.semantic.journeys) for (const s of j.steps) if (s.status in stepCounts) stepCounts[s.status] += 1;
   const ws = workspaceOverview(d);
+  // 제품 축이 비었나(2.3.0, DEC-2): 여정·단계·화면·API·DB 함수가 모두 0. 워크스페이스 여부와 상관없이 계산하고 참일 때만 싣는다.
+  // 거짓이면 키가 없어 제품 있는 프로젝트의 산출이 2.2.0과 같다. 전광판(tickerItems)과 개요 자리 배치가 이 값 하나로 갈린다
+  const productEmpty = !nJourneys && !d.summary.stepsTotal && !d.summary.routes && !d.summary.apis && !d.summary.dbFunctions;
   const lastRun = d.testreport ? { fresh: d.testreport.fresh, failures: d.testreport.failures, total: d.testreport.total, at: d.testreport.at } : null;
   return {
     generatedAt: d.generatedAt, project: d.project, headDate: d.head?.date || null,
@@ -500,13 +514,13 @@ export function overviewSlice(d, opts = {}) {
     roadmapItems, milestones, currentMilestone,
     activity: { sinceDays: days, days: dates.map((date, i) => ({ date, commits: act.commits[i], runtime: act.runtime[i], bots: act.bots[i] })), total: sum(act.commits), runtime: sum(act.runtime), bots: sum(act.bots) },
     changes, links, captures,
-    ...(ws ? { repos: ws.repos, productEmpty: ws.productEmpty } : {}),
+    ...(ws ? { repos: ws.repos } : {}),
+    ...(productEmpty ? { productEmpty: true, work: workOverview(d, repoOf) } : {}),
   };
 }
 
 // 개요의 저장소 조각(2.2.0). 워크스페이스가 아니면 null. 행은 상위가 첫 행이고 이름·역할·빌드 상태·14일 커밋·진행 작업·동작 단계·어긋남 수만 싣는다 —
 // HEAD·상황판 주소·경로는 개요 식별자 검사(커밋 sha·경로 모양) 때문에 싣지 않는다. 동작 단계는 상위는 합친 그래프 값, 자식은 자식 빌드 값이고 빌드하지 못한 자식은 null.
-// productEmpty: 상위에 여정·화면·API·DB 함수가 하나도 없다. 전광판이 측정하지 않은 제품 축 항목(0/0) 대신 저장소 항목을 쓴다(DEC-27)
 function workspaceOverview(d) {
   if (!d.repos) return null;
   const s = d.summary;
@@ -516,8 +530,40 @@ function workspaceOverview(d) {
       name: r.name, role: r.role ?? null, build: r.build, commits: r.commits ?? 0, running: r.tasks?.['진행'] ?? 0,
       stepsLive: i === 0 ? s.stepsLive : r.summary?.stepsLive ?? null, stepsTotal: i === 0 ? s.stepsTotal : r.summary?.stepsTotal ?? null, drift: (r.drift || []).length,
     })),
-    productEmpty: !s.stepsTotal && !s.routes && !s.apis && !s.dbFunctions,
     drift: (d.issues || []).filter((x) => drift.includes(x.code)).length,
+  };
+}
+
+// 개요의 작업 조각(2.3.0): 제품 축이 빈 프로젝트에서만 부른다. 진행 작업 전부, 장부 진행 행 최대 20, 결정(제안 먼저) 최대 20.
+// 자유 글자는 plain → dropIdents 순서로 정리하고(링크 대상의 작업 폴더 날짜가 식별자에 걸린다) n자로 줄인 뒤,
+// 줄인 끝 낱말이 식별자 모양이 되면 그것도 지운다. 장부 작업 이름은 정리 전 원문 칸에서 찾는다
+const LEDGER_TASK = /\((\d{8}-[^/()\s]+)(?:\/|\))/; // tasks 어댑터의 장부 판독 정규식과 같다
+const fit = (s, n) => dropIdents(plain(dropIdents(plain(s)), n));
+// 장부 메모(DEC-9·18): 진행이 쌓이는 칸이라 끝을 남긴다. 120자를 넘으면 끝 120자 안의 첫 문장 끝(. ! ? 뒤 공백) 다음부터,
+// 문장 끝이 없으면 첫 공백 다음부터 남기고 앞에 「…」을 붙인다. 공백도 없으면 끝 120자 그대로다
+function ledgerNote(text, n = 120) {
+  const cp = [...text];
+  if (cp.length <= n) return text;
+  const tail = cp.slice(-n).join('');
+  const m = tail.match(/[.!?]\s/) ?? tail.match(/\s/);
+  return dropIdents(`…${m ? tail.slice(m.index + m[0].length) : tail}`);
+}
+function workOverview(d, repoOf) {
+  const taskNames = new Set(d.tasks.map((t) => t.name));
+  // 장부 행의 작업(DEC-21): 원문 work 칸의 첫 작업 링크, 없으면 done 칸. 자식 행은 <저장소 경로>: 접두를 붙이고 작업 목록에 없으면 null
+  const ledgerTask = (r) => {
+    const m = String(r.work ?? '').match(LEDGER_TASK) ?? String(r.done ?? '').match(LEDGER_TASK);
+    const name = m && (r.repo && r.repo !== '.' ? `${r.repo}:${m[1]}` : m[1]);
+    return name && taskNames.has(name) ? name : null;
+  };
+  return {
+    // 날짜 내림차순, 같으면 최근 커밋 수 내림차순, 그래도 같으면 data.json 순서(안정 정렬). 행 수가 곧 진행 작업 수라 상한이 없다
+    tasks: d.tasks.filter((t) => t.status === '진행').sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.recentCommits || 0) - (a.recentCommits || 0))
+      .map((t) => ({ id: t.name, title: fit(t.title, 80), stage: t.stage ?? null, date: t.date ?? null, pnDone: t.pnDone, pnOpen: t.pnOpen, ...repoOf(t) })),
+    ledger: d.ledger.running.slice(0, 20).map((r) => ({ work: fit(r.work, 60), owner: fit(r.owner, 60), note: ledgerNote(fit(r.done)), task: ledgerTask(r), ...repoOf(r) })),
+    // 제안은 사람이 받아들일지 정할 항목이라 먼저, 그 안에서는 결정 뷰 순서(저장소 순, 위키 색인 줄 순)
+    decisions: [...d.decisions.filter((x) => x.status === 'proposed'), ...d.decisions.filter((x) => x.status === 'current')].slice(0, 20)
+      .map((x) => ({ title: fit(x.title, 80), status: x.status, ...repoOf(x) })),
   };
 }
 

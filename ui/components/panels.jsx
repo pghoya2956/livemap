@@ -175,7 +175,7 @@ export function ProgressPanel({ steps, journeysLive, journeysTotal, milestone, a
 }
 
 const KIND_ORDER = ['기능', '수정', '문서', '검사', '정리', '운영', '변경'];
-/** 최근 변경(사람 커밋). 행은 더보기 > 변화로 간다. */
+/** 최근 변경(사람 커밋). 행은 더보기 > 변화로 간다. 워크스페이스(2.3.0)면 메타에 저장소 이름을 더한다(DEC-14) */
 export function ChangesPanel({ changes, activity, generatedAt, lastVisit, at }) {
   const [filter, setFilter] = React.useState('전체');
   const kinds = ['전체', ...KIND_ORDER.filter((k) => changes.some((c) => c.kind === k))];
@@ -194,7 +194,7 @@ export function ChangesPanel({ changes, activity, generatedAt, lastVisit, at }) 
                 <Tag kind={c.kind}>{c.kind}</Tag>
                 <div className="body">
                   <div className="tt" title={c.subject}>{isNewer(c.date, lastVisit) && <span className="newdot" />}<span data-text="commit">{c.subject}</span></div>
-                  <div className="meta">{ago(c.date, generatedAt)}{c.journeys.length ? <> · <Proj>{c.journeys.slice(0, 2).join(', ')}</Proj>{more > 0 ? ` 외 ${more}` : ''}</> : null}</div>
+                  <div className="meta">{ago(c.date, generatedAt)}{c.repo ? <> · <Proj>{c.repo}</Proj></> : null}{c.journeys.length ? <> · <Proj>{c.journeys.slice(0, 2).join(', ')}</Proj>{more > 0 ? ` 외 ${more}` : ''}</> : null}</div>
                 </div>
               </a>
             );

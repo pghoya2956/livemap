@@ -11,7 +11,7 @@ import { freshness, waitDays, hm, mdKo, kst, hostOf } from '../ui/lib/format.js'
 import { fitCount, mapJourneys } from '../ui/lib/fit.js';
 import { isNewer } from '../ui/lib/visit.js';
 import { parseRoute, archHash, NAV, MORE_TABS } from '../ui/lib/route.js';
-import { repoLabel, repoPath, bareTask, boardHref, repoTickerItems, repoFilters } from '../ui/lib/repos.js';
+import { repoLabel, repoPath, bareTask, boardHref, repoTickerItems, repoFilters, PRODUCT_SLOTS, overviewSlots, repoRows, stageCounts, workRepoFilters, ledgerHref, noteTail } from '../ui/lib/repos.js';
 import { buildTree, pathOf, geometry, crossings } from '../ui/lib/tree.js';
 import { visibleCaptures } from '../ui/lib/capture.js';
 import { LANE_ORDER, laneLayout, communityLayout, flowPath, neighbors, foldByCommunity, focusScope, laneColumns } from '../ui/lib/arch.js';
@@ -1002,4 +1002,58 @@ test('저장소 화면 순수 함수: 이름·경로·접두 떼기·상황판 �
   assert.deepEqual(repoTickerItems(undefined), []);
   const rows = [{ repo: '.' }, { repo: 'app' }, { repo: 'app' }];
   assert.deepEqual(repoFilters([{ path: '.' }, { path: 'app' }, { path: 'svc' }], rows, 'Top'), [{ repo: '.', label: 'Top', count: 1 }, { repo: 'app', label: 'app', count: 2 }, { repo: 'svc', label: 'svc', count: 0 }]);
+});
+
+// ── 제품 축이 빈 개요(2.3.0) ──
+const EMPTY_OV = { productEmpty: true, roadmapItems: [], milestones: [], project: { name: '프로젝트' }, activity: { total: 9 }, counts: { tasksRunning: 2 } };
+const WS_REPOS = [
+  { name: '상위', build: 'ok', commits: 5, running: 2, stepsLive: 0, stepsTotal: 0 },
+  { name: 'app', build: 'ok', commits: 7, running: 1, stepsLive: 3, stepsTotal: 4 },
+  { name: 'svc', build: 'failed', commits: 0, running: 0, stepsLive: null, stepsTotal: null },
+];
+
+test('빈 축 SC-3 overviewSlots: 제품 있음은 2.2.0 여덟 자리, 빔·로드맵 없음은 저장소 표·분포, 빔·로드맵 있음은 첫 자리 마일스톤·로드맵에 분포 없음', () => {
+  const NEW = ['repos', 'spread', 'work-tasks', 'repo-trend', 'ledger', 'decisions'];
+  const product = overviewSlots({ roadmapItems: [{ id: 'r' }], milestones: [] });
+  assert.deepEqual(product, PRODUCT_SLOTS);
+  assert.equal(product.length, 8);
+  assert.equal(product.some((k) => NEW.includes(k)), false);
+  assert.deepEqual(overviewSlots(EMPTY_OV), ['repos', 'spread', 'changes', 'work-tasks', 'repo-trend', 'signals', 'ledger', 'decisions']);
+  for (const roadmap of [{ roadmapItems: [{ id: 'r1' }] }, { milestones: [{ id: 'm1' }] }]) {
+    const s = overviewSlots({ ...EMPTY_OV, ...roadmap });
+    assert.deepEqual(s, ['ms', 'repos', 'changes', 'work-tasks', 'repo-trend', 'signals', 'ledger', 'decisions']);
+    assert.equal(s[0], PRODUCT_SLOTS[0]);
+  }
+});
+
+test('빈 축 SC-3 repoRows: 워크스페이스는 저장소 행(상위 표시·빌드 낱말·동작 단계), 아니면 프로젝트 한 행', () => {
+  assert.deepEqual(repoRows({ ...EMPTY_OV, repos: WS_REPOS }), [
+    { name: '상위', top: true, commits: 5, running: 2, word: '정상', warn: false },
+    { name: 'app', top: false, commits: 7, running: 1, word: '3/4 동작', warn: false },
+    { name: 'svc', top: false, commits: 0, running: 0, word: '빌드 실패', warn: true },
+  ]);
+  assert.deepEqual(repoRows(EMPTY_OV), [{ name: '프로젝트', top: false, commits: 9, running: 2, word: '정상', warn: false }]);
+});
+
+test('빈 축 SC-3 stageCounts·workRepoFilters·ledgerHref: 단계 많은 순, 칩은 전체 + 저장소 순서(0건 포함), 장부 링크는 작업이 풀린 행만', () => {
+  const tasks = [{ stage: '계획', repo: 'app' }, { stage: '실행', repo: '상위' }, { stage: '실행', repo: '상위' }, { stage: null, repo: 'app' }];
+  assert.deepEqual(stageCounts(tasks), [{ stage: '실행', n: 2 }, { stage: '계획', n: 1 }, { stage: '—', n: 1 }]);
+  assert.deepEqual(workRepoFilters({ ...EMPTY_OV, repos: WS_REPOS, work: { tasks } }), [
+    { repo: null, label: '모든 저장소', count: 4 }, { repo: '상위', label: '상위', count: 2 }, { repo: 'app', label: 'app', count: 2 }, { repo: 'svc', label: 'svc', count: 0 },
+  ]);
+  // 단일 저장소이거나 진행 작업이 없거나 work가 없으면 칩을 그리지 않는다
+  assert.deepEqual(workRepoFilters({ ...EMPTY_OV, work: { tasks } }), []);
+  assert.deepEqual(workRepoFilters({ ...EMPTY_OV, repos: WS_REPOS, work: { tasks: [] } }), []);
+  assert.deepEqual(workRepoFilters({ ...EMPTY_OV, repos: WS_REPOS }), []);
+  assert.equal(ledgerHref({ task: 'app:20260103-app only' }), '#/tasks/app%3A20260103-app%20only');
+  assert.equal(ledgerHref({ task: null }), null);
+});
+
+test('빈 축 SC-3 noteTail: 엔진과 같은 끝 문장 규칙으로 앞을 더 버리고, 줄일 필요가 없으면 그대로 둔다', () => {
+  assert.equal(noteTail('짧은 메모', 10), '짧은 메모');
+  assert.equal(noteTail('…이미 자른 메모', 10), '…이미 자른 메모');
+  assert.equal(noteTail('앞 문장이다. 가운데 문장이다. 마지막 문장', 16), '…마지막 문장');
+  assert.equal(noteTail('…가나다라마바 사아자차카타파하', 10), '…사아자차카타파하');
+  // 문장 끝도 공백도 없으면 끝 max자 그대로
+  assert.equal(noteTail('가나다라마바사아자차카타파하', 5), '…차카타파하');
 });
