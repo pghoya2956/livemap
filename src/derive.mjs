@@ -459,6 +459,9 @@ export function overviewSlice(d, opts = {}) {
   const stepCounts = Object.fromEntries(STEP_STATUS.map((k) => [k, 0]));
   for (const j of d.semantic.journeys) for (const s of j.steps) if (s.status in stepCounts) stepCounts[s.status] += 1;
   const ws = workspaceOverview(d);
+  // 제품 축이 비었나(2.3.0, DEC-2): 여정·단계·화면·API·DB 함수가 모두 0. 워크스페이스 여부와 상관없이 계산하고 참일 때만 싣는다.
+  // 거짓이면 키가 없어 제품 있는 프로젝트의 산출이 2.2.0과 같다. 전광판(tickerItems)과 개요 자리 배치가 이 값 하나로 갈린다
+  const productEmpty = !nJourneys && !d.summary.stepsTotal && !d.summary.routes && !d.summary.apis && !d.summary.dbFunctions;
   const lastRun = d.testreport ? { fresh: d.testreport.fresh, failures: d.testreport.failures, total: d.testreport.total, at: d.testreport.at } : null;
   return {
     generatedAt: d.generatedAt, project: d.project, headDate: d.head?.date || null,
@@ -507,13 +510,13 @@ export function overviewSlice(d, opts = {}) {
     roadmapItems, milestones, currentMilestone,
     activity: { sinceDays: days, days: dates.map((date, i) => ({ date, commits: act.commits[i], runtime: act.runtime[i], bots: act.bots[i] })), total: sum(act.commits), runtime: sum(act.runtime), bots: sum(act.bots) },
     changes, links, captures,
-    ...(ws ? { repos: ws.repos, productEmpty: ws.productEmpty } : {}),
+    ...(ws ? { repos: ws.repos } : {}),
+    ...(productEmpty ? { productEmpty: true } : {}),
   };
 }
 
 // 개요의 저장소 조각(2.2.0). 워크스페이스가 아니면 null. 행은 상위가 첫 행이고 이름·역할·빌드 상태·14일 커밋·진행 작업·동작 단계·어긋남 수만 싣는다 —
 // HEAD·상황판 주소·경로는 개요 식별자 검사(커밋 sha·경로 모양) 때문에 싣지 않는다. 동작 단계는 상위는 합친 그래프 값, 자식은 자식 빌드 값이고 빌드하지 못한 자식은 null.
-// productEmpty: 상위에 여정·화면·API·DB 함수가 하나도 없다. 전광판이 측정하지 않은 제품 축 항목(0/0) 대신 저장소 항목을 쓴다(DEC-27)
 function workspaceOverview(d) {
   if (!d.repos) return null;
   const s = d.summary;
@@ -523,7 +526,6 @@ function workspaceOverview(d) {
       name: r.name, role: r.role ?? null, build: r.build, commits: r.commits ?? 0, running: r.tasks?.['진행'] ?? 0,
       stepsLive: i === 0 ? s.stepsLive : r.summary?.stepsLive ?? null, stepsTotal: i === 0 ? s.stepsTotal : r.summary?.stepsTotal ?? null, drift: (r.drift || []).length,
     })),
-    productEmpty: !s.stepsTotal && !s.routes && !s.apis && !s.dbFunctions,
     drift: (d.issues || []).filter((x) => drift.includes(x.code)).length,
   };
 }
