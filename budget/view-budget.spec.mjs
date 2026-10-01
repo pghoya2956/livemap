@@ -73,6 +73,17 @@ test('기능 지도 선택 → a.open → 단계 상세까지 3번 안에 닿는
   expect(await page.locator('.detail .node').count()).toBeGreaterThan(0);
 });
 
+test('제품 축이 비면 저장소 패널', async ({ page }) => {
+  await openOverview(page);
+  // 2.3.0: 제품 축(여정·단계·화면·API·DB 함수)이 비면 overview.json 에 productEmpty 가 실리고, 개요는 기능 지도·화면 캡처 대신
+  // 저장소·작업 패널을 그린다. 패키지에 ui/가 없어 화면 모듈을 부르지 못하므로 자료의 키만 보고 화면 요소를 센다
+  const ov = await page.evaluate(() => fetch('data/overview.json', { cache: 'no-store' }).then((r) => r.json()));
+  test.skip(!ov.productEmpty, '제품 축이 있다');
+  expect(await page.locator('.mapwrap').count(), '기능 지도').toBe(0);
+  expect(await page.locator('.capture').count(), '화면 캡처').toBe(0);
+  expect(await page.locator('.panel.work-tasks').count(), '진행 중인 작업 패널').toBe(1);
+});
+
 test('패널 숨은 스크롤이 없다', async ({ page }) => {
   await openOverview(page);
   // .panel·.pb·.rows와 패널 안 overflow-y auto/scroll 자손. 줄 수 제한 글자와 지도·캡처 상자는 뺀다.
