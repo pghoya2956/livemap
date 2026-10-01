@@ -13,13 +13,13 @@ const EMPTY = { tasks: [], ledger: [], decisions: [] };
 const workOf = (d) => ({ ...EMPTY, ...(d.work || {}) });
 const emptyRow = (text) => <div className="row static"><div className="body"><div className="tt">{text}</div></div></div>;
 
-/** 막대 묶음. 들어가는 막대만 그리고(최대 6) 몇 개가 접혔는지 돌려준다 */
-function Bars({ bars, onFit }) {
+// 막대 한 줄 높이: 막대 16px + 간격 4px(styles.css .bar·.bars). 1440×900 분포 패널에 저장소 6개가 들어가는 값이다
+const BAR_H = 20;
+/** 막대 묶음. 패널이 useFitRows(bars.length, BAR_H)로 잰 n개만 그린다. 「외 n」을 같은 값에서 세도록 맞춤은 패널이 한다 */
+function Bars({ bars, n, boxRef }) {
   const max = Math.max(1, ...bars.map((b) => b.n));
-  const [ref, n] = useFitRows(bars.length, 24);
-  React.useEffect(() => { onFit?.(n); }, [n, onFit]);
   return (
-    <div className="bars fit" ref={ref}>
+    <div className="bars fit" ref={boxRef}>
       {bars.slice(0, n).map((b) => (
         <div className="bar" key={b.key}>
           <span className="lb" title={b.label}><Proj>{b.label}</Proj></span>
@@ -63,12 +63,12 @@ export function SpreadPanel({ d, at }) {
   const multi = (d.repos?.length ?? 0) >= 2;
   const stages = stageCounts(tasks);
   const bars = multi ? d.repos.map((r) => ({ key: r.name, label: r.name, n: r.running ?? 0 })) : stages.map((s) => ({ key: s.stage, label: s.stage, n: s.n }));
-  const [shown, setShown] = React.useState(Math.min(6, bars.length));
-  const more = bars.length > shown ? { n: bars.length - shown, href: multi ? '#/more/repos' : '#/tasks' } : null;
+  const [ref, shown] = useFitRows(bars.length, BAR_H);
+  const more = bars.length > shown ?{ n: bars.length - shown, href: multi ? '#/more/repos' : '#/tasks' } : null;
   return (
     <Panel icon={Icons.gauge} title="진행 작업 분포" sub={`진행 ${tasks.length}`} at={at} budget="list" className="spread" more={tasks.length ? more : null}>
       <div className="pb">
-        {tasks.length ? <Bars bars={bars} onFit={setShown} /> : <div className="rows">{emptyRow('진행 중인 작업이 없습니다')}</div>}
+        {tasks.length ? <Bars bars={bars} n={shown} boxRef={ref} /> : <div className="rows">{emptyRow('진행 중인 작업이 없습니다')}</div>}
         {multi && tasks.length > 0 && <p className="sum" title={stages.map((s) => `${s.stage} ${s.n}`).join(' · ')}>단계: {stages.map((s) => `${s.stage} ${s.n}`).join(' · ')}</p>}
       </div>
     </Panel>
@@ -116,14 +116,14 @@ export function WorkTasksPanel({ d, at }) {
 export function RepoTrendPanel({ d, at }) {
   const multi = (d.repos?.length ?? 0) >= 2;
   const bars = multi ? d.repos.map((r, i) => ({ key: r.name, label: r.name, n: r.commits ?? 0, i })).sort((a, b) => b.n - a.n || a.i - b.i) : [];
-  const [shown, setShown] = React.useState(Math.min(6, bars.length));
+  const [ref, shown] = useFitRows(bars.length, BAR_H);
   const days = d.activity.days;
   return (
     <Panel icon={Icons.trend} title="저장소별 변경" sub={multi ? '14일 커밋 · 자동 포함' : '14일 사람 커밋'} at={at} budget="list" className="repo-trend"
       more={bars.length > shown ? { n: bars.length - shown, href: '#/more/repos' } : null}>
       <div className="pb">
         {multi
-          ? <Bars bars={bars} onFit={setShown} />
+          ? <Bars bars={bars} n={shown} boxRef={ref} />
           : <><AreaChart series={days.map((x) => x.commits)} days={days.map((x) => x.date)} /><p className="sum">14일 {sum(days.map((x) => x.commits))}건</p></>}
       </div>
     </Panel>
