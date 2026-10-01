@@ -23,6 +23,7 @@ import { bridgeArchitecture } from './bridge.mjs';
 import { architectureStage } from './architecture.mjs';
 import { architectureOutputs } from './reporters/architecture-md.mjs';
 import { applyStrict, problemsJson, sortProblems, textLines } from './lib/issues.mjs';
+import { workspaceStage, DRIFT_CODES } from './workspace.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const PKG_ROOT = resolve(here, '..');
@@ -66,9 +67,10 @@ export function readSemantic(fs, cfg) {
   return sem;
 }
 
-export async function buildGraph(root = process.cwd(), { semantic = null } = {}) {
+// workspace: false 면 워크스페이스 단계를 건너뛴다(check --staged·affected·자식 빌드). config 를 주면 설정 파일 대신 그 객체를 쓴다(자식의 대체·자동 설정)
+export async function buildGraph(root = process.cwd(), { semantic = null, workspace = true, config = null } = {}) {
   const fs = makeFs(root);
-  const cfg = JSON.parse(fs.read(CONFIG));
+  const cfg = config ? structuredClone(config) : JSON.parse(fs.read(CONFIG));
   if (semantic) cfg.semantic = semantic; // --semantic: 다른 판의 여정 정본으로 산출을 재현할 때
   const g = new Graph();
   const shadowed = [];
@@ -78,6 +80,9 @@ export async function buildGraph(root = process.cwd(), { semantic = null } = {})
     if (loaded.shadowed) shadowed.push(name);
     runAdapter(g, name, (g) => loaded.fn(g, fs, cfg));
   }
+  // 워크스페이스 단계(2.2.0): 설정에 workspace 키가 있을 때만 돈다. 자식 저장소의 작업·결정·커밋·장부를 접두를 붙여 합치고 저장소 절을 만든다.
+  // 연결 단계 앞이라 뒤 단계가 읽는 화면·API 는 늘지 않는다. 자식 빌드는 workspace: false 로 부른다(중첩 워크스페이스를 펼치지 않는다)
+  const ws = workspace && cfg.workspace ? await workspaceStage(g, root, cfg, { buildGraph, version: VERSION, engineMajor: ENGINE_MAJOR }) : null;
   // 연결 단계: 모든 어댑터 뒤에 화면 리터럴을 API 노드에 잇는다. adapters[]에 들지 않고, 실패하면 오류 이슈로 남긴다
   try { linkScreenApis(g, fs, cfg); } catch (e) { g.issue('error', '연결 단계', String(e?.message || e)); }
   // 다리 단계(2.1.0): 연결 단계가 만든 calls 를 읽기만 하고 화면·API 를 Graphify 파일 노드와 로그인 노드에 잇는다(DEC-42). graphify 어댑터가 없으면 아무것도 하지 않는다
@@ -88,6 +93,7 @@ export async function buildGraph(root = process.cwd(), { semantic = null } = {})
   try { architectureStage(g, fs, cfg, sem); } catch (e) { g.issue('error', '구조 단계', String(e?.message || e)); }
   const captureExists = (id) => (id && fs.has(`${capturesDir(cfg)}/${id}.jpg`) ? `${id}.jpg` : null);
   const data = derive(g, sem, cfg, { captureExists });
+  if (ws) data.repos = ws.repos;
   // 구조 산출물(2.1.0): architecture.md 본문·architecture.json·스킬 사본을 만들고 상한·낡음 판정을 이슈로 남긴다(check 가 본다). 절이 없는 프로젝트는 null
   const outputs = architectureOutputs(g, data, cfg, fs, { version: VERSION });
   if (outputs) { for (const i of outputs.issues) g.issue(i.level, i.label, i.message, i.detail); data.issues = g.issues.map((i) => ({ ...i })); }
@@ -177,7 +183,8 @@ async function checkStaged(root, cfg, json) {
   const log = console.log;
   console.log = (...a) => console.error(...a);
   let built;
-  try { built = await buildGraph(root); } finally { console.log = log; }
+  // 자식 저장소는 빌드하지 않는다(2.2.0): 훅이 막는 대상은 스테이징된 상위 작업 문서와 구조 선언뿐이다
+  try { built = await buildGraph(root, { workspace: false }); } finally { console.log = log; }
   const problems = sortProblems(stagedProblems(checkProblems(built.data, built.cfg), paths, built.cfg));
   if (json) { process.stdout.write(JSON.stringify(problemsJson(problems, VERSION), null, 2) + '\n'); return problems.length ? 1 : 0; }
   if (!problems.length) { console.log(`map check --staged: 통과 (대상 파일 ${targets.length})`); return 0; }
@@ -215,7 +222,10 @@ export async function main(argv = []) {
     notifyShadow(shadowed);
     const bad = d.adapters.filter((a) => a.status !== 'ok');
     const arch = d.architecture ? ` · 부품 ${d.summary.containers} · 묶음 ${d.summary.communities}` : '';
-    console.log(`map build → ${out}: 화면 ${d.summary.routes} · API ${d.summary.apis} · 함수 ${d.summary.dbFunctions}${arch} · 작업 ${d.tasks.length} · 커밋 ${d.summary.commits} · 경고 ${d.summary.warnings} · 고아 ${d.summary.orphans}${d.architecture ? ` · 어긋남 ${d.summary.boundaryViolations}` : ''}`);
+    // 워크스페이스(2.2.0): 저장소 수(상위 포함)와 저장소 어긋남 R1~R4 항목 수
+    const drift = d.issues.filter((i) => Object.values(DRIFT_CODES).includes(i.code)).length;
+    const repos = d.repos ? ` · 저장소 ${d.repos.length} · 어긋남 ${drift}` : '';
+    console.log(`map build → ${out}: 화면 ${d.summary.routes} · API ${d.summary.apis} · 함수 ${d.summary.dbFunctions}${arch} · 작업 ${d.tasks.length} · 커밋 ${d.summary.commits} · 경고 ${d.summary.warnings} · 고아 ${d.summary.orphans}${d.architecture ? ` · 어긋남 ${d.summary.boundaryViolations}` : ''}${repos}`);
     for (const a of bad) console.log(`  ${a.status === 'failed' ? '✗' : '△'} ${a.name}: ${a.error}`);
     return 0;
   }

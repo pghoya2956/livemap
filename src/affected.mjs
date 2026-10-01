@@ -24,7 +24,8 @@ export async function affected({ root = process.cwd(), base = null } = {}) {
   const log = console.log;
   console.log = (...a) => console.error(...a); // 어댑터 진행 출력이 명령 줄에 섞이지 않게 한다
   let built;
-  try { built = await buildGraph(root); } finally { console.log = log; }
+  // 자식 저장소는 빌드하지 않는다(2.2.0): 고르는 것은 이 저장소의 화면을 지나는 검사이고 자식 빌드는 결과를 바꾸지 않는다
+  try { built = await buildGraph(root, { workspace: false }); } finally { console.log = log; }
   const { g, fs, cfg } = built;
   const docs = docPaths(cfg);
   const isDoc = (f) => docs.some((d) => f === d || f.startsWith(`${d}/`));
