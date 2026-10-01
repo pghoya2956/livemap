@@ -114,6 +114,39 @@ crawl_static() { node "$CRAWL" --url http://127.0.0.1:4188/map/ --targets "$TARG
 soft "클릭 경로: serve" crawl_serve
 soft "클릭 경로: serve --static" crawl_static
 
+# 여러 저장소 워크스페이스(2.2.0): makeWorkspace 픽스처(상위 + 자식 app·svc, 각자 git 저장소, 상위 여정 0건)에 팩을 설치한다.
+# 요약 줄의 저장소 수, 예산(serve, 여정 0건 skip), 클릭 경로(저장소 탭·작업 저장소 필터 포함), 저장소 탭 상황판 링크가 설정 board 인지 본다
+step "워크스페이스: 픽스처와 팩 설치"
+WS=$(node --input-type=module -e "const m = await import(process.argv[1]); console.log(await m.makeWorkspace({ dir: process.argv[2] }))" "$REPO/test/helpers/workspace-fixture.mjs" "$T")
+(cd "$WS" && npm init -y >/dev/null && npm i --no-save --no-audit --no-fund "$TGZ" "@playwright/test@$PW" >/dev/null)
+
+step "워크스페이스: build 요약 줄에 저장소 3 · 어긋남 0"
+(cd "$WS" && "$L" build | tail -1 | grep -F ' · 저장소 3 · 어긋남 0')
+ws_budget() { (cd "$WS" && npx --no playwright test --config "$CFG"); }
+soft "워크스페이스: 예산(serve)" ws_budget
+bg_serve "$WS" 4189
+ws_crawl() { node "$CRAWL" --url http://127.0.0.1:4189/map/ --targets "$TARGETS"; }
+soft "워크스페이스: 클릭 경로" ws_crawl
+cat > "$T/ws-board.mjs" <<'JS'
+const [crawl, url, want] = process.argv.slice(2);
+const { launchBrowser, fetchJson } = await import(crawl);
+await fetchJson(`${url}data/overview.json`);
+const browser = await launchBrowser(url);
+let ok = false;
+try {
+  const page = await browser.newPage();
+  await page.goto(`${url}#/more/repos`);
+  await page.waitForSelector('[data-repo]', { timeout: 15000 });
+  const rows = await page.locator('[data-repo]').count();
+  const href = await page.locator('[data-repo="app"] a[target=_blank]').getAttribute('href');
+  console.log(`저장소 행 ${rows}, app 상황판 ${href}`);
+  ok = rows === 3 && href === want;
+} finally { await browser.close(); }
+process.exit(ok ? 0 : 1);
+JS
+ws_board() { node "$T/ws-board.mjs" "$CRAWL" http://127.0.0.1:4189/map/ https://example.test/map/; }
+soft "워크스페이스: 저장소 탭 상황판 링크" ws_board
+
 step "init 두 번(두 번째 무변경)"
 mkdir "$T/e" && cd "$T/e" && npm init -y >/dev/null && npm i --no-save --no-audit --no-fund "$TGZ" >/dev/null
 snap() { find . -path ./node_modules -prune -o -type f -print | sort | while IFS= read -r f; do shasum "$f"; done; }
