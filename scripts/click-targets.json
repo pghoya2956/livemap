@@ -36,7 +36,7 @@
     { "name": "상단 바 내비", "selector": ".nav a", "kind": "route", "expect": { "hrefs": ["#/overview", "#/journeys", "#/architecture", "#/roadmap", "#/tasks", "#/more"], "ariaCurrent": "#/overview" }, "source": "spec" },
     { "name": "호스트 알약", "selector": "a.pill[target=_blank]", "kind": "external", "expect": { "hostFrom": "project.host", "rel": "noopener noreferrer" }, "source": "spec", "optional": true },
     { "name": "전광판 정지·재생", "selector": ".ticker .pause", "kind": "inplace", "expect": { "ariaPressedToggles": true, "stopsAnimation": ".ticker" }, "source": "spec" },
-    { "name": "패널 머리 외 n", "selector": ".ph a.more", "kind": "route", "expect": { "hrefIn": ["#/roadmap", "#/more/changes", "#/journeys"] }, "source": "spec", "optional": true },
+    { "name": "패널 머리 외 n", "selector": ".ph a.more", "kind": "route", "expect": { "hrefIn": ["#/roadmap", "#/more/changes", "#/journeys", "#/more/repos", "#/tasks", "#/more/decisions"] }, "source": "spec", "optional": true },
     { "name": "완료 마일스톤 접은 행", "selector": "a.row.fold[href^='#/roadmap/']", "kind": "route", "expect": { "pattern": "#/roadmap/<milestone>" }, "source": "spec", "optional": true, "when": "milestones >= 1" },
     { "name": "완료 항목 접은 행", "selector": "a.row.fold[href='#/roadmap']", "kind": "route", "expect": { "pattern": "#/roadmap" }, "source": "spec", "optional": true, "when": "milestones == 0" },
     { "name": "마일스톤 패널 항목·뒤 마일스톤 행", "selector": ".ms a.row:not(.fold)", "kind": "route", "expect": { "patternIn": ["#/roadmap/<item>", "#/roadmap/<milestone>"] }, "source": "proposal", "when": "roadmapItems >= 1" },
@@ -57,7 +57,12 @@
     { "name": "기능 지도 빈 상태 저장소 링크", "selector": "a.mapempty-repos", "kind": "route", "expect": { "pattern": "#/more/repos" }, "source": "spec", "optional": true, "when": "repos >= 1" },
     { "name": "기능 현황 행", "selector": "button.wt.row", "kind": "inplace", "expect": { "switchesDetail": true }, "source": "spec", "when": "journeys >= 1" },
     { "name": "기능 현황 접은 행", "selector": "a.wt.fold.row", "kind": "route", "expect": { "pattern": "#/journeys" }, "source": "spec", "optional": true },
-    { "name": "기능 현황 기능 화면", "selector": "a.open", "kind": "route", "expect": { "pattern": "#/journeys/<journey>", "visible": ".scene" }, "source": "spec", "when": "journeys >= 1" }
+    { "name": "기능 현황 기능 화면", "selector": "a.open", "kind": "route", "expect": { "pattern": "#/journeys/<journey>", "visible": ".scene" }, "source": "spec", "when": "journeys >= 1" },
+    { "name": "저장소 표 행", "selector": ".repos a.row", "kind": "route", "expect": { "pattern": "#/more/repos" }, "source": "spec", "optional": true, "when": "repos >= 1" },
+    { "name": "진행 중인 작업 저장소 칩", "selector": ".work-tasks button.chip", "kind": "inplace", "expect": { "ariaPressed": true, "filtersRowsByRepo": true }, "source": "spec", "optional": true, "when": "repos >= 1" },
+    { "name": "진행 중인 작업 행", "selector": ".work-tasks a.row", "kind": "route", "expect": { "pattern": "#/tasks/<task>" }, "source": "spec", "optional": true, "when": "productEmpty == 1" },
+    { "name": "장부 행", "selector": ".ledger a.row", "kind": "route", "expect": { "pattern": "#/tasks/<task>" }, "source": "spec", "optional": true },
+    { "name": "결정 행", "selector": ".decisions a.row", "kind": "route", "expect": { "pattern": "#/more/decisions" }, "source": "spec", "optional": true }
   ],
   "screens": {
     "architecture": {
