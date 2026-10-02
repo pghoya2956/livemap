@@ -41,6 +41,13 @@ test('subjectPlain: 관례 접두어·[skip ci]·16진수·내부 ID·경로 낱
   assert.equal(subjectPlain('docs: 정리 - '), '정리');
 });
 
+test('subjectPlain: 구두점·조사가 붙은 식별자 낱말도 지운다(2.3.1, dropIdents 와 같은 규칙)', () => {
+  assert.equal(subjectPlain('docs: Phase 5는 26a3f40, Phase 4는 1dc3636.'), 'Phase 5는 Phase 4는');
+  assert.equal(subjectPlain('fix: icons.tsx를 고침'), '고침');
+  assert.equal(subjectPlain('chore: (943626062616)으로 교체'), '교체');
+  assert.equal(subjectPlain('docs: route-crawl.mjs 와 web/src/a 정리'), '와 정리');
+});
+
 test('subjectPlain: 2자 미만이면 "{종류} 변경", n자 자르기', () => {
   assert.equal(subjectPlain('deploy: 45cb747'), '운영 변경');
   assert.equal(subjectPlain('docs: PN-12'), '문서 변경');
