@@ -25,7 +25,7 @@ export function subjectPlain(subject, n) {
   const kind = changeKind(subject);
   let s = plain(String(subject ?? '').replace(PREFIX, '').replace(/\[(skip ci|ci skip)\]/gi, ''));
   s = s.replace(/\b(PN|DEC|OQ|AC|P\d)-\d+(?:\s*[·,~]\s*\d+)*/g, '').replace(/\b(PN|DEC|OQ|AC)\b/g, '').replace(/\bQ\d+\b/g, '');
-  s = s.split(' ').filter((w) => !/^[0-9a-f]{7,40}$/i.test(w) && !w.includes('/api/') && !/\.(tsx|mjs|sql)$/.test(w) && !w.startsWith('web/src')).join(' ');
+  s = dropIdents(s);
   s = s.replace(/\(\s*[,·\s]*/g, '(').replace(/[,·\s]*\)/g, ')').replace(/\(\)/g, '').replace(/\s+/g, ' ').replace(/[\s\-–—:·,]+$/, '').trim();
   if ([...s].length < 2) s = `${kind} 변경`;
   return plain(s, n);
@@ -33,7 +33,7 @@ export function subjectPlain(subject, n) {
 // 개요 식별자: 예산 검사(budget/view-budget.spec.mjs 의 IDENT)와 같은 패턴. 두 벌이라 단위 검사가 패턴 문자열을 대조한다
 export const OVERVIEW_IDENT = /\/api\/|\.tsx\b|\.mjs\b|\.sql\b|\bweb\/src\b|\b[0-9a-f]{7,40}\b/;
 // 개요 자유 글자 정리(2.3.0): 공백 낱말마다 개요 식별자 정규식을 적용해 걸린 낱말을 통째로 지운다(「26a3f40,」·「icons.tsx를」도).
-// 마크다운 링크 대상의 작업 폴더 날짜가 걸리므로 plain 뒤에 부른다. 커밋 제목(subjectPlain)은 기존 낱말 규칙 그대로다
+// 마크다운 링크 대상의 작업 폴더 날짜가 걸리므로 plain 뒤에 부른다. 2.3.1 부터 커밋 제목(subjectPlain)도 같은 규칙을 쓴다
 export function dropIdents(text) {
   return String(text ?? '').split(/\s+/).filter((w) => w && !OVERVIEW_IDENT.test(w)).join(' ');
 }
