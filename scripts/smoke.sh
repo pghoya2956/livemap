@@ -188,6 +188,46 @@ bg_serve "$EP-roadmap" 4191
 ep_roadmap_order() { node "$T/panel-order.mjs" "$CRAWL" http://127.0.0.1:4191/map/ "ms repos changes work-tasks repo-trend signals ledger decisions"; }
 soft "빈 제품 축: 단일 저장소 로드맵 복사본 패널 순서" ep_roadmap_order
 
+# 분포 막대 회귀(2.3.1): 워크스페이스 export 의 overview.json 에 저장소 7개 합성 자료를 넣어 정적으로 띄우고,
+# 1440×900 에서 진행 작업 분포 막대 수가 저장소 표 행 수와 같고(둘 다 「외 n」을 같은 값에서 센다) 세로 넘침이 없는지 본다.
+# 2.3.0 되돌림(저장소 6개에서 막대 5개)을 픽스처 없이 재현하던 합성본 측정을 스모크 단계로 고정한 것이다
+step "빈 제품 축: 저장소 7개 합성본 export"
+(cd "$WS" && "$L" export "$T/ws-site7" >/dev/null)
+node -e '
+const fs = require("fs"), f = process.argv[1], o = JSON.parse(fs.readFileSync(f, "utf8"));
+const names = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf"];
+o.productEmpty = true;
+o.repos = names.map((name, i) => ({ name, role: i ? null : "상위", build: "ok", commits: 10 * (7 - i), running: (i % 3) + 1, stepsLive: 0, stepsTotal: 0, drift: 0 }));
+o.work = o.work || { tasks: [], ledger: [], decisions: [] };
+o.work.tasks = names.flatMap((name, i) => Array.from({ length: (i % 3) + 1 }, (_, k) => ({ id: `${name}:2026010${k + 1}-t`, title: `${name} 작업 ${k + 1}`, stage: ["계획", "실행", "조사·기록"][k], date: "2026-01-0" + (k + 1), pnDone: k, pnOpen: 1, repo: name })));
+fs.writeFileSync(f, JSON.stringify(o));' "$T/ws-site7/data/overview.json"
+bg_serve "$WS" 4195 --static "$T/ws-site7"
+cat > "$T/spread-bars.mjs" <<'JS'
+// 진행 작업 분포 막대 수 = 저장소 표 행 수, 둘 다 1 이상, 세로 넘침 0 이하
+const [crawl, url] = process.argv.slice(2);
+const { launchBrowser, fetchJson } = await import(crawl);
+await fetchJson(`${url}data/overview.json`);
+const browser = await launchBrowser(url);
+let ok = false;
+try {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`${url}#/overview`);
+  await page.waitForSelector('main.grid .panel.spread .bar', { timeout: 15000 });
+  const r = await page.evaluate(() => ({
+    bars: document.querySelectorAll('main.grid .panel.spread .bar').length,
+    rows: document.querySelectorAll('main.grid .panel.repos a.row').length,
+    barsMore: document.querySelector('main.grid .panel.spread .ph a.more')?.textContent?.trim() ?? '',
+    rowsMore: document.querySelector('main.grid .panel.repos .ph a.more')?.textContent?.trim() ?? '',
+    overflowY: document.documentElement.scrollHeight - window.innerHeight,
+  }));
+  console.log(`분포 막대 ${r.bars}(${r.barsMore || '외 없음'}) · 저장소 표 행 ${r.rows}(${r.rowsMore || '외 없음'}) · 넘침 ${r.overflowY}`);
+  ok = r.bars >= 6 && r.bars === r.rows && r.barsMore === r.rowsMore && r.overflowY <= 0;
+} finally { await browser.close(); }
+process.exit(ok ? 0 : 1);
+JS
+spread_bars() { node "$T/spread-bars.mjs" "$CRAWL" http://127.0.0.1:4195/map/; }
+soft "빈 제품 축: 저장소 7개 합성본 분포 막대" spread_bars
+
 step "init 두 번(두 번째 무변경)"
 mkdir "$T/e" && cd "$T/e" && npm init -y >/dev/null && npm i --no-save --no-audit --no-fund "$TGZ" >/dev/null
 snap() { find . -path ./node_modules -prune -o -type f -print | sort | while IFS= read -r f; do shasum "$f"; done; }
